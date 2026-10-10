@@ -126,8 +126,9 @@ export const chatService = {
     conversationId: string,
     onMessage: (message: MessageItem) => void
   ) {
+    const channelTopic = `conversation:${conversationId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const channel = supabase
-      .channel(`conversation:${conversationId}`)
+      .channel(channelTopic)
       .on(
         'postgres_changes',
         {
