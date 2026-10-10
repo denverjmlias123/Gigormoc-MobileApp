@@ -268,7 +268,14 @@ Current description: "${currentDesc}"`;
         if (!fallbackResp.ok) {
           const errText = await fallbackResp.text();
           console.error('Gemini API error:', errText);
-          return new Response(JSON.stringify({ error: 'Gemini AI service currently unavailable. Please check API key.' }), {
+          let detail = '';
+          try {
+            const errObj = JSON.parse(errText);
+            detail = errObj?.error?.message || errText;
+          } catch {
+            detail = errText;
+          }
+          return new Response(JSON.stringify({ error: `Gemini API error: ${detail}` }), {
             status: 502,
             headers: corsHeaders,
           });
