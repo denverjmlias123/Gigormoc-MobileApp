@@ -6,13 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { applicationsService, ModeSwitchStatus } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
+import { confirmDialog, notify } from '../../lib/dialog';
 
 export default function ModeSettingsScreen() {
   const router = useRouter();
@@ -45,8 +45,8 @@ export default function ModeSettingsScreen() {
   const targetMode = currentMode === 'find_work' ? 'hire' : 'find_work';
   const targetLabel = targetMode === 'find_work' ? 'Find Work (Freelancer)' : 'Hire (Client)';
 
-  const handleSwitchMode = () => {
-    if (!status?.can_switch) return;
+  const handleSwitchMode = async () => {
+    if (!status?.can_switch || switching) return;
 
     let warningText = '';
     if (currentMode === 'hire') {
@@ -55,34 +55,26 @@ export default function ModeSettingsScreen() {
       warningText = `Switching to Hire mode will withdraw any pending job proposals you have submitted (${status.pending_apps_count} proposal(s)).\n\nYou will not be able to switch back for 7 days.`;
     }
 
-    Alert.alert(
-      `Switch to ${targetLabel}?`,
-      `${warningText}\n\nAre you sure you want to proceed?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm & Switch Mode',
-          style: 'destructive',
-          onPress: async () => {
-            setSwitching(true);
-            try {
-              await applicationsService.switchMode(targetMode, true);
-              await refreshProfile();
-              Alert.alert('Mode Switched', `You are now in ${targetLabel} mode.`, [
-                {
-                  text: 'OK',
-                  onPress: () => router.replace('/(tabs)/profile'),
-                },
-              ]);
-            } catch (err: any) {
-              Alert.alert('Switch Error', err?.message || 'Could not switch mode.');
-            } finally {
-              setSwitching(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmDialog({
+      title: `Switch to ${targetLabel}?`,
+      message: `${warningText}\n\nAre you sure you want to proceed?`,
+      confirmText: 'Confirm & Switch Mode',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setSwitching(true);
+    try {
+      await applicationsService.switchMode(targetMode, true);
+      await refreshProfile();
+      await fetchStatus();
+      await notify('Mode Switched', `You are now in ${targetLabel} mode.`);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      await notify('Switch Error', err?.message || 'Could not switch mode.');
+    } finally {
+      setSwitching(false);
+    }
   };
 
   return (
