@@ -287,17 +287,12 @@ Current description: "${currentDesc}"`;
     // 7. Parse and Validate JSON Output Strict Schema
     let parsed: any;
     try {
-      let cleaned = content.trim();
-      if (cleaned.startsWith('`json')) {
-        cleaned = cleaned.replace(/^`json\s*/, '').replace(/\s*`$/, '');
-      } else if (cleaned.startsWith('`')) {
-        cleaned = cleaned.replace(/^`\s*/, '').replace(/\s*`$/, '');
-      }
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        parsed = JSON.parse(content.substring(firstBrace, lastBrace + 1));
       } else {
-        parsed = JSON.parse(cleaned);
+        parsed = JSON.parse(content);
       }
     } catch (parseErr) {
       console.error('Failed to parse AI JSON:', content, parseErr);
