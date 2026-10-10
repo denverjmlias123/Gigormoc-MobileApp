@@ -33,23 +33,38 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: theme.isClient ? 'Dashboard' : 'Home', tabBarIcon: tabIcon('home', 'home-outline') }}
+        options={{
+          title: theme.isClient ? 'Dashboard' : 'Discover',
+          tabBarIcon: tabIcon(theme.isClient ? 'grid' : 'sparkles', theme.isClient ? 'grid-outline' : 'sparkles-outline'),
+        }}
       />
       <Tabs.Screen
         name="gigs"
-        options={{ title: 'Gigs', tabBarIcon: tabIcon('briefcase', 'briefcase-outline') }}
+        options={{
+          title: theme.isClient ? 'My Gigs' : 'Browse',
+          tabBarIcon: tabIcon('briefcase', 'briefcase-outline'),
+        }}
       />
       <Tabs.Screen
         name="activity"
-        options={{ title: 'Activity', tabBarIcon: tabIcon('pulse', 'pulse-outline') }}
+        options={{
+          title: theme.isClient ? 'Hires' : 'My Work',
+          tabBarIcon: tabIcon('layers', 'layers-outline'),
+        }}
       />
       <Tabs.Screen
         name="messages"
-        options={{ title: 'Messages', tabBarIcon: tabIcon('chatbubbles', 'chatbubbles-outline') }}
+        options={{
+          title: 'Messages',
+          tabBarIcon: tabIcon('chatbubbles', 'chatbubbles-outline'),
+        }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: 'Profile', tabBarIcon: tabIcon('person-circle', 'person-circle-outline') }}
+        options={{
+          title: 'Profile',
+          tabBarIcon: tabIcon('person-circle', 'person-circle-outline'),
+        }}
       />
     </Tabs>
   );

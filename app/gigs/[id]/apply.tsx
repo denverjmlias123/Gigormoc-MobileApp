@@ -21,7 +21,7 @@ export default function ApplyGigScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   const [priceStr, setPriceStr] = useState('');
   const [daysStr, setDaysStr] = useState('');
@@ -32,6 +32,11 @@ export default function ApplyGigScreen() {
   const handleSubmit = async () => {
     if (!id) return;
     setError(null);
+
+    if (profile?.active_mode !== 'find_work') {
+      setError('You must be in Find Work mode to submit proposals.');
+      return;
+    }
 
     const priceNum = parseFloat(priceStr);
     const daysNum = parseInt(daysStr, 10);

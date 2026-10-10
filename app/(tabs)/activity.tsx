@@ -276,7 +276,7 @@ export default function ActivityScreen() {
               { color: activeTab === 'primary' ? theme.colors.primary : theme.colors.muted },
             ]}
           >
-            {isFindWork ? 'My Applications' : 'My Gigs'}
+            {isFindWork ? 'Proposals' : 'Applicants'}
           </Text>
         </TouchableOpacity>
 
@@ -293,7 +293,7 @@ export default function ActivityScreen() {
               { color: activeTab === 'agreements' ? theme.colors.primary : theme.colors.muted },
             ]}
           >
-            Agreements {myAgreements.length > 0 ? `(${myAgreements.length})` : ''}
+            {isFindWork ? 'Jobs' : 'Hired'} {myAgreements.length > 0 ? `(${myAgreements.length})` : ''}
           </Text>
         </TouchableOpacity>
       </View>

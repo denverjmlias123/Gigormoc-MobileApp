@@ -191,15 +191,38 @@ export default function GigDetailScreen() {
           <Button
             title="View Applicants"
             onPress={handleApplyPress}
-            variant="secondary"
-          />
-        ) : (
-          <Button
-            title={strings.gigs.applyBtn}
-            onPress={handleApplyPress}
             variant="primary"
-            disabled={gig.status !== 'open'}
           />
+        ) : isFreelancerMode ? (
+          <View style={{ width: '100%' }}>
+            {gig.status !== 'open' && (
+              <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                {gig.status === 'in_progress'
+                  ? 'This gig is already in progress.'
+                  : gig.status === 'completed'
+                  ? 'This gig has been completed.'
+                  : 'This gig is not open for applications.'}
+              </Text>
+            )}
+            <Button
+              title={strings.gigs.applyBtn}
+              onPress={handleApplyPress}
+              variant="primary"
+              disabled={gig.status !== 'open'}
+            />
+          </View>
+        ) : (
+          <View style={{ width: '100%' }}>
+            <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+              Switch to Find Work mode in your Profile settings to apply.
+            </Text>
+            <Button
+              title="Apply for this Gig"
+              onPress={handleApplyPress}
+              variant="secondary"
+              disabled={true}
+            />
+          </View>
         )}
       </View>
     </View>
@@ -333,6 +356,12 @@ const styles = StyleSheet.create({
   },
   ownerText: {
     fontSize: 14,
+    fontWeight: '500',
+  },
+  reasonText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
     fontWeight: '500',
   },
 });
