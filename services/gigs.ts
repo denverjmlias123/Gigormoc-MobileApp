@@ -70,6 +70,12 @@ export const gigsService = {
       query = query.ilike('title', `%${filter.searchQuery.trim()}%`);
     }
 
+    // Own-content rule: exclude caller's own gigs from available work
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id) {
+      query = query.neq('client_id', authData.user.id);
+    }
+
     const { data, error } = await query;
     if (error) throw error;
 
