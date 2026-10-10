@@ -352,6 +352,9 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.submit_application(uuid, integer, integer, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_application(uuid, integer, integer, text) TO authenticated;
+
 -- 5. RPC to fetch user conversations with latest message, unread status, and partner details
 CREATE OR REPLACE FUNCTION public.get_user_conversations()
 RETURNS TABLE (
