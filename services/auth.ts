@@ -126,4 +126,12 @@ export const authService = {
 
     return data as Profile;
   },
+
+  async completeOnboarding(): Promise<void> {
+    const { error } = await supabase.rpc('complete_onboarding');
+    if (error) {
+      throw error;
+    }
+  },
 };
+

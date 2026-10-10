@@ -12,7 +12,15 @@ export interface Category {
 export interface Skill {
   id: string;
   name: string;
-  category_id: string;
+  category_id: string | null;
+  is_active: boolean;
+  source?: string;
+  created_at: string;
+}
+
+export interface Area {
+  id: string;
+  name: string;
   is_active: boolean;
   created_at: string;
 }
@@ -54,7 +62,6 @@ export const profileService = {
     let query = supabase
       .from('skills')
       .select('*')
-      .eq('is_active', true)
       .order('name');
 
     if (categoryId) {
@@ -64,6 +71,35 @@ export const profileService = {
     const { data, error } = await query;
     if (error) throw error;
     return (data || []) as Skill[];
+  },
+
+  async getAreas(): Promise<Area[]> {
+    const { data, error } = await supabase
+      .from('areas')
+      .select('*')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) throw error;
+    return (data || []) as Area[];
+  },
+
+  async addProfileSkills(skillIds: string[], customNames: string[]): Promise<Skill[]> {
+    const { data, error } = await supabase.rpc('add_profile_skills', {
+      p_skill_ids: skillIds,
+      p_custom_names: customNames,
+    });
+
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.skill_id,
+      name: row.name,
+      category_id: null,
+      is_active: row.is_active,
+      source: row.source,
+      created_at: new Date().toISOString(),
+    }));
   },
 
   async getUserSkills(profileId: string): Promise<Skill[]> {
