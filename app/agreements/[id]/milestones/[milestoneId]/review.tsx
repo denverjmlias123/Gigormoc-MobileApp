@@ -133,7 +133,7 @@ export default function ReviewMilestoneScreen() {
           </View>
 
           {error && (
-            <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+            <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -248,7 +248,7 @@ export default function ReviewMilestoneScreen() {
                 </View>
               )
             ) : (
-              <View style={[styles.infoBanner, { backgroundColor: '#fff3e0', borderColor: '#ffe0b2' }]}>
+              <View style={[styles.infoBanner, { backgroundColor: '#FEF1D6', borderColor: '#F6D58B' }]}>
                 <Text style={styles.infoBannerText}>
                   ⚠️ Maximum revisions (2/2) have been used. You must either approve the deliverable or contact support for dispute resolution.
                 </Text>
@@ -401,6 +401,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
 });

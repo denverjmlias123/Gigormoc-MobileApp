@@ -159,9 +159,9 @@ const styles = StyleSheet.create({
   noticeBox: {
     padding: 14,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#E4ECFF',
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#E4ECFF',
     marginBottom: 20,
   },
   noticeTitle: {
@@ -174,15 +174,15 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   errorBox: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#DC2626',
+    color: '#D92D3E',
     fontSize: 14,
   },
 });

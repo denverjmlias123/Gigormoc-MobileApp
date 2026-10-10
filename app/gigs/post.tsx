@@ -339,15 +339,15 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   errorBox: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#DC2626',
+    color: '#D92D3E',
     fontSize: 14,
   },
   fieldGroup: {

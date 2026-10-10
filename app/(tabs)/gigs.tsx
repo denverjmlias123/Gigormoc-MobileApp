@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
+  Pressable,
   TextInput as RNTextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { gigsService } from '../../services/gigs';
@@ -16,6 +16,7 @@ import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Chip } from '../../components/ui/Chip';
 import { strings } from '../../constants/strings';
 
 type WorkTypeFilter = 'all' | 'remote' | 'face_to_face' | 'hybrid';
@@ -61,15 +62,25 @@ export default function GigsScreen() {
     loadData();
   };
 
+  const filters: { id: WorkTypeFilter; label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+    { id: 'all', label: strings.gigs.filterAll },
+    { id: 'remote', label: strings.gigs.filterRemote, icon: 'laptop-outline' },
+    { id: 'face_to_face', label: strings.gigs.filterFaceToFace, icon: 'people-outline' },
+    { id: 'hybrid', label: strings.gigs.filterHybrid, icon: 'swap-horizontal-outline' },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{strings.gigs.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.gigs.title}</Text>
+          <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+            {loading ? '' : `${gigs.length} ${gigs.length === 1 ? 'gig' : 'gigs'}`}
+          </Text>
+        </View>
 
-        {/* Search input */}
-        <View style={[styles.searchBox, { borderColor: theme.colors.border, backgroundColor: theme.colors.bg }]}>
-          <Text style={styles.searchIcon}>🔍</Text>
+        <View style={[styles.searchBox, { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radii.input }]}>
+          <Ionicons name="search" size={18} color={theme.colors.muted} />
           <RNTextInput
             style={[styles.searchInput, { color: theme.colors.text }]}
             placeholder={strings.gigs.searchPlaceholder}
@@ -80,80 +91,45 @@ export default function GigsScreen() {
             returnKeyType="search"
           />
           {searchQuery ? (
-            <TouchableOpacity onPress={() => { setSearchQuery(''); loadData(); }}>
-              <Text style={{ color: theme.colors.muted, fontSize: 16 }}>✕</Text>
-            </TouchableOpacity>
+            <Pressable
+              onPress={() => {
+                setSearchQuery('');
+                loadData();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
+            </Pressable>
           ) : null}
         </View>
 
-        {/* Work type filters */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          <TouchableOpacity
-            style={[
-              styles.filterPill,
-              { borderColor: theme.colors.border },
-              workTypeFilter === 'all' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setWorkTypeFilter('all')}
-          >
-            <Text style={[styles.filterText, workTypeFilter === 'all' && { color: '#ffffff' }]}>
-              {strings.gigs.filterAll}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterPill,
-              { borderColor: theme.colors.border },
-              workTypeFilter === 'remote' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setWorkTypeFilter('remote')}
-          >
-            <Text style={[styles.filterText, workTypeFilter === 'remote' && { color: '#ffffff' }]}>
-              💻 {strings.gigs.filterRemote}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterPill,
-              { borderColor: theme.colors.border },
-              workTypeFilter === 'face_to_face' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setWorkTypeFilter('face_to_face')}
-          >
-            <Text style={[styles.filterText, workTypeFilter === 'face_to_face' && { color: '#ffffff' }]}>
-              🤝 {strings.gigs.filterFaceToFace}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.filterPill,
-              { borderColor: theme.colors.border },
-              workTypeFilter === 'hybrid' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setWorkTypeFilter('hybrid')}
-          >
-            <Text style={[styles.filterText, workTypeFilter === 'hybrid' && { color: '#ffffff' }]}>
-              🔄 {strings.gigs.filterHybrid}
-            </Text>
-          </TouchableOpacity>
+          {filters.map((f) => (
+            <Chip
+              key={f.id}
+              label={f.label}
+              icon={f.icon}
+              selected={workTypeFilter === f.id}
+              onPress={() => setWorkTypeFilter(f.id)}
+            />
+          ))}
         </ScrollView>
       </View>
 
-      {/* Gigs List */}
-      <ScrollView contentContainerStyle={styles.listContent}>
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {error ? (
           <ErrorState message={error} onRetry={loadData} />
         ) : loading ? (
           <View style={styles.skeletonContainer}>
-            <Skeleton height={140} style={{ marginBottom: 12 }} />
-            <Skeleton height={140} style={{ marginBottom: 12 }} />
-            <Skeleton height={140} style={{ marginBottom: 12 }} />
+            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
+            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
+            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
           </View>
         ) : gigs.length === 0 ? (
           <EmptyState
+            icon="search-outline"
             title={strings.gigs.noGigsTitle}
             description={strings.gigs.noGigsDesc}
             actionTitle="Refresh"
@@ -174,58 +150,12 @@ export default function GigsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: 10,
-  },
-  searchIcon: {
-    marginRight: 8,
-    fontSize: 16,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    height: '100%',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  skeletonContainer: {
-    paddingTop: 8,
-  },
+  container: { flex: 1 },
+  header: { paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 46, marginBottom: 12 },
+  searchInput: { flex: 1, fontSize: 15, height: '100%' },
+  filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
+  listContent: { padding: 16, paddingBottom: 40 },
+  skeletonContainer: { paddingTop: 8 },
 });

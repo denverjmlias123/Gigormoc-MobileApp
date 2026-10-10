@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { Badge } from './Badge';
 
@@ -44,120 +45,100 @@ export const getWorkTypeIcon = (workType: string): string => {
   }
 };
 
+const workTypeMeta: Record<string, { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
+  remote: { label: 'Remote', icon: 'laptop-outline' },
+  face_to_face: { label: 'Face-to-face', icon: 'people-outline' },
+  hybrid: { label: 'Hybrid', icon: 'swap-horizontal-outline' },
+};
+
 export const GigCard: React.FC<GigCardProps> = ({ gig, onPress }) => {
   const theme = useAppTheme();
+  const c = theme.colors;
 
   const priceDisplay =
     gig.price_min === gig.price_max
       ? formatPrice(gig.price_min)
-      : `${formatPrice(gig.price_min)} - ${formatPrice(gig.price_max)}`;
+      : `${formatPrice(gig.price_min)} – ${formatPrice(gig.price_max)}`;
 
   const deadlineFormatted = new Date(gig.application_deadline).toLocaleDateString('en-PH', {
     month: 'short',
     day: 'numeric',
   });
 
+  const meta = workTypeMeta[gig.work_type] || { label: gig.work_type, icon: 'briefcase-outline' as const };
+  // Freelancers browse open gigs, so "Open" is noise for them; clients manage status.
+  const showStatus = theme.isClient || gig.status.toLowerCase() !== 'open';
+
   return (
-    <TouchableOpacity
-      style={[
+    <Pressable
+      style={({ pressed }) => [
         styles.card,
+        theme.shadow.card,
         {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
+          backgroundColor: pressed ? c.surfaceAlt : c.surface,
           borderRadius: theme.radii.card,
         },
       ]}
       onPress={onPress}
-      activeOpacity={0.7}
       accessibilityRole="button"
+      accessibilityLabel={`${gig.title}, ${priceDisplay}`}
     >
       <View style={styles.topRow}>
-        <View style={styles.categoryBadge}>
-          <Text style={[styles.categoryText, { color: theme.colors.primary }]}>
-            {gig.category_name || 'General'}
-          </Text>
+        <View style={[styles.categoryBadge, { backgroundColor: c.primarySoft, borderRadius: theme.radii.chip }]}>
+          <Text style={[styles.categoryText, { color: c.primary }]}>{gig.category_name || 'General'}</Text>
         </View>
-        <Badge status={gig.status} />
+        {showStatus ? <Badge status={gig.status} /> : null}
       </View>
 
-      <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
+      <Text style={[styles.title, { color: c.text }]} numberOfLines={2}>
         {gig.title}
       </Text>
 
-      <Text style={[styles.price, { color: theme.colors.text }]}>{priceDisplay}</Text>
+      <Text style={[styles.price, { color: c.primary }]}>{priceDisplay}</Text>
 
       <View style={styles.metaRow}>
-        <Text style={[styles.metaItem, { color: theme.colors.muted }]}>
-          {getWorkTypeIcon(gig.work_type)}
-        </Text>
+        <View style={styles.metaItem}>
+          <Ionicons name={meta.icon} size={15} color={c.muted} />
+          <Text style={[styles.metaText, { color: c.muted }]}>{meta.label}</Text>
+        </View>
         {gig.area ? (
-          <>
-            <Text style={[styles.dot, { color: theme.colors.border }]}>•</Text>
-            <Text style={[styles.metaItem, { color: theme.colors.muted }]}>📍 {gig.area}</Text>
-          </>
+          <View style={styles.metaItem}>
+            <Ionicons name="location-outline" size={15} color={c.muted} />
+            <Text style={[styles.metaText, { color: c.muted }]} numberOfLines={1}>
+              {gig.area}
+            </Text>
+          </View>
         ) : null}
       </View>
 
-      <View style={[styles.footerRow, { borderTopColor: theme.colors.border }]}>
-        <Text style={[styles.deadlineText, { color: theme.colors.muted }]}>
-          Apply by {deadlineFormatted}
-        </Text>
-        {gig.client ? (
-          <Text style={[styles.clientRating, { color: theme.colors.text }]}>
-            ★ {Number(gig.client.client_rating_avg || 0).toFixed(1)} ({gig.client.client_rating_count || 0})
-          </Text>
+      <View style={[styles.footerRow, { borderTopColor: c.border }]}>
+        <View style={styles.metaItem}>
+          <Ionicons name="time-outline" size={15} color={c.muted} />
+          <Text style={[styles.metaText, { color: c.muted }]}>Apply by {deadlineFormatted}</Text>
+        </View>
+        {gig.client && !theme.isClient ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="star" size={14} color={c.accent} />
+            <Text style={[styles.clientRating, { color: c.text }]}>
+              {Number(gig.client.client_rating_avg || 0).toFixed(1)} ({gig.client.client_rating_count || 0})
+            </Text>
+          </View>
         ) : null}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: '#EFF6FF',
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    lineHeight: 22,
-    marginBottom: 6,
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  metaItem: {
-    fontSize: 13,
-  },
-  dot: {
-    fontSize: 13,
-  },
+  card: { padding: 16, marginBottom: 12 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  categoryBadge: { paddingHorizontal: 10, paddingVertical: 4 },
+  categoryText: { fontSize: 12, fontWeight: '700' },
+  title: { fontSize: 17, fontWeight: '800', lineHeight: 22, letterSpacing: -0.2, marginBottom: 6 },
+  price: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 10 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 12 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+  metaText: { fontSize: 13, fontWeight: '500' },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -165,11 +146,5 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  deadlineText: {
-    fontSize: 12,
-  },
-  clientRating: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  clientRating: { fontSize: 12, fontWeight: '700' },
 });

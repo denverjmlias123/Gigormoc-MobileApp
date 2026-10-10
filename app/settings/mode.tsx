@@ -112,7 +112,7 @@ export default function ModeSettingsScreen() {
           </View>
 
           {/* 7-Day Cooldown Notice */}
-          <View style={[styles.infoCard, { backgroundColor: '#f5f5f5', borderColor: theme.colors.border }]}>
+          <View style={[styles.infoCard, { backgroundColor: '#EEF2FA', borderColor: theme.colors.border }]}>
             <Text style={[styles.infoTitle, { color: theme.colors.text }]}>⏳ 7-Day Cooldown Policy</Text>
             <Text style={[styles.infoText, { color: theme.colors.muted }]}>
               Per Ormoc freelance safety rules, switching your mode has a mandatory 7-day cooldown to prevent market abuse and maintain identity accountability.
@@ -121,7 +121,7 @@ export default function ModeSettingsScreen() {
 
           {/* Eligibility & Blockers */}
           {status && !status.can_switch && (
-            <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+            <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
               <Text style={styles.errorCardTitle}>⚠️ Cannot Switch Mode Right Now</Text>
 
               {status.cooldown_remaining_days > 0 && (
@@ -139,7 +139,7 @@ export default function ModeSettingsScreen() {
           )}
 
           {error && (
-            <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+            <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
               <Text style={styles.errorCardTitle}>{error}</Text>
             </View>
           )}
@@ -246,12 +246,12 @@ const styles = StyleSheet.create({
   errorCardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#c62828',
+    color: '#A31F2D',
     marginBottom: 4,
   },
   blockerItem: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
     lineHeight: 18,
   },
   actionContainer: {

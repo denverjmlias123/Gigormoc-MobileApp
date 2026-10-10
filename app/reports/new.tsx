@@ -101,7 +101,7 @@ export default function NewReportScreen() {
         </View>
 
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -119,7 +119,7 @@ export default function NewReportScreen() {
                     styles.chip,
                     {
                       borderColor: isSelected ? theme.colors.danger : theme.colors.border,
-                      backgroundColor: isSelected ? '#fee2e2' : theme.colors.surface,
+                      backgroundColor: isSelected ? '#FDE8EA' : theme.colors.surface,
                     },
                   ]}
                   onPress={() => setCategory(c.value)}
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

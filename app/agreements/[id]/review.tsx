@@ -95,7 +95,7 @@ export default function SubmitReviewScreen() {
         </View>
 
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -114,7 +114,7 @@ export default function SubmitReviewScreen() {
                 <Text
                   style={[
                     styles.starIcon,
-                    { color: star <= rating ? '#f59e0b' : '#cbd5e1' },
+                    { color: star <= rating ? '#B45309' : '#cbd5e1' },
                   ]}
                 >
                   ★
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

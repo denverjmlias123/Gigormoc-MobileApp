@@ -157,15 +157,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   errorBox: {
-    backgroundColor: '#ffebee',
+    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#d32f2f',
+    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#d32f2f',
+    color: '#D92D3E',
     fontSize: 14,
   },
   center: {
@@ -176,9 +176,9 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: 24,
     borderRadius: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F4F7FC',
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#DCE4F2',
     alignItems: 'center',
     marginTop: 20,
   },

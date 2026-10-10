@@ -27,28 +27,29 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
   const theme = useAppTheme();
+  const c = theme.colors;
 
   const getStatusColor = () => {
     switch (status.toLowerCase()) {
       case 'open':
       case 'active':
       case 'in_progress':
-        return { bg: theme.colors.primarySoft, text: theme.colors.primary };
+        return { bg: c.primarySoft, text: c.primary };
       case 'pending':
       case 'countered':
       case 'revision_requested':
-        return { bg: '#FEF3C7', text: theme.colors.warning };
+        return { bg: c.warningSoft, text: c.warning };
       case 'approved':
       case 'confirmed':
       case 'completed':
-        return { bg: '#DCFCE7', text: theme.colors.success };
+        return { bg: c.successSoft, text: c.success };
       case 'declined':
       case 'cancelled':
       case 'expired':
       case 'disputed':
-        return { bg: '#FEE2E2', text: theme.colors.danger };
+        return { bg: c.dangerSoft, text: c.dangerText };
       default:
-        return { bg: '#F1F5F9', text: theme.colors.muted };
+        return { bg: c.surfaceAlt, text: c.muted };
     }
   };
 
@@ -56,13 +57,13 @@ export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
     if (label) return label;
     switch (status.toLowerCase()) {
       case 'in_progress':
-        return 'In Progress';
+        return 'In progress';
       case 'revision_requested':
-        return 'Needs Revision';
+        return 'Needs revision';
       case 'face_to_face':
-        return 'Face-to-Face';
+        return 'Face-to-face';
       default:
-        return status.charAt(0).toUpperCase() + status.slice(1);
+        return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
   };
 
@@ -70,6 +71,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
 
   return (
     <View style={[styles.pill, { backgroundColor: colors.bg, borderRadius: theme.radii.pill }]}>
+      <View style={[styles.dot, { backgroundColor: colors.text }]} />
       <Text style={[styles.label, { color: colors.text }]}>{getStatusLabel()}</Text>
     </View>
   );
@@ -77,12 +79,13 @@ export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
 
 const styles = StyleSheet.create({
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     alignSelf: 'flex-start',
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  label: { fontSize: 12, fontWeight: '700' },
 });

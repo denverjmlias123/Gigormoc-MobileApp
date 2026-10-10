@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
+import { TextInput } from '../../components/ui/TextInput';
+import { Button } from '../../components/ui/Button';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -20,7 +13,6 @@ export default function LoginScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,163 +45,73 @@ export default function LoginScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: theme.colors.text }]}>Welcome Back</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-          Log in to your Gigormoc account
+        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+        </Pressable>
+
+        <Text style={[theme.type.display, { color: theme.colors.text }]}>Welcome back</Text>
+        <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>
+          Log in to pick up where you left off.
         </Text>
 
         {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}>
+            <Ionicons name="alert-circle" size={18} color={theme.colors.dangerText} />
+            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
           </View>
         )}
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Email Address</Text>
-          <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={theme.colors.muted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
+        <TextInput
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.passwordInput, { borderColor: theme.colors.border, color: theme.colors.text }]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Your password"
-              placeholderTextColor={theme.colors.muted}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.showButton}
-            >
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>
-                {showPassword ? 'Hide' : 'Show'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <TextInput
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Your password"
+          isPassword
+          autoCapitalize="none"
+          autoComplete="password"
+        />
 
-        <TouchableOpacity
-          style={styles.forgotPassword}
-          onPress={() => router.push('/(auth)/forgot-password')}
-        >
-          <Text style={{ color: theme.colors.primary, fontSize: 14 }}>Forgot password?</Text>
-        </TouchableOpacity>
+        <Pressable style={styles.forgotPassword} onPress={() => router.push('/(auth)/forgot-password')} hitSlop={8}>
+          <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '700' }}>Forgot password?</Text>
+        </Pressable>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }, loading && { opacity: 0.7 }]}
-          onPress={handleLogin}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Log In</Text>
-          )}
-        </TouchableOpacity>
+        <Button title="Log in" onPress={handleLogin} loading={loading} />
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => router.push('/(auth)/signup-step1')}
-        >
+        <Pressable style={styles.linkButton} onPress={() => router.push('/(auth)/signup-step1')}>
           <Text style={{ color: theme.colors.muted }}>
-            Don't have an account? <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Sign Up</Text>
+            New to Gigormoc? <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Create an account</Text>
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    marginBottom: 24,
-  },
+  container: { flex: 1 },
+  scrollContent: { padding: 24, paddingTop: 56 },
+  back: { marginBottom: 24, alignSelf: 'flex-start' },
+  subtitle: { marginTop: 8, marginBottom: 28 },
   errorBox: {
-    backgroundColor: '#ffebee',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#d32f2f',
   },
-  errorText: {
-    color: '#d32f2f',
-    fontSize: 14,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingLeft: 14,
-    paddingRight: 60,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  showButton: {
-    position: 'absolute',
-    right: 14,
-    top: 14,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    alignItems: 'center',
-    marginTop: 24,
-    padding: 8,
-  },
+  errorText: { fontSize: 14, flex: 1, fontWeight: '600' },
+  forgotPassword: { alignSelf: 'flex-end', marginBottom: 20 },
+  linkButton: { alignItems: 'center', marginTop: 24, padding: 8 },
 });

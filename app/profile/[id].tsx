@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     padding: 20,
-    backgroundColor: '#fafafa',
+    backgroundColor: '#F4F7FC',
     marginBottom: 24,
   },
   avatarRow: {
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   },
   reviewStarsText: {
     fontSize: 14,
-    color: '#f59e0b',
+    color: '#B45309',
   },
   reviewCommentText: {
     fontSize: 13,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#DCE4F2',
   },
   bioTitle: {
     fontSize: 12,

@@ -149,15 +149,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorBox: {
-    backgroundColor: '#ffebee',
+    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#d32f2f',
+    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#d32f2f',
+    color: '#D92D3E',
     fontSize: 14,
   },
   inputGroup: {

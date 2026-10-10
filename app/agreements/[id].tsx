@@ -475,8 +475,8 @@ export default function AgreementDetailScreen() {
                     style={[
                       styles.paymentRowCard,
                       {
-                        borderColor: isDisputed ? '#ef9a9a' : isConfirmed ? '#a5d6a7' : theme.colors.border,
-                        backgroundColor: isDisputed ? '#ffebee' : isConfirmed ? '#f1f8e9' : theme.colors.surface,
+                        borderColor: isDisputed ? '#F3A6AE' : isConfirmed ? '#9BD9BE' : theme.colors.border,
+                        backgroundColor: isDisputed ? '#FDE8EA' : isConfirmed ? '#DDF5EA' : theme.colors.surface,
                       },
                     ]}
                   >
@@ -679,7 +679,7 @@ export default function AgreementDetailScreen() {
         )}
 
         {/* Safety Notice */}
-        <View style={[styles.noticeCard, { backgroundColor: '#e8f5e9', borderColor: '#a5d6a7' }]}>
+        <View style={[styles.noticeCard, { backgroundColor: '#DDF5EA', borderColor: '#9BD9BE' }]}>
           <Text style={styles.noticeTitle}>🛡️ Direct Payment & Record Integrity</Text>
           <Text style={styles.noticeText}>
             Payments are made directly outside the platform. Statuses indicate external reports and confirmations between parties; Gigormoc never holds or guarantees escrow funds.
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
   },
   disputeReasonText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
     fontWeight: '500',
   },
   paymentActionButtons: {
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#DCE4F2',
     gap: 6,
   },
   completeRequirementsHint: {
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#DCE4F2',
   },
   chatBtn: {
     paddingHorizontal: 12,
@@ -903,7 +903,7 @@ const styles = StyleSheet.create({
   },
   reviewStars: {
     fontSize: 14,
-    color: '#f59e0b',
+    color: '#B45309',
   },
   reviewComment: {
     fontSize: 13,
@@ -965,11 +965,11 @@ const styles = StyleSheet.create({
   noticeTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1b5e20',
+    color: '#0B5C41',
   },
   noticeText: {
     fontSize: 13,
-    color: '#2e7d32',
+    color: '#12805C',
     lineHeight: 18,
   },
 });

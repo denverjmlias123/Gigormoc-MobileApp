@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -7,6 +8,9 @@ import { gigsService } from '../../services/gigs';
 import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
+import { Avatar } from '../../components/ui/Avatar';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { SectionHeader } from '../../components/ui/SectionHeader';
 import { strings } from '../../constants/strings';
 
 export default function HomeScreen() {
@@ -42,187 +46,214 @@ export default function HomeScreen() {
     loadHomeData();
   }, [profile?.active_mode, user]);
 
+  const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon';
+  const openCount = myGigs.filter((g) => g.status?.toLowerCase() === 'open').length;
+  const draftCount = myGigs.filter((g) => g.status?.toLowerCase() === 'draft').length;
+
+  const renderLoading = () => (
+    <View>
+      <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
+      <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <View style={styles.greetingCol}>
-          <Text style={[styles.greeting, { color: theme.colors.muted }]}>Maayong adlaw,</Text>
-          <Text style={[styles.name, { color: theme.colors.text }]}>
-            {profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon'}
-          </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Hero: color and content change with the active mode */}
+        <View style={[styles.hero, { backgroundColor: theme.colors.heroBg }]}>
+          <View style={styles.heroTop}>
+            <Avatar name={displayName} size={44} onHero />
+            <View style={styles.greetingCol}>
+              <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Maayong adlaw,</Text>
+              <Text style={[styles.name, { color: theme.colors.heroText }]} numberOfLines={1}>
+                {displayName}
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.modePill, { backgroundColor: theme.colors.heroChip }]}
+              onPress={() => router.push('/(tabs)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Current mode. Open profile to change."
+            >
+              <Ionicons name={isHire ? 'people' : 'search'} size={14} color={theme.colors.heroText} />
+              <Text style={[styles.modePillText, { color: theme.colors.heroText }]}>
+                {isFindWork ? 'Find work' : isHire ? 'Hiring' : 'Select mode'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {isHire ? (
+            <>
+              <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
+                Your hiring at a glance
+              </Text>
+              <View style={styles.statRow}>
+                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <Text style={styles.statValue}>{loading ? '–' : openCount}</Text>
+                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Open</Text>
+                </View>
+                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <Text style={styles.statValue}>{loading ? '–' : draftCount}</Text>
+                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Drafts</Text>
+                </View>
+                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <Text style={styles.statValue}>{loading ? '–' : myGigs.length}</Text>
+                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>All gigs</Text>
+                </View>
+              </View>
+              <Pressable
+                style={[styles.heroCta, { backgroundColor: '#FFFFFF' }]}
+                onPress={() => router.push('/gigs/post')}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add-circle" size={20} color={theme.colors.primary} />
+                <Text style={[styles.heroCtaText, { color: theme.colors.primaryDark }]}>Post a gig</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
+                Find your next gig in Ormoc
+              </Text>
+              <Pressable
+                style={styles.searchFake}
+                onPress={() => router.push('/(tabs)/gigs')}
+                accessibilityRole="search"
+                accessibilityLabel="Search gigs"
+              >
+                <Ionicons name="search" size={18} color={theme.colors.muted} />
+                <Text style={{ color: theme.colors.muted, fontSize: 15 }}>{strings.gigs.searchPlaceholder}</Text>
+              </Pressable>
+            </>
+          )}
         </View>
 
-        {/* Current Mode Label (No quick switch toggle per docs/DESIGN.md) */}
-        <TouchableOpacity
-          style={[styles.modePill, { backgroundColor: theme.colors.primarySoft }]}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.modePillText, { color: theme.colors.primary }]}>
-            {isFindWork ? '🛠️ Find Work' : isHire ? '💼 Hire Someone' : 'Select Mode'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Banner if profile missing photo */}
-        {!profile?.avatar_path && (
-          <View style={[styles.banner, { backgroundColor: '#EFF6FF', borderColor: theme.colors.primarySoft }]}>
-            <Text style={[styles.bannerText, { color: theme.colors.text }]}>
-              💡 Complete your profile photo and skills to qualify for gig applications.
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/profile/edit')}>
-              <Text style={[styles.bannerAction, { color: theme.colors.primary }]}>Add Photo →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {isHire ? (
-          /* Hire Someone Mode View */
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                {strings.gigs.myGigs}
+        <View style={styles.body}>
+          {!profile?.avatar_path && (
+            <Pressable
+              style={[styles.banner, { backgroundColor: theme.colors.primarySoft }]}
+              onPress={() => router.push('/profile/edit')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="camera-outline" size={22} color={theme.colors.primary} />
+              <Text style={[styles.bannerText, { color: theme.colors.text }]}>
+                Add a profile photo and skills so you can apply to gigs.
               </Text>
-              <Button
-                title="+ Post a Gig"
-                onPress={() => router.push('/gigs/post')}
-                variant="primary"
-                style={styles.postBtn}
-              />
-            </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.primary} />
+            </Pressable>
+          )}
 
-            {loading ? (
-              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 24 }} />
-            ) : myGigs.length === 0 ? (
-              <EmptyState
-                title={strings.gigs.noMyGigsTitle}
-                description={strings.gigs.noMyGigsDesc}
-                actionTitle={strings.gigs.postGig}
-                onAction={() => router.push('/gigs/post')}
-              />
-            ) : (
-              myGigs.map((gig) => (
-                <GigCard
-                  key={gig.id}
-                  gig={gig}
-                  onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+          {isHire ? (
+            <View>
+              <SectionHeader title={strings.gigs.myGigs} />
+              {loading ? (
+                renderLoading()
+              ) : myGigs.length === 0 ? (
+                <EmptyState
+                  icon="document-text-outline"
+                  title={strings.gigs.noMyGigsTitle}
+                  description={strings.gigs.noMyGigsDesc}
+                  actionTitle={strings.gigs.postGig}
+                  onAction={() => router.push('/gigs/post')}
                 />
-              ))
-            )}
-          </View>
-        ) : (
-          /* Find Work Mode View */
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                {strings.gigs.availableGigs}
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/gigs')}>
-                <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 14 }}>
-                  View All →
-                </Text>
-              </TouchableOpacity>
+              ) : (
+                myGigs.map((gig) => (
+                  <GigCard
+                    key={gig.id}
+                    gig={gig}
+                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                  />
+                ))
+              )}
             </View>
-
-            {loading ? (
-              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 24 }} />
-            ) : availableGigs.length === 0 ? (
-              <EmptyState
-                title={strings.gigs.noGigsTitle}
-                description={strings.gigs.noGigsDesc}
-                actionTitle="Refresh Gigs"
-                onAction={loadHomeData}
+          ) : (
+            <View>
+              <SectionHeader
+                title={strings.gigs.availableGigs}
+                actionLabel="See all"
+                onAction={() => router.push('/(tabs)/gigs')}
               />
-            ) : (
-              availableGigs.slice(0, 5).map((gig) => (
-                <GigCard
-                  key={gig.id}
-                  gig={gig}
-                  onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+              {loading ? (
+                renderLoading()
+              ) : availableGigs.length === 0 ? (
+                <EmptyState
+                  icon="briefcase-outline"
+                  title={strings.gigs.noGigsTitle}
+                  description={strings.gigs.noGigsDesc}
+                  actionTitle="Refresh"
+                  onAction={loadHomeData}
                 />
-              ))
-            )}
-          </View>
-        )}
+              ) : (
+                availableGigs.slice(0, 5).map((gig) => (
+                  <GigCard
+                    key={gig.id}
+                    gig={gig}
+                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                  />
+                ))
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: 52,
+  container: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+  hero: {
+    paddingTop: 56,
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
-  greetingCol: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  greetingCol: { flex: 1 },
+  name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
   },
-  modePillText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  banner: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
+  modePillText: { fontSize: 13, fontWeight: '700' },
+  statRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  stat: { flex: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14 },
+  statValue: { color: '#FFFFFF', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  heroCtaText: { fontSize: 16, fontWeight: '800' },
+  searchFake: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
+    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 50,
   },
-  bannerText: {
-    fontSize: 13,
-    flex: 1,
-    lineHeight: 18,
-  },
-  bannerAction: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
+  body: { paddingHorizontal: 20, paddingTop: 20 },
+  banner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 20,
   },
-  sectionTitle: {
-    fontSize: 19,
-    fontWeight: '800',
-  },
-  postBtn: {
-    minHeight: 38,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
+  bannerText: { fontSize: 14, flex: 1, lineHeight: 19, fontWeight: '500' },
 });

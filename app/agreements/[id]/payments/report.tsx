@@ -96,7 +96,7 @@ export default function ReportPaymentScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Transparency Banner */}
-        <View style={[styles.warningBanner, { backgroundColor: '#fff8e1', borderColor: '#ffe082' }]}>
+        <View style={[styles.warningBanner, { backgroundColor: '#FEF1D6', borderColor: '#F6D58B' }]}>
           <Text style={styles.warningTitle}>⚠️ External Payment Notice</Text>
           <Text style={styles.warningText}>
             Gigormoc does not process, hold, or guarantee money. Send funds directly to the freelancer using your preferred channel, then report the payment details here for their confirmation.
@@ -104,7 +104,7 @@ export default function ReportPaymentScreen() {
         </View>
 
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#b26a00',
+    color: '#B45309',
   },
   warningText: {
     fontSize: 13,
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

@@ -85,7 +85,7 @@ export default function DisputePaymentScreen() {
         </View>
 
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, lightFreelancerTheme, clientTheme } from '../theme';
+import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
@@ -59,18 +61,26 @@ export default function OnboardingStep1ModeScreen() {
     }
   };
 
-  const options: { id: ModeChoice; title: string; desc: string; icon: string }[] = [
+  const options: {
+    id: ModeChoice;
+    title: string;
+    desc: string;
+    icon: React.ComponentProps<typeof Ionicons>['name'];
+    colors: { bg: string; fg: string; sub: string };
+  }[] = [
     {
       id: 'find_work',
       title: strings.modes.findWork,
       desc: strings.modes.findWorkDesc,
-      icon: '🛠️',
+      icon: 'search',
+      colors: { bg: lightFreelancerTheme.colors.heroBg, fg: '#FFFFFF', sub: lightFreelancerTheme.colors.heroMuted },
     },
     {
       id: 'hire',
       title: strings.modes.hire,
       desc: strings.modes.hireDesc,
-      icon: '💼',
+      icon: 'people',
+      colors: { bg: clientTheme.colors.heroBg, fg: '#FFFFFF', sub: clientTheme.colors.heroMuted },
     },
   ];
 
@@ -78,23 +88,23 @@ export default function OnboardingStep1ModeScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Onboarding 1 of 3 (Required)</Text>
-          <TouchableOpacity onPress={handleSignOut} disabled={loading} style={styles.headerLogoutBtn}>
-            <Text style={[styles.headerLogoutText, { color: theme.colors.primary }]}>Log Out</Text>
-          </TouchableOpacity>
+          <Text style={[theme.type.small, { color: theme.colors.muted }]}>Step 1 of 3</Text>
+          <Pressable onPress={handleSignOut} disabled={loading} hitSlop={8} accessibilityRole="button">
+            <Text style={[theme.type.small, { color: theme.colors.primary, fontWeight: '700' }]}>Log out</Text>
+          </Pressable>
         </View>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Choose your account mode</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-          Select your primary focus to personalize your home dashboard.
+        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressFill, { backgroundColor: theme.colors.primary }]} />
+        </View>
+        <Text style={[theme.type.display, { color: theme.colors.text }]}>How will you use Gigormoc?</Text>
+        <Text style={[theme.type.body, { color: theme.colors.muted, marginTop: 8 }]}>
+          Pick the side you'll use most. Your home screen is built around it.
         </Text>
       </View>
 
       {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={handleSignOut} style={styles.errorActionBtn}>
-            <Text style={styles.errorActionText}>Log Out & Return to Login</Text>
-          </TouchableOpacity>
+        <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}>
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
         </View>
       )}
 
@@ -102,181 +112,80 @@ export default function OnboardingStep1ModeScreen() {
         {options.map((opt) => {
           const isSelected = selectedMode === opt.id;
           return (
-            <TouchableOpacity
+            <Pressable
               key={opt.id}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                  borderWidth: isSelected ? 2 : 1,
-                  borderRadius: theme.radii.card,
-                },
-                isSelected && { backgroundColor: theme.colors.primarySoft },
-              ]}
               onPress={() => {
                 setSelectedMode(opt.id);
                 setError(null);
               }}
-              activeOpacity={0.8}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isSelected }}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: opt.colors.bg,
+                  borderRadius: theme.radii.card,
+                  borderColor: isSelected ? theme.colors.accent : 'transparent',
+                  opacity: selectedMode && !isSelected ? 0.55 : 1,
+                },
+              ]}
             >
-              <Text style={styles.cardIcon}>{opt.icon}</Text>
-              <Text style={[styles.cardTitle, { color: theme.colors.text }, isSelected && { color: theme.colors.primary }]}>
-                {opt.title}
-              </Text>
-              <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>{opt.desc}</Text>
-            </TouchableOpacity>
+              <View style={styles.cardTop}>
+                <View style={styles.cardIcon}>
+                  <Ionicons name={opt.icon} size={22} color={opt.colors.fg} />
+                </View>
+                <Ionicons
+                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={26}
+                  color={opt.colors.fg}
+                />
+              </View>
+              <Text style={[styles.cardTitle, { color: opt.colors.fg }]}>{opt.title}</Text>
+              <Text style={[styles.cardDesc, { color: opt.colors.sub }]}>{opt.desc}</Text>
+            </Pressable>
           );
         })}
 
-        <Text style={[styles.switchNotice, { color: theme.colors.muted }]}>
-          ℹ️ {strings.modes.switchNote}
-        </Text>
+        <View style={styles.noticeRow}>
+          <Ionicons name="information-circle-outline" size={16} color={theme.colors.muted} />
+          <Text style={[theme.type.small, { color: theme.colors.muted, flexShrink: 1 }]}>{strings.modes.switchNote}</Text>
+        </View>
       </View>
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            {
-              backgroundColor: selectedMode ? theme.colors.primary : theme.colors.muted,
-              borderRadius: theme.radii.button,
-            },
-            loading && { opacity: 0.7 },
-          ]}
-          onPress={handleContinue}
-          disabled={loading || !selectedMode}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.switchAccountBtn}
-          onPress={handleSignOut}
-          disabled={loading}
-        >
+        <Button title="Continue" onPress={handleContinue} loading={loading} disabled={!selectedMode} />
+        <Pressable style={styles.switchAccountBtn} onPress={handleSignOut} disabled={loading}>
           <Text style={{ color: theme.colors.muted, fontSize: 14 }}>
-            Want to use a different account?{' '}
-            <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Log out</Text>
+            Wrong account? <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Log out</Text>
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'space-between',
-    paddingTop: 48,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  stepIndicator: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  headerLogoutBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  headerLogoutText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  errorBox: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  errorActionBtn: {
-    backgroundColor: '#DC2626',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  errorActionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  optionsList: {
-    gap: 16,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  card: {
-    padding: 20,
-  },
+  container: { flex: 1, padding: 24, justifyContent: 'space-between', paddingTop: 56 },
+  header: { marginBottom: 16 },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  progressTrack: { height: 4, borderRadius: 2, marginBottom: 24, overflow: 'hidden' },
+  progressFill: { width: '33%', height: 4, borderRadius: 2 },
+  errorBox: { padding: 12, borderRadius: 12, marginBottom: 12, borderLeftWidth: 4 },
+  errorText: { fontSize: 14, fontWeight: '600' },
+  optionsList: { gap: 14, flex: 1, justifyContent: 'center' },
+  card: { padding: 20, borderWidth: 3 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   cardIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  cardDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  switchNotice: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  footer: {
-    marginTop: 20,
-    marginBottom: 10,
-    gap: 12,
-  },
-  button: {
-    minHeight: 48,
-    paddingVertical: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  switchAccountBtn: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
+  cardTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginBottom: 6 },
+  cardDesc: { fontSize: 14, lineHeight: 20 },
+  noticeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 4 },
+  footer: { marginTop: 20, marginBottom: 10, gap: 12 },
+  switchAccountBtn: { alignItems: 'center', paddingVertical: 8 },
 });

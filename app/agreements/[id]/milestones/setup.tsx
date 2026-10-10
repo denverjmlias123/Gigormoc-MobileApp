@@ -142,8 +142,8 @@ export default function SetupMilestonesScreen() {
           style={[
             styles.trackerCard,
             {
-              backgroundColor: isSumValid ? '#e8f5e9' : '#fff8e1',
-              borderColor: isSumValid ? '#a5d6a7' : '#ffe082',
+              backgroundColor: isSumValid ? '#DDF5EA' : '#FEF1D6',
+              borderColor: isSumValid ? '#9BD9BE' : '#F6D58B',
             },
           ]}
         >
@@ -156,7 +156,7 @@ export default function SetupMilestonesScreen() {
             <Text
               style={[
                 styles.trackerValue,
-                { color: isSumValid ? '#2e7d32' : '#b26a00' },
+                { color: isSumValid ? '#12805C' : '#B45309' },
               ]}
             >
               {formatPrice(currentTotalCentavos)}
@@ -166,7 +166,7 @@ export default function SetupMilestonesScreen() {
           <Text
             style={[
               styles.trackerStatus,
-              { color: isSumValid ? '#2e7d32' : '#b26a00' },
+              { color: isSumValid ? '#12805C' : '#B45309' },
             ]}
           >
             {isSumValid
@@ -178,7 +178,7 @@ export default function SetupMilestonesScreen() {
         </View>
 
         {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#ffebee', borderColor: '#ef9a9a' }]}>
+          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    color: '#c62828',
+    color: '#A31F2D',
   },
   milestoneCard: {
     borderWidth: 1,

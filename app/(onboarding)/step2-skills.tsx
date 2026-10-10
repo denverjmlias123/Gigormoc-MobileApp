@@ -163,10 +163,10 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     padding: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F4F7FC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#DCE4F2',
   },
   emptyTitle: {
     fontSize: 16,

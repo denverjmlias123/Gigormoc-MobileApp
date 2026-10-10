@@ -180,7 +180,7 @@ export default function GigApplicantsScreen() {
                 </View>
 
                 {app.counter_price ? (
-                  <View style={[styles.counterBox, { backgroundColor: '#FEF3C7' }]}>
+                  <View style={[styles.counterBox, { backgroundColor: '#FEF1D6' }]}>
                     <Text style={{ color: theme.colors.warning, fontWeight: '700', fontSize: 13 }}>
                       Counteroffer: {formatPrice(app.counter_price)}
                     </Text>
@@ -287,15 +287,15 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   errorBox: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     margin: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#DC2626',
+    color: '#D92D3E',
     fontSize: 14,
   },
   card: {
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   messageBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F4F7FC',
     padding: 10,
     borderRadius: 8,
     marginBottom: 12,
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#DCE4F2',
   },
   acceptBtn: {
     flex: 1.5,

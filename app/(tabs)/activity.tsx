@@ -123,7 +123,7 @@ export default function ActivityScreen() {
             </View>
 
             {app.status === 'countered' && app.counter_price && (
-              <View style={[styles.counterBox, { backgroundColor: '#fff8e1', borderColor: '#ffe082' }]}>
+              <View style={[styles.counterBox, { backgroundColor: '#FEF1D6', borderColor: '#F6D58B' }]}>
                 <Text style={styles.counterBoxLabel}>Client Counteroffer:</Text>
                 <Text style={styles.counterBoxValue}>{formatPrice(app.counter_price)}</Text>
               </View>
@@ -412,12 +412,12 @@ const styles = StyleSheet.create({
   counterBoxLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#b26a00',
+    color: '#B45309',
   },
   counterBoxValue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#b26a00',
+    color: '#B45309',
   },
   cardFooter: {
     flexDirection: 'row',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#DCE4F2',
   },
   cardFooterText: {
     fontSize: 12,
