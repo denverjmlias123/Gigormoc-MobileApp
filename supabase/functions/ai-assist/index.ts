@@ -231,7 +231,7 @@ Current description: "${currentDesc}"`;
       content = aiData?.content?.[0]?.text || '';
     } else {
       // Google Gemini API call
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
       const aiResponse = await fetch(geminiUrl, {
         method: 'POST',
         headers: {
@@ -248,8 +248,8 @@ Current description: "${currentDesc}"`;
       });
 
       if (!aiResponse.ok) {
-        // Fallback to gemini-1.5-flash
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // Fallback to gemini-3.8-flash
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
         const fallbackResp = await fetch(fallbackUrl, {
           method: 'POST',
           headers: {
