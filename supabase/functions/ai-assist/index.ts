@@ -241,7 +241,7 @@ Current description: "${currentDesc}"`;
           contents: [{ parts: [{ text: promptText }] }],
           generationConfig: {
             responseMimeType: 'application/json',
-            maxOutputTokens: 500,
+            maxOutputTokens: 1500,
             temperature: 0.2,
           },
         }),
@@ -259,7 +259,7 @@ Current description: "${currentDesc}"`;
             contents: [{ parts: [{ text: promptText }] }],
             generationConfig: {
               responseMimeType: 'application/json',
-              maxOutputTokens: 500,
+              maxOutputTokens: 1500,
               temperature: 0.2,
             },
           }),
