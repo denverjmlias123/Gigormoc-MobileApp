@@ -192,40 +192,95 @@ Rules:
 Current description: "${currentDesc}"`;
     }
 
-    // 6. Call Anthropic API
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!anthropicApiKey) {
+    // 6. Call AI API (Google Gemini or Anthropic Claude)
+    const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) {
       return new Response(JSON.stringify({ error: 'AI provider is not configured on this server.' }), {
         status: 503,
         headers: corsHeaders,
       });
     }
 
-    const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: promptText }],
-      }),
-    });
+    let content = '';
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error('Anthropic API error:', errText);
-      return new Response(JSON.stringify({ error: 'AI assist service currently unavailable. Please try again.' }), {
-        status: 502,
-        headers: corsHeaders,
+    if (apiKey.startsWith('sk-ant-')) {
+      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 300,
+          messages: [{ role: 'user', content: promptText }],
+        }),
       });
-    }
 
-    const aiData = await aiResponse.json();
-    const content = aiData?.content?.[0]?.text || '';
+      if (!aiResponse.ok) {
+        const errText = await aiResponse.text();
+        console.error('Anthropic API error:', errText);
+        return new Response(JSON.stringify({ error: 'AI assist service currently unavailable. Please try again.' }), {
+          status: 502,
+          headers: corsHeaders,
+        });
+      }
+
+      const aiData = await aiResponse.json();
+      content = aiData?.content?.[0]?.text || '';
+    } else {
+      // Google Gemini API call
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const aiResponse = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 500,
+            temperature: 0.2,
+          },
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        // Fallback to gemini-1.5-flash
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const fallbackResp = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              maxOutputTokens: 500,
+              temperature: 0.2,
+            },
+          }),
+        });
+
+        if (!fallbackResp.ok) {
+          const errText = await fallbackResp.text();
+          console.error('Gemini API error:', errText);
+          return new Response(JSON.stringify({ error: 'Gemini AI service currently unavailable. Please check API key.' }), {
+            status: 502,
+            headers: corsHeaders,
+          });
+        }
+
+        const fallbackData = await fallbackResp.json();
+        content = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        const aiData = await aiResponse.json();
+        content = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      }
+    }
 
     // 7. Parse and Validate JSON Output Strict Schema
     let parsed: any;
