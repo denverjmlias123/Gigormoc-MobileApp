@@ -62,15 +62,31 @@ export default function PostGigScreen() {
   }, []);
 
   const validateAndBuildParams = () => {
-    if (!title.trim()) throw new Error('Gig title is required.');
-    if (!selectedCategory) throw new Error('Please select a category for this gig.');
-    if (!description.trim()) throw new Error('Gig description is required.');
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) throw new Error('Gig title is required.');
+    if (trimmedTitle.length < 5 || trimmedTitle.length > 80) {
+      throw new Error('Gig title must be between 5 and 80 characters.');
+    }
+
+    if (!selectedCategory) {
+      throw new Error('Please select a category for this gig.');
+    }
+
+    const trimmedDesc = description.trim();
+    if (!trimmedDesc) throw new Error('Gig description is required.');
+    if (trimmedDesc.length < 30 || trimmedDesc.length > 2000) {
+      throw new Error('Gig description must be between 30 and 2000 characters.');
+    }
 
     const pMin = parseFloat(priceMinStr);
     const pMax = parseFloat(priceMaxStr || priceMinStr);
 
-    if (isNaN(pMin) || pMin < 0) throw new Error('Please enter a valid minimum budget in PHP.');
-    if (isNaN(pMax) || pMax < pMin) throw new Error('Maximum budget cannot be less than minimum budget.');
+    if (isNaN(pMin) || pMin < 100) {
+      throw new Error('Minimum budget must be at least ₱100.00 PHP.');
+    }
+    if (isNaN(pMax) || pMax < pMin) {
+      throw new Error('Maximum budget cannot be less than minimum budget.');
+    }
 
     const appD = parseInt(appDays, 10);
     const compD = parseInt(completionDays, 10);
@@ -82,12 +98,12 @@ export default function PostGigScreen() {
     const compDate = new Date(now.getTime() + compD * 24 * 60 * 60 * 1000);
 
     return {
-      title: title.trim(),
-      description: description.trim(),
+      title: trimmedTitle,
+      description: trimmedDesc,
       requirements: requirements.trim(),
       category_id: selectedCategory,
-      price_min: Math.round(pMin * 100), // convert PHP to centavos
-      price_max: Math.round(pMax * 100), // convert PHP to centavos
+      price_min: Math.round(pMin * 100), // convert PHP to integer centavos
+      price_max: Math.round(pMax * 100), // convert PHP to integer centavos
       work_type: workType,
       area: area.trim(),
       application_deadline: appDate.toISOString(),
@@ -133,16 +149,21 @@ export default function PostGigScreen() {
       <View style={[styles.container, styles.blockedContainer, { backgroundColor: theme.colors.background }]}>
         <Text style={styles.blockedIcon}>🚫</Text>
         <Text style={[styles.blockedTitle, { color: theme.colors.text }]}>
-          Hire Someone Mode Required
+          {strings.gigs.hireModeRequiredTitle}
         </Text>
         <Text style={[styles.blockedDesc, { color: theme.colors.muted }]}>
-          You are currently in Find Work mode. Posting gigs is exclusively for clients in Hire Someone mode.
+          {strings.gigs.hireModeRequiredDesc}
         </Text>
+        <Button
+          title="Go to Account Settings"
+          onPress={() => router.push('/(tabs)/profile')}
+          variant="primary"
+          style={{ marginTop: 16, marginBottom: 8 }}
+        />
         <Button
           title="← Go Back"
           onPress={() => router.back()}
           variant="secondary"
-          style={{ marginTop: 16 }}
         />
       </View>
     );
@@ -177,9 +198,14 @@ export default function PostGigScreen() {
           {catsLoading ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : categories.length === 0 ? (
-            <Text style={[styles.emptyNotice, { color: theme.colors.muted }]}>
-              No categories published in the database yet.
-            </Text>
+            <View style={[styles.emptyBox, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.emptyNoticeTitle, { color: theme.colors.text }]}>
+                {strings.gigs.noCategoriesTitle}
+              </Text>
+              <Text style={[styles.emptyNotice, { color: theme.colors.muted }]}>
+                {strings.gigs.noCategoriesDesc}
+              </Text>
+            </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
               {categories.map((cat) => (
@@ -303,13 +329,14 @@ export default function PostGigScreen() {
             onPress={handlePublish}
             variant="primary"
             loading={loading}
+            disabled={loading || categories.length === 0}
             style={{ marginBottom: 12 }}
           />
           <Button
             title={strings.gigs.saveDraftBtn}
             onPress={handleSaveDraft}
             variant="secondary"
-            disabled={loading}
+            disabled={loading || categories.length === 0}
           />
         </View>
       </ScrollView>
@@ -358,10 +385,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
-  emptyNotice: {
-    fontSize: 13,
-    fontStyle: 'italic',
-  },
   catRow: {
     flexDirection: 'row',
   },
@@ -397,6 +420,21 @@ const styles = StyleSheet.create({
   actionRow: {
     marginTop: 16,
   },
+  emptyBox: {
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  emptyNoticeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyNotice: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   blockedContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -418,3 +456,4 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
+

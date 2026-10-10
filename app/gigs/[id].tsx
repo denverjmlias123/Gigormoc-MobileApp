@@ -92,6 +92,8 @@ export default function GigDetailScreen() {
     year: 'numeric',
   });
 
+  const [cancelling, setCancelling] = useState(false);
+
   const handleApplyPress = () => {
     if (isOwner) {
       router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
@@ -105,6 +107,32 @@ export default function GigDetailScreen() {
       return;
     }
     router.push({ pathname: '/gigs/[id]/apply', params: { id: gig.id } });
+  };
+
+  const handleCancelGig = () => {
+    Alert.alert(
+      'Cancel Gig',
+      'Are you sure you want to cancel this gig? Pending applicants will be notified.',
+      [
+        { text: 'Keep Gig', style: 'cancel' },
+        {
+          text: 'Cancel Gig',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await gigsService.cancelGig(gig.id, 'Cancelled by client from gig details');
+              setGig({ ...gig, status: 'cancelled' });
+              Alert.alert('Gig Cancelled', 'The gig has been cancelled successfully.');
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to cancel gig.');
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -188,11 +216,22 @@ export default function GigDetailScreen() {
       {/* Sticky Bottom Action Bar */}
       <View style={[styles.bottomBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
         {isOwner ? (
-          <Button
-            title="View Applicants"
-            onPress={handleApplyPress}
-            variant="primary"
-          />
+          <View style={{ width: '100%', gap: 8 }}>
+            <Button
+              title="View Applicants"
+              onPress={handleApplyPress}
+              variant="primary"
+            />
+            {(gig.status === 'open' || gig.status === 'draft') && (
+              <Button
+                title={strings.gigs.cancelGigBtn}
+                onPress={handleCancelGig}
+                variant="secondary"
+                loading={cancelling}
+                disabled={cancelling}
+              />
+            )}
+          </View>
         ) : isFreelancerMode ? (
           <View style={{ width: '100%' }}>
             {gig.status !== 'open' && (

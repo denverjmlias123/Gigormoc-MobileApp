@@ -233,4 +233,14 @@ export const gigsService = {
 
     if (error) throw error;
   },
+
+  async cancelGig(gigId: string, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('cancel_gig', {
+      p_gig_id: gigId,
+      p_reason: reason,
+    });
+
+    if (error) throw error;
+  },
 };
+

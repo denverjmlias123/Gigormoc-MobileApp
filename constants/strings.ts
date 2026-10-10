@@ -57,6 +57,11 @@ export const strings = {
     openStatus: 'Open',
     publishBtn: 'Publish Gig',
     saveDraftBtn: 'Save Draft',
+    cancelGigBtn: 'Cancel Gig',
+    noCategoriesTitle: 'No Categories Available',
+    noCategoriesDesc: 'No active categories found in the database. Categories must be configured before posting gigs.',
+    hireModeRequiredTitle: 'Hire Someone Mode Required',
+    hireModeRequiredDesc: 'You are currently in Find Work mode. Posting gigs is exclusively for clients in Hire Someone mode.',
   },
   payments: {
     reportedSent: 'Reported',
