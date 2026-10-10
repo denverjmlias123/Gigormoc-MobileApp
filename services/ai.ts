@@ -36,7 +36,14 @@ export const aiService = {
     });
 
     if (error) {
-      throw new Error(error.message || 'Could not fetch skill suggestions.');
+      let msg = error.message;
+      try {
+        if ((error as any).context?.json) {
+          const bodyJson = await (error as any).context.json();
+          if (bodyJson?.error) msg = bodyJson.error;
+        }
+      } catch {}
+      throw new Error(msg || 'Could not fetch skill suggestions.');
     }
 
     return data?.skills || [];
@@ -68,7 +75,14 @@ export const aiService = {
     });
 
     if (error) {
-      throw new Error(error.message || 'Could not draft bio.');
+      let msg = error.message;
+      try {
+        if ((error as any).context?.json) {
+          const bodyJson = await (error as any).context.json();
+          if (bodyJson?.error) msg = bodyJson.error;
+        }
+      } catch {}
+      throw new Error(msg || 'Could not draft bio.');
     }
 
     return data?.drafts || [];
@@ -96,7 +110,14 @@ export const aiService = {
     });
 
     if (error) {
-      throw new Error(error.message || 'Could not polish gig description.');
+      let msg = error.message;
+      try {
+        if ((error as any).context?.json) {
+          const bodyJson = await (error as any).context.json();
+          if (bodyJson?.error) msg = bodyJson.error;
+        }
+      } catch {}
+      throw new Error(msg || 'Could not polish gig description.');
     }
 
     return data?.polished_description || trimmed;
