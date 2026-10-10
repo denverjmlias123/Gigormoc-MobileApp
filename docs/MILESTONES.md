@@ -2,6 +2,9 @@
 
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
+## v5 status
+Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
+
 ## Current project status (update this after every milestone)
 - Built so far: Milestones 0-7.
 - M0-M2 were built on the OLD blueprint (before mode rules, DESIGN.md and the UI kit). M7 was built before these fixes.
@@ -202,4 +205,47 @@ No demo data, no seed data, no hardcoded sample content.
 Audit every table for RLS and grants; confirm direct writes are revoked on protected tables; confirm no SECURITY DEFINER function is executable by anon/public except where intended; confirm no escrow/wallet code exists; verify no service_role key anywhere; add rate limiting and CAPTCHA on sign-up; complete error/empty/loading states; expand pgTAP and function tests (every switch_mode blocker and every mode-gated action); search the repo for seed, mock, demo code. Report real results.
 First show me a plan (files + migrations), then implement.
 When finished run npx tsc --noEmit, npm test, supabase test db, and report files changed, database objects affected, tests actually run, repo search for seed/mock/demo code, and manual Supabase steps I still need to do.
+```
+
+
+## v5 prompts (real logic)
+
+### R6 — Wiring audit (read-only, run first)
+```
+Do not write code. Read AGENTS.md, docs/GIGORMOC_SPEC.md, docs/ROLE_UX.md and docs/REAL_LOGIC_V5.md. Audit the running code and give me a table, with file paths, then wait:
+For each of: onboarding step 2 (skills), onboarding step 3 (barangay + bio + photo), Post gig, Browse gigs, Apply, Applicants, Messages list, Chat, Notifications, Activity tabs, Profile edit:
+ (a) is it wired to Supabase through services/ (table or RPC)? (b) does anything use in-memory arrays, setTimeout fakes, hardcoded text in place of rows, or dead buttons? (c) does a second real account see the result after a fresh launch? (d) what is missing in the database (table, policy, RPC, trigger, Realtime publication)?
+Also report: do the tables notifications, conversations, messages, areas exist? Is Realtime enabled on messages? Is the skills table empty in the dashboard, and why does the app say "No skills catalog available yet"? Run supabase test db and paste the raw output.
+```
+
+### M11 — Notifications
+```
+Start Milestone 11: Notifications. Follow AGENTS.md and docs/REAL_LOGIC_V5.md section 3. Build only this milestone. No seed data.
+Migration: notifications table + RLS (recipient select only) + Realtime, internal notify() helper (revoked from public/anon/authenticated), mark_notification_read and mark_all_notifications_read RPCs, and re-create the existing RPCs with create or replace so every event in section 3 inserts the right notification in the same transaction (never to the actor). pg_cron 7-day milestone reminder. App: bell + unread badge (live), Notifications screen with deep links, mark read, empty/error/loading states, strings in the strings file.
+pgTAP behavior tests per REAL_LOGIC_V5.md section 7. Done when: client applies/accepts/submits etc. with two real accounts and the other account's bell updates live and survives a fresh launch.
+First show me a plan (files + migrations), then implement. Run npx tsc --noEmit, npm test, supabase test db and paste raw output, plus repo search for seed/mock/demo code and manual steps.
+```
+
+### M12 — Messaging (real)
+```
+Start Milestone 12: Messaging. Follow AGENTS.md and docs/REAL_LOGIC_V5.md section 4. Build only this milestone. No seed data.
+Make conversations created by the database inside submit_application; add send_message and mark_conversation_read RPCs, conversation_reads table, deny direct inserts on messages, rate limit, new_message notification (collapsed). App: Messages list (name, gig title, last message, unread, ordered by last message), Chat screen on Realtime with failed-send retry, tab badge. Remove any local/in-memory message code.
+pgTAP: non-participant read/send denied, direct insert denied, rate limit, unread counts, no self-conversation. Done when two real phones chat live and history persists after relaunch.
+First show me a plan, then implement. Run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M13 — Post gig (real)
+```
+Start Milestone 13: Post gig, real. Follow AGENTS.md and docs/REAL_LOGIC_V5.md section 6. Build only this milestone. No seed data.
+Verify and fix app/gigs/post.tsx and services/gigs.ts so every field is validated in the app AND in SQL (publish_gig), pesos -> integer centavos, draft save, publish (idempotent on double tap), edit draft, cancel gig RPC (notifies applicants), pg_cron expiry. Hire mode only; Find Work shows a disabled state with reason. Real empty state if no categories exist. Gig appears for a second account in Browse and never for its owner.
+pgTAP: every invalid field, wrong mode, unconfirmed email, duplicate publish, non-owner edit denied, direct status update denied.
+First show me a plan, then implement. Run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M14 — AI in onboarding (skills, bio) 
+```
+Start Milestone 14: AI onboarding. Follow AGENTS.md and docs/REAL_LOGIC_V5.md sections 1, 2 and 5. Build only this milestone. No seed data, no seed skills.
+Migration: skills.source/created_by + unique lower(name) index, add_profile_skills RPC (limits, dedupe, audit, rate limit), complete_onboarding RPC; areas table (empty; do NOT insert barangays unless I approve - ask me first). Edge Function supabase/functions/ai-assist (JWT check, allow-listed tasks suggest_skills + draft_bio, server-built prompts, JSON validation, rate limit via rate_limit_events, audit, no personal data sent). Tell me the exact command to set the secret: supabase secrets set ANTHROPIC_API_KEY=... and supabase functions deploy ai-assist. App: step2-skills with catalog chips + "What kind of work do you do?" + Suggest skills + manual add; step3-profile with Barangay (areas table or free text) + bio with "Help me write this" + real photo upload, then complete_onboarding. Errors show Retry; no canned fallback.
+Tests: pgTAP for add_profile_skills and complete_onboarding; Edge Function 401/429/400/malformed-output cases. Done when a brand-new account with an EMPTY skills table gets AI suggestions, saves them, and sees them on its profile after relaunch.
+First show me a plan, then implement. Run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
 ```
