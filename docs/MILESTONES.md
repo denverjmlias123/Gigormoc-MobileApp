@@ -3,7 +3,7 @@
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
 ## v5 status
-Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
+Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**, **M15 (complete real loop, final proof)**. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
 
 ## Current project status (update this after every milestone)
 - Built so far: Milestones 0-7.
@@ -248,4 +248,13 @@ Start Milestone 14: AI onboarding. Follow AGENTS.md and docs/REAL_LOGIC_V5.md se
 Migration: skills.source/created_by + unique lower(name) index, add_profile_skills RPC (limits, dedupe, audit, rate limit), complete_onboarding RPC; areas table (empty; do NOT insert barangays unless I approve - ask me first). Edge Function supabase/functions/ai-assist (JWT check, allow-listed tasks suggest_skills + draft_bio, server-built prompts, JSON validation, rate limit via rate_limit_events, audit, no personal data sent). Tell me the exact command to set the secret: supabase secrets set ANTHROPIC_API_KEY=... and supabase functions deploy ai-assist. App: step2-skills with catalog chips + "What kind of work do you do?" + Suggest skills + manual add; step3-profile with Barangay (areas table or free text) + bio with "Help me write this" + real photo upload, then complete_onboarding. Errors show Retry; no canned fallback.
 Tests: pgTAP for add_profile_skills and complete_onboarding; Edge Function 401/429/400/malformed-output cases. Done when a brand-new account with an EMPTY skills table gets AI suggestions, saves them, and sees them on its profile after relaunch.
 First show me a plan, then implement. Run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M15 — Complete real loop (apply, accept, submit, approve, pay, review)
+```
+Start Milestone 15: Complete real loop. Follow AGENTS.md and docs/REAL_LOGIC_V5.md sections 0 and 8. Do this AFTER M11-M14. No seed data, no mock data.
+Part 1 (read-only): walk the table in section 8 step by step against the code and database. For each step list: screen file, service function, RPC, whether it is wired, whether the notification is created, whether the other account sees it after relaunch, and the gap. Wait for my approval.
+Part 2: fix every gap with NEW migrations and thin screens (no edits to applied migrations). Specifically make real: apply (price/days/message), accept / counter / decline and counter response, atomic agreement creation, define milestones (sum check), submit work with real file upload to the private submissions bucket and signed-URL viewing, approve / request revision (max 2), report payment with optional receipt, confirm / dispute payment, complete_agreement, reviews, cancel_agreement. Status always comes from the database after each RPC; remove any local status logic.
+Part 3: write docs/E2E_LOOP.md with a two-account test script (steps 1-10 plus a revision round, a counteroffer, a dispute and a cancellation) and pgTAP behavior tests for every RPC in the loop: wrong user, wrong mode, wrong state, duplicate call, own gig, direct write denied.
+Run npx tsc --noEmit, npm test, supabase test db and paste raw output, plus repo search for seed/mock/demo code, dead buttons and local-only state, and manual steps. Mark NOT VERIFIED if anything could not run.
 ```

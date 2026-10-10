@@ -1,6 +1,6 @@
 # AGENTS.md — Gigormoc project rules
 
-Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences) and `docs/MILESTONES.md` (build order).
+Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig) and `docs/MILESTONES.md` (build order).
 
 Gigormoc is a local freelance marketplace for Ormoc City, Philippines (18+ only). The developer is solo. Prefer a working, secure, simple product over extra features.
 
@@ -84,3 +84,12 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - Reference screenshots in `design/reference/` are visual reference only. Never copy their code, SDKs or data.
 - All user-facing text lives in one strings file (ready for Tagalog/Waray/Bisaya later).
 - Accessibility: contrast 4.5:1, touch targets 44px+, labels on icon buttons, visible web focus, system font scaling.
+
+## AI, notifications, messaging (v5, see `docs/REAL_LOGIC_V5.md`)
+- AI features run ONLY in the Supabase Edge Function `ai-assist`. The AI provider key is a Supabase secret, never in the app or repo. Auth + per-user rate limit + audit on every call. AI suggests, the user confirms; AI output is never saved without an explicit Save. Never send DOB, phone, email or other users' data to the AI. No canned fallback text when the AI fails: show an error with Retry.
+- User-entered skills are real rows (`skills.source = 'user'`, pending admin review) created only through the `add_profile_skills` RPC. This does not break the no-seed rule. Do not create seed skills or categories.
+- Reference data such as the Ormoc barangay list (`areas`) is added ONLY if the owner explicitly approves it as an exception; otherwise the admin enters it, and the app uses free text when the table is empty.
+- Notifications are rows in `notifications`, created only inside SECURITY DEFINER functions through the internal `notify()` helper. Clients cannot insert or update them (except marking own as read via RPC).
+- Messages are sent only through `send_message` (participant check, length, rate limit). Direct inserts are denied.
+- "Done" means a second real account sees the result after a fresh launch (REAL_LOGIC_V5.md section 0). Remove any button that is not wired; no dead UI, no in-memory stand-ins for tables.
+- The core loop (apply -> accept/counter -> milestones -> submit -> approve -> payment -> review) must work end to end with two real accounts (REAL_LOGIC_V5.md section 8). Status shown in the UI always comes from the database row returned after an RPC, never from local state.

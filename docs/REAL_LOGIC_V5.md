@@ -128,3 +128,33 @@ with notification to pending applicants. pg_cron expires gigs after `application
   rejects each invalid field and Find Work mode.
 - Edge Function tests: unauthenticated -> 401; over rate limit -> 429; invalid task -> 400; malformed AI output -> typed error.
 - Repo search at the end of each milestone: no seed files, sample arrays, mock services, demo code, dead buttons.
+
+## 8. The complete real loop (M15)
+The core loop from the spec must run end to end with two REAL accounts (A = client in Hire mode, B = freelancer in Find Work mode), each on its own phone or browser, through the real database only. Each step lists who acts, the RPC/table, the state change, the notification, and what the other side must see after a fresh launch.
+
+| # | Actor | Action (RPC) | State change | Notifies | Other side sees |
+|---|---|---|---|---|---|
+| 1 | A | `publish_gig` | gig draft -> open | - | B sees it in Browse (A never does) |
+| 2 | B | `submit_application` (price, days, message; gate: email, photo, skill, 18+) | application = applied; conversation created | A: application_received | A sees it under Applicants |
+| 3a | A | `respond_to_application(accept)` | application accepted, ONE agreement created (price copied), gig -> in_progress, other applicants declined | B: application_accepted; B + A: agreement_created; declined applicants: application_declined | B sees Job; gig gone from Browse |
+| 3b | A | `respond_to_application(counter)` | application = countered (one round) | B: application_countered | B sees Counter with Accept/Decline |
+| 3c | B | `respond_to_counter(accept/decline)` | agreement created, or declined | A: counter_accepted / counter_declined | A sees result |
+| 4 | A | `define_milestones` (1-5, sum = agreed price exactly) | milestones pending | B: milestones_defined | B sees timeline |
+| 5 | B | `submit_milestone` (text + files/links) | milestone submitted; files in private `submissions` bucket under `{agreement_id}/{milestone_id}/` | A: milestone_submitted | A sees submission, opens files by signed URL |
+| 6 | A | `review_milestone` approve / request revision (max 2, reason required) | approved or revision_requested | B: milestone_approved / milestone_revision_requested | B sees decision; can resubmit |
+| 7 | A | `report_payment` (method, amount, reference, optional receipt image in private `receipts`) | payment reported_sent ("Reported") | B: payment_reported | B sees it |
+| 8 | B | `confirm_payment` or dispute | confirmed_received ("Confirmed by freelancer") or disputed | A: payment_confirmed / payment_disputed | A sees it |
+| 9 | either | `complete_agreement` (all milestones approved + payments confirmed) | completed, `completed_at` set once, gig -> completed, completed-gig counts per role | both: agreement_completed | both see Completed |
+| 10 | A and B | `submit_review` within 14 days | review row, per-role rating recomputed from non-hidden reviews | reviewee: review_received | rating appears on public profile |
+| - | either | `cancel_agreement` before any submission is free; after work started it creates a report | agreement cancelled | other party: agreement_cancelled | both see Cancelled |
+| - | any | chat via `send_message` at every step | - | other party: new_message | live |
+
+Rules that must hold at every step (verify, do not assume):
+- Wrong mode, wrong user, wrong state, duplicate call and double tap are all rejected or idempotent in SQL, with a plain-words error shown in the app.
+- Own-content rule: A can never apply to A's own gig; no agreement with the same person on both sides.
+- Money is integer centavos everywhere; UI wording is only "Reported" / "Confirmed by freelancer"; never "verified" or "guaranteed"; note "Payments happen outside Gigormoc. Gigormoc only records them."
+- Every step has loading, empty, error-with-retry and success states, and every screen re-fetches (or listens via Realtime) so state is never stale or local-only.
+- File upload: type allow-list, size limit, private bucket, signed URL with short expiry, participants only. A failed upload never marks a milestone submitted.
+- No screen computes a status locally; status always comes from the database row after the RPC returns.
+
+Acceptance: a written two-account test script (docs/E2E_LOOP.md, created by the assistant) walking steps 1-10 plus one revision round, one counteroffer, one dispute and one cancellation, with the result of each step recorded as PASS/FAIL against the Supabase table editor. Any FAIL is fixed before the milestone is marked done.
