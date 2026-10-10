@@ -2,6 +2,18 @@
 -- Milestone 14: AI in Onboarding (Skills, Bio & Edge Function Backing)
 -- Strictly adheres to docs/REAL_LOGIC_V5.md sections 1, 2, and 5 and AGENTS.md
 
+-- 0. Ensure updated_at exists on profiles
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'profiles' AND column_name = 'updated_at'
+  ) THEN
+    ALTER TABLE public.profiles 
+      ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
+  END IF;
+END $$;
+
 -- 1. Alter skills table to support user-originated custom skills
 -- Add source column ('admin' or 'user') and created_by reference
 DO $$
@@ -70,7 +82,7 @@ CREATE OR REPLACE FUNCTION public.add_profile_skills(
 )
 RETURNS TABLE (
   skill_id uuid,
-  name text,
+  skill_name text,
   is_active boolean,
   source text
 )
@@ -167,9 +179,9 @@ BEGIN
         END IF;
 
         -- Check if skill already exists (case-insensitive)
-        SELECT id INTO v_existing_skill_id
-        FROM public.skills
-        WHERE lower(trim(name)) = lower(v_trimmed);
+        SELECT s.id INTO v_existing_skill_id
+        FROM public.skills s
+        WHERE lower(trim(s.name)) = lower(v_trimmed);
 
         IF v_existing_skill_id IS NOT NULL THEN
           -- Link existing skill
@@ -210,7 +222,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     s.id AS skill_id,
-    s.name,
+    s.name AS skill_name,
     s.is_active,
     s.source
   FROM public.profile_skills ps

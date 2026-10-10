@@ -94,7 +94,7 @@ export const profileService = {
 
     return (data || []).map((row: any) => ({
       id: row.skill_id,
-      name: row.name,
+      name: row.skill_name || row.name,
       category_id: null,
       is_active: row.is_active,
       source: row.source,
