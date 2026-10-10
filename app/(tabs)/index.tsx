@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
+import { notificationsService } from '../../services/notifications';
 import { strings } from '../../constants/strings';
 
 export default function HomeScreen() {
@@ -23,6 +24,7 @@ export default function HomeScreen() {
 
   const [availableGigs, setAvailableGigs] = useState<GigSummary[]>([]);
   const [myGigs, setMyGigs] = useState<GigSummary[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadHomeData = async () => {
@@ -35,6 +37,10 @@ export default function HomeScreen() {
         const gigs = await gigsService.getGigs();
         setAvailableGigs(gigs);
       }
+      if (user?.id) {
+        const count = await notificationsService.getUnreadCount();
+        setUnreadNotifications(count);
+      }
     } catch {
       // Keep empty list on error
     } finally {
@@ -44,6 +50,13 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadHomeData();
+
+    if (user?.id) {
+      const unsub = notificationsService.subscribeToNotifications(user.id, () => {
+        setUnreadNotifications((prev) => prev + 1);
+      });
+      return unsub;
+    }
   }, [profile?.active_mode, user]);
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon';
@@ -70,17 +83,35 @@ export default function HomeScreen() {
                 {displayName}
               </Text>
             </View>
-            <Pressable
-              style={[styles.modePill, { backgroundColor: theme.colors.heroChip }]}
-              onPress={() => router.push('/(tabs)/profile')}
-              accessibilityRole="button"
-              accessibilityLabel="Current mode. Open profile to change."
-            >
-              <Ionicons name={isHire ? 'people' : 'search'} size={14} color={theme.colors.heroText} />
-              <Text style={[styles.modePillText, { color: theme.colors.heroText }]}>
-                {isFindWork ? 'Find work' : isHire ? 'Hiring' : 'Select mode'}
-              </Text>
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                style={[styles.bellBtn, { backgroundColor: theme.colors.heroChip }]}
+                onPress={() => router.push('/notifications')}
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
+              >
+                <Ionicons name="notifications-outline" size={18} color={theme.colors.heroText} />
+                {unreadNotifications > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+
+              <Pressable
+                style={[styles.modePill, { backgroundColor: theme.colors.heroChip }]}
+                onPress={() => router.push('/(tabs)/profile')}
+                accessibilityRole="button"
+                accessibilityLabel="Current mode. Open profile to change."
+              >
+                <Ionicons name={isHire ? 'people' : 'search'} size={14} color={theme.colors.heroText} />
+                <Text style={[styles.modePillText, { color: theme.colors.heroText }]}>
+                  {isFindWork ? 'Find work' : isHire ? 'Hiring' : 'Select mode'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           {isHire ? (
@@ -214,6 +245,32 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   greetingCol: { flex: 1 },
   name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
   modePill: {
     flexDirection: 'row',
     alignItems: 'center',
