@@ -275,24 +275,32 @@ Current description: "${currentDesc}"`;
         }
 
         const fallbackData = await fallbackResp.json();
-        content = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parts = fallbackData?.candidates?.[0]?.content?.parts || [];
+        content = parts.map((p: any) => p.text || '').join('');
       } else {
         const aiData = await aiResponse.json();
-        content = aiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parts = aiData?.candidates?.[0]?.content?.parts || [];
+        content = parts.map((p: any) => p.text || '').join('');
       }
     }
 
     // 7. Parse and Validate JSON Output Strict Schema
     let parsed: any;
     try {
-      // Find JSON block if wrapped in markdown
-      const match = content.match(/\{[\s\S]*\}/);
+      let cleaned = content.trim();
+      if (cleaned.startsWith('`json')) {
+        cleaned = cleaned.replace(/^`json\s*/, '').replace(/\s*`$/, '');
+      } else if (cleaned.startsWith('`')) {
+        cleaned = cleaned.replace(/^`\s*/, '').replace(/\s*`$/, '');
+      }
+      const match = cleaned.match(/\{[\s\S]*\}/);
       if (match) {
         parsed = JSON.parse(match[0]);
       } else {
-        parsed = JSON.parse(content);
+        parsed = JSON.parse(cleaned);
       }
-    } catch {
+    } catch (parseErr) {
+      console.error('Failed to parse AI JSON:', content, parseErr);
       return new Response(JSON.stringify({ error: 'AI returned malformed output format. Please retry.' }), {
         status: 502,
         headers: corsHeaders,
