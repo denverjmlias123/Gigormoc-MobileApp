@@ -24,6 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- RLS: Recipient can select own notifications
+DROP POLICY IF EXISTS "Users can view own notifications" ON public.notifications;
 CREATE POLICY "Users can view own notifications"
     ON public.notifications
     FOR SELECT
@@ -50,6 +51,7 @@ END $$;
 -- 3. Internal helper: notify()
 -- Created inside public schema, SECURITY DEFINER, search_path fixed to public, auth, pg_temp
 -- Revoked from all external callers (callable only by other DB functions)
+DROP FUNCTION IF EXISTS public.notify(UUID, TEXT, TEXT, TEXT, TEXT, UUID, JSONB);
 CREATE OR REPLACE FUNCTION public.notify(
     p_user_id UUID,
     p_type TEXT,
@@ -106,6 +108,7 @@ $$;
 REVOKE ALL ON FUNCTION public.notify(UUID, TEXT, TEXT, TEXT, TEXT, UUID, JSONB) FROM PUBLIC, anon, authenticated;
 
 -- 4. RPCs for reading / dismissing notifications
+DROP FUNCTION IF EXISTS public.mark_notification_read(UUID);
 CREATE OR REPLACE FUNCTION public.mark_notification_read(p_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -128,6 +131,7 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.mark_all_notifications_read();
 CREATE OR REPLACE FUNCTION public.mark_all_notifications_read()
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -160,6 +164,7 @@ GRANT EXECUTE ON FUNCTION public.mark_all_notifications_read() TO authenticated;
 
 -- 5. Re-create lifecycle RPCs to emit real notifications
 -- A. submit_application -> notifies client (application_received)
+DROP FUNCTION IF EXISTS public.submit_application(uuid, integer, integer, text);
 CREATE OR REPLACE FUNCTION public.submit_application(
   p_gig_id uuid,
   p_proposed_price integer,
@@ -300,13 +305,17 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.submit_application(uuid, integer, integer, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_application(uuid, integer, integer, text) TO authenticated;
+
 -- B. respond_to_application -> notifies freelancer
+DROP FUNCTION IF EXISTS public.respond_to_application(uuid, text, integer);
 CREATE OR REPLACE FUNCTION public.respond_to_application(
   p_application_id uuid,
-  p_decision text,
+  p_action text,
   p_counter_price integer DEFAULT NULL
 )
-RETURNS jsonb
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth, pg_temp
@@ -323,8 +332,8 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated.';
   END IF;
 
-  IF p_decision NOT IN ('accept', 'decline', 'counter') THEN
-    RAISE EXCEPTION 'Invalid decision. Must be accept, decline, or counter.';
+  IF p_action NOT IN ('accept', 'decline', 'counter') THEN
+    RAISE EXCEPTION 'Invalid response action. Must be accept, decline, or counter.';
   END IF;
 
   SELECT * INTO v_app
@@ -353,7 +362,7 @@ BEGIN
     RAISE EXCEPTION 'Only the gig client can respond to this application.';
   END IF;
 
-  IF p_decision = 'counter' THEN
+  IF p_action = 'counter' THEN
     IF p_counter_price IS NULL OR p_counter_price <= 0 THEN
       RAISE EXCEPTION 'Counter price must be greater than zero.';
     END IF;
@@ -378,9 +387,9 @@ BEGIN
       jsonb_build_object('counter_price', p_counter_price, 'gig_id', v_gig.id)
     );
 
-    RETURN jsonb_build_object('status', 'countered', 'counter_price', p_counter_price);
+    RETURN NULL;
 
-  ELSIF p_decision = 'decline' THEN
+  ELSIF p_action = 'decline' THEN
     UPDATE public.applications
     SET status = 'declined',
         updated_at = now()
@@ -400,9 +409,9 @@ BEGIN
       jsonb_build_object('gig_id', v_gig.id)
     );
 
-    RETURN jsonb_build_object('status', 'declined');
+    RETURN NULL;
 
-  ELSIF p_decision = 'accept' THEN
+  ELSIF p_action = 'accept' THEN
     IF v_gig.status <> 'open' THEN
       RAISE EXCEPTION 'Gig is not open (current: %). Cannot accept application.', v_gig.status;
     END IF;
@@ -486,12 +495,16 @@ BEGIN
       jsonb_build_object('gig_id', v_gig.id)
     );
 
-    RETURN jsonb_build_object('status', 'accepted', 'agreement_id', v_agreement_id);
+    RETURN v_agreement_id;
   END IF;
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.respond_to_application(uuid, text, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.respond_to_application(uuid, text, integer) TO authenticated;
+
 -- C. define_milestones -> notifies freelancer
+DROP FUNCTION IF EXISTS public.define_milestones(UUID, JSONB);
 CREATE OR REPLACE FUNCTION public.define_milestones(
     p_agreement_id UUID,
     p_milestones JSONB
@@ -614,10 +627,14 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.define_milestones(UUID, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.define_milestones(UUID, JSONB) TO authenticated;
+
 -- D. submit_milestone -> notifies client (milestone_submitted)
+DROP FUNCTION IF EXISTS public.submit_milestone(UUID, TEXT, TEXT[]);
 CREATE OR REPLACE FUNCTION public.submit_milestone(
     p_milestone_id UUID,
-    p_submission_text TEXT,
+    p_message TEXT,
     p_file_paths TEXT[] DEFAULT ARRAY[]::TEXT[]
 )
 RETURNS UUID
@@ -636,7 +653,7 @@ BEGIN
         RAISE EXCEPTION 'Not authenticated.';
     END IF;
 
-    IF p_submission_text IS NULL OR char_length(trim(p_submission_text)) < 5 THEN
+    IF p_message IS NULL OR char_length(trim(p_message)) < 5 THEN
         RAISE EXCEPTION 'Submission text must be at least 5 characters.';
     END IF;
 
@@ -673,7 +690,7 @@ BEGIN
     ) VALUES (
         p_milestone_id,
         v_caller_id,
-        trim(p_submission_text),
+        trim(p_message),
         coalesce(p_file_paths, ARRAY[]::TEXT[])
     )
     RETURNING id INTO v_submission_id;
@@ -712,7 +729,11 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.submit_milestone(UUID, TEXT, TEXT[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_milestone(UUID, TEXT, TEXT[]) TO authenticated;
+
 -- E. review_milestone -> notifies freelancer (milestone_approved or revision_requested)
+DROP FUNCTION IF EXISTS public.review_milestone(UUID, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.review_milestone(
     p_milestone_id UUID,
     p_action TEXT,
@@ -832,14 +853,20 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.review_milestone(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.review_milestone(UUID, TEXT, TEXT) TO authenticated;
+
 -- F. report_payment -> notifies freelancer (payment_reported)
+DROP FUNCTION IF EXISTS public.report_payment(UUID, UUID, INTEGER, TEXT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.report_payment(UUID, TEXT, INTEGER, TEXT, TEXT, UUID);
 CREATE OR REPLACE FUNCTION public.report_payment(
     p_agreement_id UUID,
-    p_method TEXT,
-    p_amount INTEGER,
-    p_reference_number TEXT,
+    p_milestone_id UUID DEFAULT NULL,
+    p_amount INTEGER DEFAULT 0,
+    p_payment_method TEXT DEFAULT 'gcash',
+    p_reference_number TEXT DEFAULT '',
     p_receipt_path TEXT DEFAULT NULL,
-    p_milestone_id UUID DEFAULT NULL
+    p_notes TEXT DEFAULT ''
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -864,13 +891,14 @@ BEGIN
         RAISE EXCEPTION 'A valid transaction reference number is required.';
     END IF;
 
-    IF p_method NOT IN ('gcash', 'maya', 'bank_transfer', 'cash', 'other') THEN
+    IF p_payment_method NOT IN ('gcash', 'maya', 'bank_transfer', 'cash', 'other') THEN
         RAISE EXCEPTION 'Invalid payment method.';
     END IF;
 
     SELECT * INTO v_agreement
     FROM public.agreements
-    WHERE id = p_agreement_id;
+    WHERE id = p_agreement_id
+    FOR UPDATE;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Agreement not found.';
@@ -884,22 +912,38 @@ BEGIN
         RAISE EXCEPTION 'Payments can only be reported for active agreements.';
     END IF;
 
+    -- Validate milestone if provided
+    IF p_milestone_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.milestones
+            WHERE id = p_milestone_id AND agreement_id = p_agreement_id
+        ) THEN
+            RAISE EXCEPTION 'Milestone does not belong to this agreement.';
+        END IF;
+    END IF;
+
     INSERT INTO public.payments (
         agreement_id,
         milestone_id,
-        method,
+        payer_id,
+        payee_id,
         amount,
+        payment_method,
         reference_number,
         receipt_path,
+        notes,
         status,
         reported_at
     ) VALUES (
         p_agreement_id,
         p_milestone_id,
-        p_method,
+        v_caller_id,
+        v_agreement.freelancer_id,
         p_amount,
-        trim(p_reference_number),
+        p_payment_method,
+        coalesce(trim(p_reference_number), ''),
         p_receipt_path,
+        coalesce(trim(p_notes), ''),
         'reported_sent',
         now()
     )
@@ -916,7 +960,7 @@ BEGIN
         v_caller_id,
         v_payment_id,
         'payments',
-        jsonb_build_object('agreement_id', p_agreement_id, 'amount', p_amount, 'method', p_method)
+        jsonb_build_object('agreement_id', p_agreement_id, 'amount', p_amount, 'method', p_payment_method)
     );
 
     -- Notify freelancer
@@ -934,11 +978,14 @@ BEGIN
 END;
 $$;
 
--- G. confirm_payment -> notifies client (payment_confirmed or payment_disputed)
+REVOKE EXECUTE ON FUNCTION public.report_payment(UUID, UUID, INTEGER, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.report_payment(UUID, UUID, INTEGER, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+-- G. confirm_payment & dispute_payment -> notifies client
+DROP FUNCTION IF EXISTS public.confirm_payment(UUID);
+DROP FUNCTION IF EXISTS public.confirm_payment(UUID, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.confirm_payment(
-    p_payment_id UUID,
-    p_action TEXT,
-    p_dispute_reason TEXT DEFAULT NULL
+    p_payment_id UUID
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -955,8 +1002,89 @@ BEGIN
         RAISE EXCEPTION 'Not authenticated.';
     END IF;
 
-    IF p_action NOT IN ('confirm', 'dispute') THEN
-        RAISE EXCEPTION 'Action must be either "confirm" or "dispute".';
+    SELECT * INTO v_payment
+    FROM public.payments
+    WHERE id = p_payment_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Payment record not found.';
+    END IF;
+
+    IF v_payment.payee_id <> v_caller_id THEN
+        RAISE EXCEPTION 'Only the payee freelancer can confirm payment receipt.';
+    END IF;
+
+    IF v_payment.status = 'confirmed_received' THEN
+        RETURN; -- idempotent
+    END IF;
+
+    SELECT * INTO v_agreement
+    FROM public.agreements
+    WHERE id = v_payment.agreement_id;
+
+    UPDATE public.payments
+    SET status = 'confirmed_received',
+        confirmed_at = now(),
+        disputed_at = NULL,
+        dispute_reason = NULL,
+        updated_at = now()
+    WHERE id = p_payment_id;
+
+    INSERT INTO public.audit_events (
+        event_type,
+        actor_id,
+        target_id,
+        target_table,
+        metadata
+    ) VALUES (
+        'payment_confirmed',
+        v_caller_id,
+        p_payment_id,
+        'payments',
+        jsonb_build_object('agreement_id', v_payment.agreement_id, 'amount', v_payment.amount)
+    );
+
+    -- Notify client
+    IF v_agreement IS NOT NULL AND v_agreement.client_id IS NOT NULL THEN
+        PERFORM public.notify(
+          v_agreement.client_id,
+          'payment_confirmed',
+          'Payment Confirmed',
+          'Freelancer confirmed receipt of external payment (₱' || (v_payment.amount / 100)::text || ').',
+          'agreement',
+          v_payment.agreement_id,
+          jsonb_build_object('payment_id', p_payment_id)
+        );
+    END IF;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.confirm_payment(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.confirm_payment(UUID) TO authenticated;
+
+DROP FUNCTION IF EXISTS public.dispute_payment(UUID, TEXT);
+CREATE OR REPLACE FUNCTION public.dispute_payment(
+    p_payment_id UUID,
+    p_reason TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+    v_caller_id UUID;
+    v_payment RECORD;
+    v_agreement RECORD;
+BEGIN
+    v_caller_id := auth.uid();
+    IF v_caller_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated.';
+    END IF;
+
+    IF p_reason IS NULL OR char_length(trim(p_reason)) < 5 THEN
+        RAISE EXCEPTION 'A clear reason of at least 5 characters is required to dispute a payment.';
     END IF;
 
     SELECT * INTO v_payment
@@ -968,95 +1096,66 @@ BEGIN
         RAISE EXCEPTION 'Payment record not found.';
     END IF;
 
+    IF v_payment.payee_id <> v_caller_id THEN
+        RAISE EXCEPTION 'Only the payee freelancer can dispute payment reports.';
+    END IF;
+
+    IF v_payment.status = 'confirmed_received' THEN
+        RAISE EXCEPTION 'Cannot dispute a payment that was already confirmed.';
+    END IF;
+
     SELECT * INTO v_agreement
     FROM public.agreements
     WHERE id = v_payment.agreement_id;
 
-    IF v_agreement.freelancer_id <> v_caller_id THEN
-        RAISE EXCEPTION 'Only the freelancer can confirm or dispute payment receipt.';
-    END IF;
+    UPDATE public.payments
+    SET status = 'disputed',
+        dispute_reason = trim(p_reason),
+        disputed_at = now(),
+        updated_at = now()
+    WHERE id = p_payment_id;
 
-    IF v_payment.status <> 'reported_sent' THEN
-        RAISE EXCEPTION 'Only payments with status "reported_sent" can be confirmed or disputed.';
-    END IF;
-
-    IF p_action = 'confirm' THEN
-        UPDATE public.payments
-        SET status = 'confirmed_received',
-            confirmed_at = now(),
-            updated_at = now()
-        WHERE id = p_payment_id;
-
-        INSERT INTO public.audit_events (
-            event_type,
-            actor_id,
-            target_id,
-            target_table,
-            metadata
-        ) VALUES (
-            'payment_confirmed',
-            v_caller_id,
-            p_payment_id,
-            'payments',
-            jsonb_build_object('agreement_id', v_agreement.id, 'amount', v_payment.amount)
-        );
-
-        -- Notify client
-        PERFORM public.notify(
-          v_agreement.client_id,
-          'payment_confirmed',
-          'Payment Confirmed',
-          'Freelancer confirmed receipt of external payment (₱' || (v_payment.amount / 100)::text || ').',
-          'agreement',
-          v_agreement.id,
-          jsonb_build_object('payment_id', p_payment_id)
-        );
-
-    ELSIF p_action = 'dispute' THEN
-        IF p_dispute_reason IS NULL OR char_length(trim(p_dispute_reason)) < 5 THEN
-            RAISE EXCEPTION 'A clear reason of at least 5 characters is required to dispute a payment.';
-        END IF;
-
-        UPDATE public.payments
-        SET status = 'disputed',
-            dispute_reason = trim(p_dispute_reason),
-            updated_at = now()
-        WHERE id = p_payment_id;
-
+    IF v_agreement IS NOT NULL THEN
         UPDATE public.agreements
         SET status = 'in_dispute',
             updated_at = now()
         WHERE id = v_agreement.id;
+    END IF;
 
-        INSERT INTO public.audit_events (
-            event_type,
-            actor_id,
-            target_id,
-            target_table,
-            metadata
-        ) VALUES (
-            'payment_disputed',
-            v_caller_id,
-            p_payment_id,
-            'payments',
-            jsonb_build_object('agreement_id', v_agreement.id, 'reason', trim(p_dispute_reason))
-        );
+    INSERT INTO public.audit_events (
+        event_type,
+        actor_id,
+        target_id,
+        target_table,
+        metadata
+    ) VALUES (
+        'payment_disputed',
+        v_caller_id,
+        p_payment_id,
+        'payments',
+        jsonb_build_object('agreement_id', v_payment.agreement_id, 'reason', trim(p_reason))
+    );
 
-        -- Notify client
+    -- Notify client
+    IF v_agreement IS NOT NULL AND v_agreement.client_id IS NOT NULL THEN
         PERFORM public.notify(
           v_agreement.client_id,
           'payment_disputed',
           'Payment Disputed',
-          'Freelancer disputed payment: ' || trim(p_dispute_reason),
+          'Freelancer disputed payment: ' || trim(p_reason),
           'agreement',
-          v_agreement.id,
+          v_payment.agreement_id,
           jsonb_build_object('payment_id', p_payment_id)
         );
     END IF;
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.dispute_payment(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dispute_payment(UUID, TEXT) TO authenticated;
+
 -- H. complete_agreement -> notifies both parties (agreement_completed)
+DROP FUNCTION IF EXISTS public.complete_agreement(UUID);
 CREATE OR REPLACE FUNCTION public.complete_agreement(
     p_agreement_id UUID
 )
@@ -1201,3 +1300,6 @@ BEGIN
     );
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.complete_agreement(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.complete_agreement(UUID) TO authenticated;

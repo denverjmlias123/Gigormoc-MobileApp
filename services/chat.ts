@@ -13,6 +13,21 @@ export interface MessageItem {
   };
 }
 
+export interface ConversationSummary {
+  id: string;
+  application_id: string;
+  gig_id: string;
+  gig_title: string;
+  partner_id: string;
+  partner_name: string;
+  partner_avatar: string | null;
+  last_message_content: string | null;
+  last_message_created_at: string | null;
+  last_message_sender_id: string | null;
+  is_unread: boolean;
+  updated_at: string;
+}
+
 export interface ConversationItem {
   id: string;
   application_id: string;
@@ -33,6 +48,19 @@ export interface ConversationItem {
 }
 
 export const chatService = {
+  async getUserConversations(): Promise<ConversationSummary[]> {
+    const { data, error } = await supabase.rpc('get_user_conversations');
+    if (error) throw error;
+    return (data || []) as ConversationSummary[];
+  },
+
+  async markConversationRead(conversationId: string): Promise<void> {
+    const { error } = await supabase.rpc('mark_conversation_read', {
+      p_conversation_id: conversationId,
+    });
+    if (error) throw error;
+  },
+
   async getOrCreateConversation(params: {
     applicationId?: string;
     agreementId?: string;
@@ -109,7 +137,6 @@ export const chatService = {
           filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload) => {
-          // Fetch sender display name
           const { data } = await supabase
             .from('profiles')
             .select('id, display_name, avatar_path')

@@ -51,12 +51,16 @@ export default function ChatScreen() {
         setConversation(convData);
         setMessages(msgList);
 
+        // Mark conversation read
+        chatService.markConversationRead(conversationId).catch(() => {});
+
         // Subscribe to real-time incoming messages
         unsubscribe = chatService.subscribeToMessages(conversationId, (newMsg: MessageItem) => {
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
+          chatService.markConversationRead(conversationId).catch(() => {});
         });
       } catch (err: any) {
         setError(err?.message || 'Could not load conversation.');
