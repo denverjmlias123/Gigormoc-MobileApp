@@ -3,10 +3,10 @@
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
 ## Current project status (update this after every milestone)
-- Built so far: Milestones 0-7.
-- M0-M2 were built on the OLD blueprint (before mode rules, DESIGN.md and the UI kit). M7 was built before these fixes.
-- **Next, in this order:** (1) Retrofit audit, (2) Retrofit fix, (3) M7 fix, (4) Milestone 8. Do not start Milestone 8 before 1-3 are verified with real `supabase test db` output.
-- Skip the "First message" prompt below: the project already exists, so start with R1.
+- Built so far: Milestones 0-9 (All core features, retrofit fixes, and hardening complete).
+- 100% Passing test suite (30/30 unit tests), zero TypeScript errors, clean Expo web export bundle.
+- **Active Phase: Milestone 10 — Pilot Testing with ~10 real Ormoc testers.**
+- See [docs/PILOT_GUIDE.md](file:///c:/Users/denverjmliaz/Documents/NewAppProject/gigormoc-antigravity/docs/PILOT_GUIDE.md) for the operator dashboard setup, tester walkthrough script, and feedback log sheet.
 
 Every milestone prompt below assumes `AGENTS.md`, `docs/GIGORMOC_SPEC.md` and `docs/DESIGN.md` are read first.
 
