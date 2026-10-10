@@ -1,4 +1,4 @@
-# Gigormoc — MVP Spec v2 (Expo + Supabase)
+# Gigormoc — MVP Spec v3 (Expo + Supabase)
 
 Solo-developer edition. Ormoc City only. 18+ only. Backend is 100% Supabase. No demo data and no seed data.
 
@@ -53,16 +53,25 @@ The confirmation screen lists exactly what will happen. Everything happens in on
 
 **Where the user switches:** Profile → Settings → Account mode. There is no quick toggle on Home. Home only shows the current mode label, which opens the Account mode screen. The screen shows the current mode, the cooldown status, and any blockers in plain words (for example "Finish your active agreement first").
 
+## 3B. Own-content rule (locked)
+Because one account can be both roles over time, nobody is shown or allowed to act on their own content as someone else's.
+- Gigs posted by the user are excluded from the freelancer feed and from the client Marketplace view; they appear under "My gigs".
+- `submit_application` rejects an application to the caller's own gig.
+- An agreement can never have the same user as client and freelancer (CHECK constraint).
+- `submit_review` and the report function reject the caller as reviewee / reported user.
+- Any future recommendation or suggestion feature must exclude the viewer.
+The UI hides these cases, and the database enforces them. Details: `docs/ROLE_UX.md` section 4.
+
 ## 4. Screens
-Tabs: Home · Gigs · Activity · Messages · Profile.
+Tabs (routes): Home · Gigs · Activity · Messages · Profile. Labels and content depend on the mode: freelancer = Discover, Browse, My work; client = Dashboard, My gigs, Hires (`docs/ROLE_UX.md`).
 - Auth: Welcome, Sign up (2 steps), Log in, Confirm email, Forgot password
 - Onboarding: 3 screens (mode choice is required, the other two can be skipped)
 - Home: mode-aware (Find Work: new gigs by category; Hire Someone: my gigs + Post a gig). Shows the current mode label only; no switch toggle
 - Account mode (Profile → Settings): current mode, cooldown, blockers, confirmed switch flow
-- Gigs: list, search, filter (category, remote / face-to-face / hybrid), detail, apply
+- Gigs: freelancer = browse list, search, filter (category, remote / face-to-face / hybrid), detail, apply. Client = My gigs (status filters, post) plus a read-only Marketplace view
 - Post Gig: title, category, description, requirements, price or range, deadline, work type, general area
 - Applicants (client): list, applicant profile, Accept / Counter / Decline
-- Activity: my applications, agreements, active work
+- Activity: freelancer = Proposals and Jobs; client = Applicants and Hired
 - Agreement detail: price, deadline, milestones, status, payments, submit/approve
 - Profile: public profile (photo, bio, skills, portfolio, completed gigs, rating, reviews), edit, settings
 - Report: user or gig report with reason, notes, optional evidence image
@@ -70,12 +79,13 @@ Tabs: Home · Gigs · Activity · Messages · Profile.
 
 Every screen: loading, empty, error-with-retry, success.
 
-## 4A. Design and look (summary; full details in `docs/DESIGN.md`)
+## 4A. Design and look (summary; full details in `docs/DESIGN.md` and `docs/ROLE_UX.md`)
 - **Feel:** trustworthy, simple, friendly, local. Plain words. Honest empty states, never fake content.
 - **Styling:** NativeWind v4 + Tailwind CSS v3, all colors/fonts/spacing as tokens in `tailwind.config.js`.
 - **Colors (defaults, change once in config):** primary blue `#2563EB`, accent amber `#F59E0B`, success `#16A34A`, warning `#D97706`, danger `#DC2626`, background `#F8FAFC`, surface `#FFFFFF`, text `#0F172A`, muted `#64748B`, border `#E2E8F0`. Light theme only in v1.
 - **Type and spacing:** Inter or system font, body at least 16, 4-point spacing grid, radius 12 (inputs/buttons) and 16 (cards).
 - **Layout:** phone = single column + bottom tabs; tablet = side rail/top nav; desktop web = centered content (max ~1120), 2–3 column card grids, two-column gig and agreement detail pages.
+- **Role skins:** freelancer = cobalt blue, client = deep navy blue, chosen from `profiles.active_mode` through tokens (`docs/ROLE_UX.md` section 5).
 - **Shared kit:** one `components/ui/` library (Button, TextInput, Card, GigCard, Badge, Avatar, RatingStars, StepIndicator, Timeline, Banner, EmptyState, ErrorState, Skeleton, Toast, BottomSheet, FileAttachment, ReviewCard). Screens are built from it.
 - **Status badges:** open/in progress = blue, pending/countered/revision = amber, approved/confirmed/completed = green, declined/cancelled/disputed = red, draft/withdrawn = gray; always with a text label.
 - **Accessibility:** contrast 4.5:1, touch targets 44px+, labels on icon buttons, web keyboard focus, system font scaling.

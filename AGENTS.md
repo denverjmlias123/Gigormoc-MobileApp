@@ -1,6 +1,6 @@
 # AGENTS.md — Gigormoc project rules
 
-Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel) and `docs/MILESTONES.md` (build order).
+Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences) and `docs/MILESTONES.md` (build order).
 
 Gigormoc is a local freelance marketplace for Ormoc City, Philippines (18+ only). The developer is solo. Prefer a working, secure, simple product over extra features.
 
@@ -52,6 +52,7 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - The mode lives in `profiles.active_mode`. It is set only by the `choose_initial_mode` and `switch_mode` database functions, never by a direct client update.
 - Mode switching is restricted (full rules in `docs/GIGORMOC_SPEC.md` section 3A): 7-day cooldown; blocked while the user has an active or disputed agreement, a payment awaiting confirmation or disputed, an unresolved report against them, or a suspended account; open gigs are cancelled and pending applications withdrawn only after explicit confirmation; every switch is audited.
 - Actions are enforced by mode in the database: apply, submit work and confirm payment need `find_work`; publish gig, accept/counter applicants, approve milestones and report payment need `hire`. Viewing history, messaging, reviews, reports and profile work in any mode.
+- **Own-content rule:** nobody applies to, hires, reviews, or reports themselves, and nobody is shown their own gigs as available work. Enforced in the database (not only hidden in the UI). See `docs/ROLE_UX.md` section 4.
 - Ratings are stored separately per role (freelancer rating, client rating), so switching never resets or hides reputation.
 - 18+ enforced in the database from date of birth (sign-up trigger rejects under 18). DOB is never public.
 - Gates enforced in the database: apply = email confirmed + profile photo + 1 skill + 18+; publish gig = email confirmed + 18+.
@@ -70,12 +71,13 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - Date picker for dates, password show/hide, clear validation messages.
 - Every screen has loading, empty, error, and success states. No fake loading percentages.
 
-## Design rules (full details in `docs/DESIGN.md`)
+## Design rules (full details in `docs/DESIGN.md` and `docs/ROLE_UX.md`)
+- **Two role experiences:** Find Work (freelancer) and Hire Someone (client) have their own skin, tab labels, Home, Gigs tab, gig action and Activity wording (`docs/ROLE_UX.md`). The skin comes from `profiles.active_mode` through tokens; screens never choose role colors or role wording by hand.
 - Styling: **NativeWind v4 + Tailwind CSS v3** (stable). Do not use NativeWind v5 / Tailwind v4 preview setups.
 - All colors, fonts, spacing and radii are tokens in `tailwind.config.js`. No raw hex values or one-off styles in screens.
 - Build the shared component kit in `components/ui/` first (Button, TextInput, Card, Badge, EmptyState, ErrorState, etc.), then build screens from it.
 - Verify setup with ONE token-styled test screen on phone and web before building other screens. Delete it afterwards.
-- Look: trustworthy, simple, friendly, local (Ormoc, PHP ₱). Primary blue, light theme only in v1.
+- Look: trustworthy, simple, friendly, local (Ormoc, PHP ₱). Blue family (cobalt for freelancer, navy for client), light theme only in v1.
 - Layout: phone = single column + bottom tabs; tablet = side rail/top nav; desktop web = centered content (max ~1120), card grids, two-column detail pages.
 - Status badges always show text plus color. Payment wording stays "Reported" / "Confirmed by freelancer". The words "verified" and "guaranteed" never appear in any user-facing string, including for reviews (say "Reviews", not "Verified reviews").
 - Use initials avatars, icons and honest empty states. No stock faces, lorem ipsum, fake ratings or counters.

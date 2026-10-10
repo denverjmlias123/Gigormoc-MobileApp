@@ -1,11 +1,14 @@
 # Gigormoc — Design System (look and feel)
 
+> Role-specific look and behavior (freelancer vs client) is in `docs/ROLE_UX.md`. This file is the shared base. Role skins override only the tokens listed in ROLE_UX.md section 5.
+
 Applies to the mobile app (iOS/Android) and the web version. One Expo codebase, one design system.
 Visual reference screenshots (from Base44, Figma or sketches) go in `design/reference/`. They are **visual reference only**: copy the look and layout, never code, SDKs or data from them.
 
 > The colors and fonts below are sensible defaults. If the owner's logo uses different colors, change them ONCE in `tailwind.config.js` (section 2) and the whole app updates. Do not hardcode colors anywhere else.
 
 ## 1. Design principles
+0. **Two sides.** Freelancer and client get their own skin and screens (`docs/ROLE_UX.md`).
 1. **Trustworthy first.** Users are wary of scams. Show trust cues everywhere: confirmed email badge, completed gigs, star rating, clear status labels, and honest wording ("Reported", "Confirmed by freelancer", never "verified" or "guaranteed").
 2. **Simple and friendly.** Plain words, short sentences, one main action per screen. Written for first-time app users, students, and people who are not tech-savvy.
 3. **Local.** Ormoc City context: area names, PHP currency (₱), local service categories. Keep all text in one strings file so Tagalog, Waray or Bisaya can be added later.
@@ -18,7 +21,7 @@ Define in `tailwind.config.js` under `theme.extend`. Screens use token class nam
 
 | Token | Default value | Use |
 |---|---|---|
-| `primary` | `#2563EB` | Main buttons, links, active tab |
+| `primary` | `#2563EB` (base; role skins in ROLE_UX.md override it) | Main buttons, links, active tab |
 | `primary-dark` | `#1E40AF` | Pressed state, headers |
 | `primary-soft` | `#DBEAFE` | Selected chips, light highlights |
 | `accent` | `#F59E0B` | Stars, small highlights (not for main buttons) |
@@ -33,7 +36,7 @@ Define in `tailwind.config.js` under `theme.extend`. Screens use token class nam
 
 - **Typography:** Inter if loaded through `expo-font`, otherwise the system font. Sizes: 12, 14, 16, 18, 20, 24, 30. Body text and input text at least 16. Headings bold, body regular. Support the user's system font scaling.
 - **Spacing:** 4-point grid (4, 8, 12, 16, 24, 32, 48). Screen side padding 16 on mobile, 24 on tablet/web.
-- **Radius:** inputs and buttons 12, cards 16, chips and badges fully rounded.
+- **Radius:** chip 10, input 12, button 14, card 20, sheet 28, pills and badges fully rounded (steps up with importance).
 - **Shadow:** very light on cards only. Prefer borders over heavy shadows.
 - **Icons:** one set only (`lucide-react-native` or `@expo/vector-icons`). Never mix sets.
 - **Dark mode:** light theme only in v1. Keep colors as tokens so dark mode can be added later without rewrites.
@@ -62,7 +65,7 @@ Use Tailwind breakpoints. Build a small `useBreakpoint` hook if needed.
 
 | Screen width | Layout |
 |---|---|
-| Phone (under 640) | Single column. Bottom tab bar: Home, Gigs, Activity, Messages, Profile. Sticky primary action button where needed. |
+| Phone (under 640) | Single column. Bottom tab bar with 5 tabs; labels depend on role (ROLE_UX.md section 2). Sticky primary action button where needed. |
 | Tablet (640 to 1023) | Single or two columns. Tab bar becomes a left side rail or top navigation. |
 | Desktop web (1024+) | Top navigation or left sidebar. Content centered, max width about 1120. Gig list as a 2 to 3 column card grid. |
 
@@ -74,7 +77,7 @@ Use Tailwind breakpoints. Build a small `useBreakpoint` hook if needed.
 - No horizontal scrolling of the page. Wide tables (if any) scroll inside their own container.
 
 ## 6. Key screen guidance
-- **Home:** greeting by display name and a small current-mode label (tapping it opens Profile → Settings → Account mode; there is no quick toggle), then the most useful list for that mode. Banner if the account still needs email confirmation, a photo, or a skill.
+- **Home:** role-specific (see ROLE_UX.md section 6). Greeting by display name and a small current-mode label (tapping it opens Profile → Settings → Account mode; there is no quick toggle), then the most useful list for that mode. Banner if the account still needs email confirmation, a photo, or a skill.
 - **Gig card:** title, category chip, price or range in ₱, work type (remote / face-to-face / hybrid) with icon, general area, deadline, poster rating. Nothing else.
 - **Gig detail:** description, requirements, price, deadline, work type, area, poster profile summary, Apply button (or its blocked reason).
 - **Post gig:** simple multi-step form, preview before publish.
@@ -85,6 +88,8 @@ Use Tailwind breakpoints. Build a small `useBreakpoint` hook if needed.
 - **Onboarding mode choice:** two large cards only, "Find Work" and "Hire Someone", each with one plain sentence. Required to continue. Small note below: "You can switch later, but only under certain conditions." No "Explore Both".
 - **Account mode screen (Profile → Settings):** shows the current mode, the date the next switch is allowed (cooldown), and a plain-language list of anything blocking a switch (with links to the item, for example the active agreement). When a switch is possible, the confirm dialog states exactly what will be cancelled or withdrawn, and the button is danger-styled ("Switch and cancel 2 open gigs"). Reputation note: "Your ratings stay with each role."
 - **Report:** reachable from every profile and gig with two taps.
+
+- **Gig detail action:** decided by viewer and mode: Apply, View applicants, or a disabled action with the reason (ROLE_UX.md section 2). A person never sees Apply enabled on their own gig.
 
 ## 7. Motion and feel
 Minimal. 150 to 250 ms transitions, fade or slide only. Respect the device "reduce motion" setting. Use haptic feedback sparingly on important confirmations (mobile only). No decorative animation that delays the user.
