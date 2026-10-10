@@ -139,7 +139,16 @@ export default function GigDetailScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
         </TouchableOpacity>
         <Badge status={gig.status} />

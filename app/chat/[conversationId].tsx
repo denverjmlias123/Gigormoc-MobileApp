@@ -108,7 +108,16 @@ export default function ChatScreen() {
     >
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/messages');
+            }
+          }}
+          style={styles.backButton}
+        >
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -124,7 +133,17 @@ export default function ChatScreen() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.colors.danger }]}>{error}</Text>
-          <Button title="Go Back" variant="secondary" onPress={() => router.back()} />
+          <Button
+            title="Go Back"
+            variant="secondary"
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/messages');
+              }
+            }}
+          />
         </View>
       ) : (
         <FlatList

@@ -156,7 +156,13 @@ export default function SignUpStep2Screen() {
 
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(auth)/signup-step1');
+            }
+          }}
           disabled={loading}
         >
           <Text style={{ color: theme.colors.muted, textAlign: 'center' }}>← Back to Step 1</Text>

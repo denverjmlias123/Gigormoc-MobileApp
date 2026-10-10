@@ -118,7 +118,16 @@ export default function PostGigScreen() {
       setLoading(true);
       await gigsService.createDraftGig(params);
       Alert.alert('Draft Saved', 'Your gig draft has been saved successfully.', [
-        { text: 'OK', onPress: () => router.back() },
+        {
+          text: 'OK',
+          onPress: () => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          },
+        },
       ]);
     } catch (err: any) {
       setError(err?.message || 'Could not save draft.');
@@ -162,7 +171,13 @@ export default function PostGigScreen() {
         />
         <Button
           title="← Go Back"
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
           variant="secondary"
         />
       </View>
@@ -172,7 +187,16 @@ export default function PostGigScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{strings.gigs.postGigTitle}</Text>

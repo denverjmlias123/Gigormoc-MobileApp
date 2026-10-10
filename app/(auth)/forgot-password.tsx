@@ -101,7 +101,13 @@ export default function ForgotPasswordScreen() {
 
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(auth)/login');
+                }
+              }}
               disabled={loading}
             >
               <Text style={{ color: theme.colors.muted, textAlign: 'center' }}>← Back to Log In</Text>
