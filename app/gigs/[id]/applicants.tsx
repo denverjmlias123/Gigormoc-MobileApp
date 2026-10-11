@@ -12,10 +12,12 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../theme';
 import { applicationsService, ApplicationItem } from '../../../services/applications';
+import { chatService } from '../../../services/chat';
 import { formatPrice } from '../../../components/ui/GigCard';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { NextStepBanner, computePreAgreementLoopState } from '../../../components/ui/Timeline';
 
 export default function GigApplicantsScreen() {
   const router = useRouter();
@@ -46,6 +48,21 @@ export default function GigApplicantsScreen() {
   useEffect(() => {
     loadApplicants();
   }, [id]);
+
+  const handleOpenApplicantChat = async (app: ApplicationItem) => {
+    try {
+      const convId = await chatService.getOrCreateConversation({ applicationId: app.id });
+      router.push({
+        pathname: '/chat/[conversationId]',
+        params: {
+          conversationId: convId,
+          partnerName: app.freelancer?.display_name || 'Freelancer',
+        },
+      });
+    } catch (err: any) {
+      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+    }
+  };
 
   const handleAccept = async (app: ApplicationItem) => {
     Alert.alert(
@@ -116,6 +133,19 @@ export default function GigApplicantsScreen() {
     }
   };
 
+  const pendingApplicantsCount = applicants.filter(
+    (a) => a.status === 'applied' || a.status === 'countered'
+  ).length;
+  const acceptedApplicant = applicants.find((a) => a.status === 'accepted');
+
+  const topLoopState = computePreAgreementLoopState({
+    viewerRole: 'client',
+    gigStatus: acceptedApplicant ? 'in_progress' : 'open',
+    applicationStatus: acceptedApplicant ? 'accepted' : pendingApplicantsCount > 0 ? 'applied' : null,
+    applicantCount: pendingApplicantsCount,
+    freelancerName: acceptedApplicant?.freelancer?.display_name || 'the freelancer',
+  });
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
@@ -134,6 +164,12 @@ export default function GigApplicantsScreen() {
       )}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {!loading && (
+          <View style={{ marginBottom: 14 }}>
+            <NextStepBanner loopState={topLoopState} />
+          </View>
+        )}
+
         {loading ? (
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
         ) : applicants.length === 0 ? (
@@ -192,6 +228,18 @@ export default function GigApplicantsScreen() {
                     "{app.message}"
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.counterBtn,
+                    { borderColor: theme.colors.primary, marginBottom: 10, paddingVertical: 8 },
+                  ]}
+                  onPress={() => handleOpenApplicantChat(app)}
+                >
+                  <Text style={[styles.btnText, { color: theme.colors.primary }]}>
+                    💬 Open Chat with {app.freelancer?.display_name || 'Freelancer'}
+                  </Text>
+                </TouchableOpacity>
 
                 {/* Counter Input Row */}
                 {isCounteringThis && (

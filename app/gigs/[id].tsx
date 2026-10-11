@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,25 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService, GigDetail } from '../../services/gigs';
+import {
+  applicationsService,
+  ApplicationItem,
+  AgreementItem,
+} from '../../services/applications';
+import { milestonesService } from '../../services/milestones';
+import { paymentsService } from '../../services/payments';
+import { reviewsService } from '../../services/reviews';
+import { chatService } from '../../services/chat';
 import { formatPrice, getWorkTypeIcon } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import {
+  Timeline,
+  NextStepBanner,
+  LoopStageState,
+  computeAgreementLoopState,
+  computePreAgreementLoopState,
+} from '../../components/ui/Timeline';
 import { strings } from '../../constants/strings';
 
 export default function GigDetailScreen() {
@@ -24,36 +40,98 @@ export default function GigDetailScreen() {
   const { user, profile } = useAuth();
 
   const [gig, setGig] = useState<GigDetail | null>(null);
+  const [myApplication, setMyApplication] = useState<ApplicationItem | null>(null);
+  const [gigAgreement, setGigAgreement] = useState<AgreementItem | null>(null);
+  const [loopState, setLoopState] = useState<LoopStageState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  const loadGigAndLoop = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await gigsService.getGig(id);
+      if (!data) {
+        setError('Gig not found or has been removed.');
+        return;
+      }
+      setGig(data);
+
+      const isOwner = user?.id === data.client_id;
+      const viewerRole: 'client' | 'freelancer' = isOwner
+        ? 'client'
+        : profile?.active_mode === 'hire'
+        ? 'client'
+        : 'freelancer';
+
+      // Check if an agreement exists for this gig where caller is a participant
+      const myAgreements = user ? await applicationsService.getMyAgreements().catch(() => []) : [];
+      const matchingAgr = myAgreements.find((a) => a.gig_id === data.id) || null;
+      setGigAgreement(matchingAgr);
+
+      if (matchingAgr && user) {
+        const [mls, pays, revs] = await Promise.all([
+          milestonesService.getAgreementMilestones(matchingAgr.id).catch(() => []),
+          paymentsService.getAgreementPayments(matchingAgr.id).catch(() => []),
+          reviewsService.getAgreementReviews(matchingAgr.id).catch(() => []),
+        ]);
+        const agrViewerRole: 'client' | 'freelancer' =
+          user.id === matchingAgr.client_id ? 'client' : 'freelancer';
+        setLoopState(
+          computeAgreementLoopState({
+            viewerRole: agrViewerRole,
+            agreementStatus: matchingAgr.status,
+            agreedPriceCentavos: matchingAgr.agreed_price,
+            clientName: matchingAgr.client?.display_name || data.client.display_name || 'Client',
+            freelancerName: matchingAgr.freelancer?.display_name || 'Freelancer',
+            milestones: mls,
+            payments: pays,
+            reviews: revs,
+            viewerUserId: user.id,
+          })
+        );
+        return;
+      }
+
+      if (isOwner) {
+        const apps = await applicationsService.getGigApplicants(data.id).catch(() => []);
+        const pendingCount = apps.filter(
+          (a) => a.status === 'applied' || a.status === 'countered'
+        ).length;
+        setLoopState(
+          computePreAgreementLoopState({
+            viewerRole: 'client',
+            gigStatus: data.status,
+            applicantCount: pendingCount,
+            clientName: data.client.display_name,
+          })
+        );
+      } else if (user) {
+        const myApps = await applicationsService.getMyApplications().catch(() => []);
+        const foundApp = myApps.find((a) => a.gig_id === data.id) || null;
+        setMyApplication(foundApp);
+        setLoopState(
+          computePreAgreementLoopState({
+            viewerRole,
+            gigStatus: data.status,
+            applicationStatus: foundApp?.status || null,
+            clientName: data.client.display_name,
+            counterPriceCentavos: foundApp?.counter_price,
+          })
+        );
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load gig details.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, user?.id, profile?.active_mode]);
 
   useEffect(() => {
-    let mounted = true;
-    const fetchGig = async () => {
-      if (!id) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await gigsService.getGig(id);
-        if (mounted) {
-          if (!data) {
-            setError('Gig not found or has been removed.');
-          } else {
-            setGig(data);
-          }
-        }
-      } catch (err: any) {
-        if (mounted) setError(err?.message || 'Failed to load gig details.');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchGig();
-    return () => {
-      mounted = false;
-    };
-  }, [id]);
+    loadGigAndLoop();
+  }, [loadGigAndLoop]);
 
   if (loading) {
     return (
@@ -67,7 +145,9 @@ export default function GigDetailScreen() {
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
         <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Gig not found</Text>
-        <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'This gig does not exist.'}</Text>
+        <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>
+          {error || 'This gig does not exist.'}
+        </Text>
         <Button title="← Go Back" onPress={() => router.back()} variant="secondary" />
       </View>
     );
@@ -75,6 +155,12 @@ export default function GigDetailScreen() {
 
   const isOwner = user?.id === gig.client_id;
   const isFreelancerMode = profile?.active_mode === 'find_work';
+  const viewerRole: 'client' | 'freelancer' = isOwner
+    ? 'client'
+    : isFreelancerMode
+    ? 'freelancer'
+    : 'client';
+
   const priceDisplay =
     gig.price_min === gig.price_max
       ? formatPrice(gig.price_min)
@@ -92,9 +178,11 @@ export default function GigDetailScreen() {
     year: 'numeric',
   });
 
-  const [cancelling, setCancelling] = useState(false);
-
   const handleApplyPress = () => {
+    if (gigAgreement) {
+      router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } });
+      return;
+    }
     if (isOwner) {
       router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
       return;
@@ -107,6 +195,38 @@ export default function GigDetailScreen() {
       return;
     }
     router.push({ pathname: '/gigs/[id]/apply', params: { id: gig.id } });
+  };
+
+  const handleOpenChat = async () => {
+    try {
+      if (gigAgreement) {
+        const convId = await chatService.getOrCreateConversation({
+          agreementId: gigAgreement.id,
+        });
+        router.push({
+          pathname: '/chat/[conversationId]',
+          params: {
+            conversationId: convId,
+            partnerName: isOwner
+              ? gigAgreement.freelancer?.display_name || 'Freelancer'
+              : gig.client.display_name || 'Client',
+          },
+        });
+      } else if (myApplication) {
+        const convId = await chatService.getOrCreateConversation({
+          applicationId: myApplication.id,
+        });
+        router.push({
+          pathname: '/chat/[conversationId]',
+          params: {
+            conversationId: convId,
+            partnerName: gig.client.display_name || 'Client',
+          },
+        });
+      }
+    } catch (err: any) {
+      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+    }
   };
 
   const handleCancelGig = () => {
@@ -122,7 +242,7 @@ export default function GigDetailScreen() {
             setCancelling(true);
             try {
               await gigsService.cancelGig(gig.id, 'Cancelled by client from gig details');
-              setGig({ ...gig, status: 'cancelled' });
+              await loadGigAndLoop();
               Alert.alert('Gig Cancelled', 'The gig has been cancelled successfully.');
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Failed to cancel gig.');
@@ -138,7 +258,12 @@ export default function GigDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
-      <View style={[styles.topBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+      <View
+        style={[
+          styles.topBar,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => {
             if (router.canGoBack()) {
@@ -155,8 +280,43 @@ export default function GigDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Shared Next Step Banner & Relationship Timeline (Section 1) */}
+        {loopState && (
+          <View style={styles.loopSection}>
+            <NextStepBanner
+              loopState={loopState}
+              actionLabel={
+                gigAgreement
+                  ? 'Open Agreement ›'
+                  : isOwner
+                  ? 'View Applicants ›'
+                  : isFreelancerMode && gig.status === 'open' && !myApplication
+                  ? strings.gigs.applyBtn
+                  : undefined
+              }
+              onActionPress={
+                gigAgreement || isOwner || (isFreelancerMode && gig.status === 'open' && !myApplication)
+                  ? handleApplyPress
+                  : undefined
+              }
+              onOpenChatPress={gigAgreement || myApplication ? handleOpenChat : undefined}
+            />
+
+            <Timeline
+              currentStage={loopState.currentStage}
+              viewerRole={viewerRole}
+              loopState={loopState}
+            />
+          </View>
+        )}
+
         {/* Main Info */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+          ]}
+        >
           <Text style={[styles.categoryBadge, { color: theme.colors.primary }]}>
             {gig.category_name || 'General Category'}
           </Text>
@@ -188,21 +348,42 @@ export default function GigDetailScreen() {
         </View>
 
         {/* Description */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Description</Text>
           <Text style={[styles.bodyText, { color: theme.colors.text }]}>{gig.description}</Text>
         </View>
 
         {/* Requirements */}
         {gig.requirements ? (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Requirements</Text>
             <Text style={[styles.bodyText, { color: theme.colors.text }]}>{gig.requirements}</Text>
           </View>
         ) : null}
 
         {/* Client Profile Summary */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <TouchableOpacity
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+          ]}
+          onPress={() => {
+            if (gig.client_id) {
+              router.push({ pathname: '/profile/[id]', params: { id: gig.client_id } });
+            }
+          }}
+          activeOpacity={0.8}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Posted By</Text>
           <View style={styles.clientRow}>
             <View style={[styles.clientAvatar, { backgroundColor: theme.colors.primary }]}>
@@ -215,22 +396,33 @@ export default function GigDetailScreen() {
                 {gig.client.display_name}
               </Text>
               <Text style={[styles.clientStats, { color: theme.colors.muted }]}>
-                ★ {Number(gig.client.client_rating_avg || 0).toFixed(1)} ({gig.client.client_rating_count || 0} reviews) • {gig.client.client_completed_gigs || 0} completed gigs
+                ★ {Number(gig.client.client_rating_avg || 0).toFixed(1)} (
+                {gig.client.client_rating_count || 0} reviews) •{' '}
+                {gig.client.client_completed_gigs || 0} completed gigs
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Sticky Bottom Action Bar */}
-      <View style={[styles.bottomBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
-        {isOwner ? (
+      <View
+        style={[
+          styles.bottomBar,
+          { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+        ]}
+      >
+        {gigAgreement ? (
+          <Button
+            title="View Active Agreement"
+            onPress={() =>
+              router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })
+            }
+            variant="primary"
+          />
+        ) : isOwner ? (
           <View style={{ width: '100%', gap: 8 }}>
-            <Button
-              title="View Applicants"
-              onPress={handleApplyPress}
-              variant="primary"
-            />
+            <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
             {(gig.status === 'open' || gig.status === 'draft') && (
               <Button
                 title={strings.gigs.cancelGigBtn}
@@ -243,21 +435,36 @@ export default function GigDetailScreen() {
           </View>
         ) : isFreelancerMode ? (
           <View style={{ width: '100%' }}>
-            {gig.status !== 'open' && (
-              <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-                {gig.status === 'in_progress'
-                  ? 'This gig is already in progress.'
-                  : gig.status === 'completed'
-                  ? 'This gig has been completed.'
-                  : 'This gig is not open for applications.'}
-              </Text>
+            {myApplication ? (
+              <>
+                <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                  You have already submitted a proposal ({myApplication.status}).
+                </Text>
+                <Button
+                  title="View My Proposal in Activity"
+                  onPress={() => router.push('/(tabs)/activity')}
+                  variant="secondary"
+                />
+              </>
+            ) : (
+              <>
+                {gig.status !== 'open' && (
+                  <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                    {gig.status === 'in_progress'
+                      ? 'This gig is already in progress.'
+                      : gig.status === 'completed'
+                      ? 'This gig has been completed.'
+                      : 'This gig is not open for applications.'}
+                  </Text>
+                )}
+                <Button
+                  title={strings.gigs.applyBtn}
+                  onPress={handleApplyPress}
+                  variant="primary"
+                  disabled={gig.status !== 'open'}
+                />
+              </>
             )}
-            <Button
-              title={strings.gigs.applyBtn}
-              onPress={handleApplyPress}
-              variant="primary"
-              disabled={gig.status !== 'open'}
-            />
           </View>
         ) : (
           <View style={{ width: '100%' }}>
@@ -310,7 +517,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 120,
+  },
+  loopSection: {
+    gap: 12,
+    marginBottom: 14,
   },
   card: {
     borderWidth: 1,
@@ -365,7 +576,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 4,
   },
   clientAvatar: {
     width: 44,
@@ -383,12 +593,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   clientName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
+    marginBottom: 2,
   },
   clientStats: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 13,
   },
   bottomBar: {
     position: 'absolute',
@@ -396,20 +606,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
+    paddingBottom: 28,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  ownerNotice: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  ownerText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   reasonText: {
     fontSize: 12,
     textAlign: 'center',
     marginBottom: 8,
-    fontWeight: '500',
   },
 });

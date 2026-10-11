@@ -163,4 +163,26 @@ export const strings = {
       { value: 'other', label: 'Other' },
     ] as const,
   },
+  loop: {
+    timelineTitle: 'Relationship Progress',
+    youAreHereBadge: 'You are here',
+    nextStepPrefix: 'Next step',
+    yourTurnBadge: 'Your turn to act',
+    waitingBadge: 'Waiting on other side',
+    openChatBtn: '💬 Open Chat',
+    viewStageBtn: 'Go to Stage ›',
+    stages: {
+      posted: 'Posted',
+      applied: 'Applied',
+      accepted: 'Accepted',
+      milestones_set: 'Milestones set',
+      work_submitted: 'Work submitted',
+      approved: 'Approved',
+      payment_reported: 'Payment reported',
+      payment_confirmed: 'Payment confirmed',
+      done: 'Done',
+      reviewed: 'Reviewed',
+    },
+  },
 };
+

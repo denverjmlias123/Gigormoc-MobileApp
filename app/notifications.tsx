@@ -19,7 +19,7 @@ import { ErrorState } from '../components/ui/ErrorState';
 export default function NotificationsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,19 +59,88 @@ export default function NotificationsScreen() {
       notificationsService.markAsRead(item.id).catch(() => {});
     }
 
-    // Deep link routing based on entity_type
-    if (item.entity_type === 'agreement' && item.entity_id) {
-      router.push({ pathname: '/agreements/[id]', params: { id: item.entity_id } });
-    } else if (item.entity_type === 'application') {
+    const agreementId =
+      item.entity_type === 'agreement'
+        ? item.entity_id
+        : item.data?.agreement_id || null;
+    const milestoneId =
+      item.entity_type === 'milestone'
+        ? item.entity_id
+        : item.data?.milestone_id || null;
+    const conversationId =
+      item.entity_type === 'conversation'
+        ? item.entity_id
+        : item.data?.conversation_id || null;
+
+    // 1. Chat / Conversation notifications
+    if (conversationId || item.type === 'new_message') {
+      if (conversationId) {
+        router.push({
+          pathname: '/chat/[conversationId]',
+          params: { conversationId },
+        });
+        return;
+      }
+      router.push('/(tabs)/messages');
+      return;
+    }
+
+    // 2. Milestone-specific stage deep links
+    if (agreementId && milestoneId) {
+      if (item.type === 'milestone_submitted') {
+        router.push({
+          pathname: '/agreements/[id]/milestones/[milestoneId]/review',
+          params: { id: agreementId, milestoneId },
+        });
+        return;
+      }
+      if (item.type === 'milestone_revision_requested') {
+        router.push({
+          pathname: '/agreements/[id]/milestones/[milestoneId]/submit',
+          params: { id: agreementId, milestoneId },
+        });
+        return;
+      }
+    }
+
+    // 3. Agreement / Payment / Review notifications -> Agreement loop screen
+    if (
+      agreementId ||
+      item.entity_type === 'agreement' ||
+      item.entity_type === 'milestone' ||
+      item.entity_type === 'payment' ||
+      item.entity_type === 'review'
+    ) {
+      const targetAgrId = agreementId || item.entity_id;
+      if (targetAgrId) {
+        router.push({ pathname: '/agreements/[id]', params: { id: targetAgrId } });
+        return;
+      }
+    }
+
+    // 4. Application / Proposal stage deep links
+    if (item.entity_type === 'application') {
       const gigId = item.data?.gig_id;
-      if (gigId) {
+      if (
+        (item.type === 'application_received' || item.type === 'counter_declined') &&
+        gigId &&
+        profile?.active_mode === 'hire'
+      ) {
         router.push({ pathname: '/gigs/[id]/applicants', params: { id: gigId } });
       } else {
         router.push('/(tabs)/activity');
       }
-    } else if (item.entity_type === 'gig' && item.entity_id) {
+      return;
+    }
+
+    // 5. Gig detail deep link
+    if (item.entity_type === 'gig' && item.entity_id) {
       router.push({ pathname: '/gigs/[id]', params: { id: item.entity_id } });
-    } else if (item.entity_type === 'profile') {
+      return;
+    }
+
+    // 6. Profile completeness deep link
+    if (item.entity_type === 'profile' || item.type === 'profile_complete') {
       router.push('/(tabs)/profile');
     }
   };

@@ -15,7 +15,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { chatService, MessageItem, ConversationItem } from '../../services/chat';
+import { applicationsService } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
+import { strings } from '../../constants/strings';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -27,6 +29,8 @@ export default function ChatScreen() {
   const { user } = useAuth();
 
   const [conversation, setConversation] = useState<ConversationItem | null>(null);
+  const [linkedAgreementId, setLinkedAgreementId] = useState<string | null>(null);
+  const [linkedGigId, setLinkedGigId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -44,12 +48,23 @@ export default function ChatScreen() {
       setLoading(true);
       setError(null);
       try {
-        const [convData, msgList] = await Promise.all([
+        const [convData, msgList, convSummaries, myAgreements] = await Promise.all([
           chatService.getConversation(conversationId),
           chatService.getMessages(conversationId),
+          chatService.getUserConversations().catch(() => []),
+          applicationsService.getMyAgreements().catch(() => []),
         ]);
         setConversation(convData);
         setMessages(msgList);
+
+        const matchingSummary = convSummaries.find((s) => s.id === conversationId);
+        const gigId = matchingSummary?.gig_id || null;
+        setLinkedGigId(gigId);
+
+        if (gigId) {
+          const matchingAgr = myAgreements.find((a) => a.gig_id === gigId);
+          setLinkedAgreementId(matchingAgr?.id || null);
+        }
 
         // Mark conversation read
         chatService.markConversationRead(conversationId).catch(() => {});
@@ -75,6 +90,22 @@ export default function ChatScreen() {
       if (unsubscribe) unsubscribe();
     };
   }, [conversationId]);
+
+  const handleGoToStage = () => {
+    if (linkedAgreementId) {
+      router.push({ pathname: '/agreements/[id]', params: { id: linkedAgreementId } });
+      return;
+    }
+    if (linkedGigId) {
+      if (user?.id === conversation?.client_id) {
+        router.push({ pathname: '/gigs/[id]/applicants', params: { id: linkedGigId } });
+      } else {
+        router.push({ pathname: '/gigs/[id]', params: { id: linkedGigId } });
+      }
+      return;
+    }
+    router.push('/(tabs)/activity');
+  };
 
   const handleSend = async () => {
     if (!inputText.trim() || !conversationId) return;
@@ -120,10 +151,17 @@ export default function ChatScreen() {
         >
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
+        <Text style={[styles.topBarTitle, { color: theme.colors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
           {partnerTitle}
         </Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity
+          onPress={handleGoToStage}
+          style={[styles.backButton, { backgroundColor: theme.colors.primarySoft, borderRadius: 8 }]}
+        >
+          <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: '700' }}>
+            {strings.loop.viewStageBtn}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (

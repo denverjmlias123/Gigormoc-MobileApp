@@ -21,6 +21,11 @@ import { reportsService } from '../../services/reports';
 import { formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import {
+  Timeline,
+  NextStepBanner,
+  computeAgreementLoopState,
+} from '../../components/ui/Timeline';
 
 export default function AgreementDetailScreen() {
   const router = useRouter();
@@ -190,6 +195,7 @@ export default function AgreementDetailScreen() {
 
   const isClient = user?.id === agreement.client_id;
   const isFreelancer = user?.id === agreement.freelancer_id;
+  const viewerRole: 'client' | 'freelancer' = isClient ? 'client' : 'freelancer';
 
   const approvedMilestonesCount = milestones.filter((m) => m.status === 'approved').length;
   const allMilestonesApproved = milestones.length > 0 && approvedMilestonesCount === milestones.length;
@@ -209,6 +215,111 @@ export default function AgreementDetailScreen() {
     !hasPaymentDisputes &&
     !hasPendingPaymentReports;
 
+  const loopState = computeAgreementLoopState({
+    viewerRole,
+    agreementStatus: agreement.status,
+    agreedPriceCentavos: agreement.agreed_price,
+    clientName: agreement.client?.display_name || 'Client',
+    freelancerName: agreement.freelancer?.display_name || 'Freelancer',
+    milestones,
+    payments,
+    reviews,
+    viewerUserId: user?.id,
+  });
+
+  // Determine optional primary shortcut button inside the Next step banner
+  let bannerActionLabel: string | undefined;
+  let bannerActionPress: (() => void) | undefined;
+
+  if (loopState.isViewerTurn) {
+    if (loopState.currentStage === 'accepted' && isClient) {
+      bannerActionLabel = 'Setup Milestones';
+      bannerActionPress = () => {
+        router.push({
+          pathname: '/agreements/[id]/milestones/setup',
+          params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+        });
+      };
+    } else if (loopState.currentStage === 'milestones_set' && isFreelancer) {
+      const nextPending = milestones.find((m) => m.status === 'pending');
+      if (nextPending) {
+        bannerActionLabel = 'Submit Work';
+        bannerActionPress = () => {
+          router.push({
+            pathname: '/agreements/[id]/milestones/[milestoneId]/submit',
+            params: {
+              id: agreement.id,
+              milestoneId: nextPending.id,
+              title: nextPending.title,
+              revisionCount: nextPending.revision_count.toString(),
+            },
+          });
+        };
+      }
+    } else if (loopState.currentStage === 'work_submitted' && isClient) {
+      const submittedM = milestones.find((m) => m.status === 'submitted');
+      if (submittedM) {
+        bannerActionLabel = 'Review Work';
+        bannerActionPress = () => {
+          router.push({
+            pathname: '/agreements/[id]/milestones/[milestoneId]/review',
+            params: {
+              id: agreement.id,
+              milestoneId: submittedM.id,
+              title: submittedM.title,
+              revisionCount: submittedM.revision_count.toString(),
+            },
+          });
+        };
+      }
+    } else if (loopState.currentStage === 'approved' && isFreelancer) {
+      const revM = milestones.find((m) => m.status === 'revision_requested');
+      if (revM) {
+        bannerActionLabel = 'Resubmit Work';
+        bannerActionPress = () => {
+          router.push({
+            pathname: '/agreements/[id]/milestones/[milestoneId]/submit',
+            params: {
+              id: agreement.id,
+              milestoneId: revM.id,
+              title: revM.title,
+              revisionCount: revM.revision_count.toString(),
+            },
+          });
+        };
+      }
+    } else if (loopState.currentStage === 'approved' && isClient) {
+      bannerActionLabel = 'Report Payment';
+      bannerActionPress = () => {
+        router.push({
+          pathname: '/agreements/[id]/payments/report',
+          params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+        });
+      };
+    } else if (loopState.currentStage === 'payment_reported' && isFreelancer) {
+      const pendingPayment = payments.find((p) => p.status === 'reported_sent');
+      if (pendingPayment) {
+        bannerActionLabel = 'Confirm Receipt';
+        bannerActionPress = () => handleConfirmPayment(pendingPayment.id);
+      }
+    } else if (loopState.currentStage === 'payment_confirmed' && canCompleteAgreement) {
+      bannerActionLabel = 'Complete Agreement';
+      bannerActionPress = handleCompleteAgreement;
+    } else if (loopState.currentStage === 'done') {
+      bannerActionLabel = 'Leave Review';
+      bannerActionPress = () => {
+        const targetName = isClient
+          ? agreement.freelancer?.display_name || 'Freelancer'
+          : agreement.client?.display_name || 'Client';
+        const targetRole = isClient ? 'freelancer' : 'client';
+        router.push({
+          pathname: '/agreements/[id]/review',
+          params: { id: agreement.id, targetName, targetRole },
+        });
+      };
+    }
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
@@ -226,6 +337,21 @@ export default function AgreementDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* Next Step Banner (Section 1 Rule 1: names who must act in plain words + Open Chat) */}
+        <NextStepBanner
+          loopState={loopState}
+          actionLabel={bannerActionLabel}
+          onActionPress={bannerActionPress}
+          onOpenChatPress={handleOpenChat}
+        />
+
+        {/* Shared Relationship Timeline (Section 1: Posted -> Reviewed with "You are here") */}
+        <Timeline
+          currentStage={loopState.currentStage}
+          viewerRole={viewerRole}
+          loopState={loopState}
+        />
+
         {/* Status & Gig Header */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <View style={styles.statusRow}>

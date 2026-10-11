@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -17,9 +18,20 @@ import {
   AgreementItem,
 } from '../../services/applications';
 import { gigsService } from '../../services/gigs';
+import { milestonesService } from '../../services/milestones';
+import { paymentsService } from '../../services/payments';
+import { reviewsService } from '../../services/reviews';
+import { chatService } from '../../services/chat';
 import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import {
+  Timeline,
+  NextStepBanner,
+  LoopStageState,
+  computeAgreementLoopState,
+  computePreAgreementLoopState,
+} from '../../components/ui/Timeline';
 
 export default function ActivityScreen() {
   const router = useRouter();
@@ -28,19 +40,23 @@ export default function ActivityScreen() {
 
   const isFindWork = profile?.active_mode === 'find_work';
   const isHire = profile?.active_mode === 'hire';
+  const viewerRole: 'client' | 'freelancer' = isHire ? 'client' : 'freelancer';
 
   const [activeTab, setActiveTab] = useState<'primary' | 'agreements'>('primary');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [counterBusyId, setCounterBusyId] = useState<string | null>(null);
 
   // Freelancer state
   const [myApplications, setMyApplications] = useState<ApplicationItem[]>([]);
 
   // Client state
   const [myGigs, setMyGigs] = useState<GigSummary[]>([]);
+  const [gigApplicantCounts, setGigApplicantCounts] = useState<Record<string, number>>({});
 
   // Shared state
   const [myAgreements, setMyAgreements] = useState<AgreementItem[]>([]);
+  const [agreementLoopMap, setAgreementLoopMap] = useState<Record<string, LoopStageState>>({});
 
   const loadData = useCallback(async () => {
     if (!user) {
@@ -48,24 +64,85 @@ export default function ActivityScreen() {
       return;
     }
     try {
+      let agrs: AgreementItem[] = [];
+
       if (isFindWork) {
-        const [apps, agrs] = await Promise.all([
+        const [apps, agreementsRes] = await Promise.all([
           applicationsService.getMyApplications(),
           applicationsService.getMyAgreements(),
         ]);
         setMyApplications(apps);
-        setMyAgreements(agrs);
+        agrs = agreementsRes;
       } else if (isHire) {
-        const [gigs, agrs] = await Promise.all([
+        const [gigs, agreementsRes] = await Promise.all([
           gigsService.getMyGigs(user.id),
           applicationsService.getMyAgreements(),
         ]);
         setMyGigs(gigs);
-        setMyAgreements(agrs);
+        agrs = agreementsRes;
+
+        // Fetch applicant counts for each client gig from DB so the Next step banner is accurate
+        const countsMap: Record<string, number> = {};
+        await Promise.all(
+          gigs.map(async (g) => {
+            try {
+              const apps = await applicationsService.getGigApplicants(g.id);
+              countsMap[g.id] = apps.filter(
+                (a) => a.status === 'applied' || a.status === 'countered'
+              ).length;
+            } catch {
+              countsMap[g.id] = 0;
+            }
+          })
+        );
+        setGigApplicantCounts(countsMap);
       } else {
-        const agrs = await applicationsService.getMyAgreements();
-        setMyAgreements(agrs);
+        agrs = await applicationsService.getMyAgreements();
       }
+
+      setMyAgreements(agrs);
+
+      // Compute authoritative DB loop stage for each agreement
+      const loopMap: Record<string, LoopStageState> = {};
+      await Promise.all(
+        agrs.map(async (agr) => {
+          try {
+            const [mls, pays, revs] = await Promise.all([
+              milestonesService.getAgreementMilestones(agr.id).catch(() => []),
+              paymentsService.getAgreementPayments(agr.id).catch(() => []),
+              reviewsService.getAgreementReviews(agr.id).catch(() => []),
+            ]);
+            const agrRole: 'client' | 'freelancer' =
+              user.id === agr.client_id ? 'client' : 'freelancer';
+            loopMap[agr.id] = computeAgreementLoopState({
+              viewerRole: agrRole,
+              agreementStatus: agr.status,
+              agreedPriceCentavos: agr.agreed_price,
+              clientName: agr.client?.display_name || 'Client',
+              freelancerName: agr.freelancer?.display_name || 'Freelancer',
+              milestones: mls,
+              payments: pays,
+              reviews: revs,
+              viewerUserId: user.id,
+            });
+          } catch {
+            const agrRole: 'client' | 'freelancer' =
+              user.id === agr.client_id ? 'client' : 'freelancer';
+            loopMap[agr.id] = computeAgreementLoopState({
+              viewerRole: agrRole,
+              agreementStatus: agr.status,
+              agreedPriceCentavos: agr.agreed_price,
+              clientName: agr.client?.display_name || 'Client',
+              freelancerName: agr.freelancer?.display_name || 'Freelancer',
+              milestones: [],
+              payments: [],
+              reviews: [],
+              viewerUserId: user.id,
+            });
+          }
+        })
+      );
+      setAgreementLoopMap(loopMap);
     } catch (err) {
       console.error('Failed to load activity data:', err);
     } finally {
@@ -83,6 +160,36 @@ export default function ActivityScreen() {
     loadData();
   };
 
+  const handleOpenApplicationChat = async (applicationId: string, partnerName: string) => {
+    try {
+      const convId = await chatService.getOrCreateConversation({ applicationId });
+      router.push({
+        pathname: '/chat/[conversationId]',
+        params: { conversationId: convId, partnerName },
+      });
+    } catch (err: any) {
+      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+    }
+  };
+
+  const handleRespondToCounter = async (
+    app: ApplicationItem,
+    action: 'accept' | 'decline'
+  ) => {
+    setCounterBusyId(app.id);
+    try {
+      const agreementId = await applicationsService.respondToCounter(app.id, action);
+      await loadData();
+      if (action === 'accept' && agreementId) {
+        router.push({ pathname: '/agreements/[id]', params: { id: agreementId } });
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not respond to counteroffer.');
+    } finally {
+      setCounterBusyId(null);
+    }
+  };
+
   const renderFreelancerPrimaryTab = () => {
     if (myApplications.length === 0) {
       return (
@@ -97,45 +204,97 @@ export default function ActivityScreen() {
 
     return (
       <View style={styles.list}>
-        {myApplications.map((app) => (
-          <TouchableOpacity
-            key={app.id}
-            style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-            onPress={() => {
-              if (app.gig_id) {
-                router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } });
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                {app.gig?.title || 'Gig'}
-              </Text>
-              <Badge status={app.status} />
-            </View>
+        {myApplications.map((app) => {
+          const preLoop = computePreAgreementLoopState({
+            viewerRole: 'freelancer',
+            gigStatus: 'open',
+            applicationStatus: app.status,
+            counterPriceCentavos: app.counter_price,
+          });
+          const isBusy = counterBusyId === app.id;
 
-            <View style={styles.cardRow}>
-              <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>My Proposal:</Text>
-              <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>
-                {formatPrice(app.proposed_price)}
-              </Text>
-            </View>
+          return (
+            <View
+              key={app.id}
+              style={[
+                styles.card,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  if (app.gig_id) {
+                    router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                    {app.gig?.title || 'Gig'}
+                  </Text>
+                  <Badge status={app.status} />
+                </View>
 
-            {app.status === 'countered' && app.counter_price && (
-              <View style={[styles.counterBox, { backgroundColor: '#FEF1D6', borderColor: '#F6D58B' }]}>
-                <Text style={styles.counterBoxLabel}>Client Counteroffer:</Text>
-                <Text style={styles.counterBoxValue}>{formatPrice(app.counter_price)}</Text>
+                <View style={styles.cardRow}>
+                  <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>
+                    My Proposal:
+                  </Text>
+                  <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>
+                    {formatPrice(app.proposed_price)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Compact Shared Timeline & Next Step Banner */}
+              <Timeline
+                currentStage={preLoop.currentStage}
+                viewerRole="freelancer"
+                loopState={preLoop}
+                compact
+              />
+
+              <NextStepBanner
+                loopState={preLoop}
+                compact
+                onOpenChatPress={() =>
+                  handleOpenApplicationChat(app.id, app.gig?.title || 'Client')
+                }
+              />
+
+              {/* Counteroffer response actions if status === 'countered' */}
+              {app.status === 'countered' && app.counter_price && (
+                <View style={styles.counterActionRow}>
+                  <TouchableOpacity
+                    style={[styles.counterAcceptBtn, { backgroundColor: theme.colors.primary }]}
+                    onPress={() => handleRespondToCounter(app, 'accept')}
+                    disabled={isBusy}
+                  >
+                    <Text style={styles.counterBtnTextWhite}>
+                      {isBusy ? 'Saving...' : `Accept ${formatPrice(app.counter_price)}`}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.danger }]}
+                    onPress={() => handleRespondToCounter(app, 'decline')}
+                    disabled={isBusy}
+                  >
+                    <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>
+                      Decline
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.cardFooter}>
+                <Text style={[styles.cardFooterText, { color: theme.colors.muted }]}>
+                  Est. {app.estimated_days} day{app.estimated_days > 1 ? 's' : ''} • Applied{' '}
+                  {new Date(app.created_at).toLocaleDateString()}
+                </Text>
               </View>
-            )}
-
-            <View style={styles.cardFooter}>
-              <Text style={[styles.cardFooterText, { color: theme.colors.muted }]}>
-                Est. {app.estimated_days} day{app.estimated_days > 1 ? 's' : ''} • Applied {new Date(app.created_at).toLocaleDateString()}
-              </Text>
             </View>
-          </TouchableOpacity>
-        ))}
+          );
+        })}
       </View>
     );
   };
@@ -154,36 +313,69 @@ export default function ActivityScreen() {
 
     return (
       <View style={styles.list}>
-        {myGigs.map((gig) => (
-          <TouchableOpacity
-            key={gig.id}
-            style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-            onPress={() => {
-              router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                {gig.title}
-              </Text>
-              <Badge status={gig.status} />
-            </View>
+        {myGigs.map((gig) => {
+          const pendingApplicants = gigApplicantCounts[gig.id] || 0;
+          const preLoop = computePreAgreementLoopState({
+            viewerRole: 'client',
+            gigStatus: gig.status,
+            applicantCount: pendingApplicants,
+          });
 
-            <View style={styles.cardRow}>
-              <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>Budget Range:</Text>
-              <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>
-                {formatPrice(gig.price_min)} - {formatPrice(gig.price_max)}
-              </Text>
-            </View>
+          return (
+            <TouchableOpacity
+              key={gig.id}
+              style={[
+                styles.card,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+              onPress={() => {
+                router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                  {gig.title}
+                </Text>
+                <Badge status={gig.status} />
+              </View>
 
-            <View style={styles.cardFooter}>
-              <Text style={[styles.cardFooterLink, { color: theme.colors.primary }]}>
-                👥 View Applicants ›
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+              <View style={styles.cardRow}>
+                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>
+                  Budget Range:
+                </Text>
+                <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>
+                  {formatPrice(gig.price_min)} - {formatPrice(gig.price_max)}
+                </Text>
+              </View>
+
+              {/* Compact Shared Timeline & Next Step Banner */}
+              <Timeline
+                currentStage={preLoop.currentStage}
+                viewerRole="client"
+                loopState={preLoop}
+                compact
+              />
+
+              <NextStepBanner
+                loopState={preLoop}
+                compact
+                actionLabel={pendingApplicants > 0 ? `Review Applicants (${pendingApplicants})` : undefined}
+                onActionPress={
+                  pendingApplicants > 0
+                    ? () => router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } })
+                    : undefined
+                }
+              />
+
+              <View style={styles.cardFooter}>
+                <Text style={[styles.cardFooterLink, { color: theme.colors.primary }]}>
+                  👥 View Applicants {pendingApplicants > 0 ? `(${pendingApplicants})` : ''} ›
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
@@ -201,13 +393,30 @@ export default function ActivityScreen() {
     return (
       <View style={styles.list}>
         {myAgreements.map((agr) => {
-          const counterParty = isFindWork ? agr.client : agr.freelancer;
-          const roleLabel = isFindWork ? 'Client' : 'Freelancer';
+          const isAgrClient = user?.id === agr.client_id;
+          const counterParty = isAgrClient ? agr.freelancer : agr.client;
+          const roleLabel = isAgrClient ? 'Freelancer' : 'Client';
+          const agrLoop =
+            agreementLoopMap[agr.id] ||
+            computeAgreementLoopState({
+              viewerRole: isAgrClient ? 'client' : 'freelancer',
+              agreementStatus: agr.status,
+              agreedPriceCentavos: agr.agreed_price,
+              clientName: agr.client?.display_name || 'Client',
+              freelancerName: agr.freelancer?.display_name || 'Freelancer',
+              milestones: [],
+              payments: [],
+              reviews: [],
+              viewerUserId: user?.id,
+            });
 
           return (
             <TouchableOpacity
               key={agr.id}
-              style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              style={[
+                styles.card,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
               onPress={() => {
                 router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
               }}
@@ -221,7 +430,9 @@ export default function ActivityScreen() {
               </View>
 
               <View style={styles.cardRow}>
-                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>Agreed Price:</Text>
+                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>
+                  Agreed Price:
+                </Text>
                 <Text style={[styles.cardPrice, { color: theme.colors.primary }]}>
                   {formatPrice(agr.agreed_price)}
                 </Text>
@@ -229,12 +440,31 @@ export default function ActivityScreen() {
 
               {counterParty && (
                 <View style={styles.cardRow}>
-                  <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>{roleLabel}:</Text>
+                  <Text style={[styles.cardMetaLabel, { color: theme.colors.muted }]}>
+                    {roleLabel}:
+                  </Text>
                   <Text style={[styles.cardMetaValue, { color: theme.colors.text }]}>
                     {counterParty.display_name}
                   </Text>
                 </View>
               )}
+
+              {/* Compact Shared Timeline & Next Step Banner */}
+              <Timeline
+                currentStage={agrLoop.currentStage}
+                viewerRole={isAgrClient ? 'client' : 'freelancer'}
+                loopState={agrLoop}
+                compact
+              />
+
+              <NextStepBanner
+                loopState={agrLoop}
+                compact
+                actionLabel="Open Agreement ›"
+                onActionPress={() =>
+                  router.push({ pathname: '/agreements/[id]', params: { id: agr.id } })
+                }
+              />
 
               <View style={styles.cardFooter}>
                 <Text style={[styles.cardFooterText, { color: theme.colors.muted }]}>
@@ -257,7 +487,9 @@ export default function ActivityScreen() {
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
         <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
-          {isFindWork ? 'Track your proposals & active work' : 'Manage your posted gigs & agreements'}
+          {isFindWork
+            ? 'Track your proposals & active work'
+            : 'Manage your posted gigs & agreements'}
         </Text>
       </View>
 
@@ -266,7 +498,10 @@ export default function ActivityScreen() {
         <TouchableOpacity
           style={[
             styles.tabItem,
-            activeTab === 'primary' && [styles.tabItemActive, { borderBottomColor: theme.colors.primary }],
+            activeTab === 'primary' && [
+              styles.tabItemActive,
+              { borderBottomColor: theme.colors.primary },
+            ],
           ]}
           onPress={() => setActiveTab('primary')}
         >
@@ -283,7 +518,10 @@ export default function ActivityScreen() {
         <TouchableOpacity
           style={[
             styles.tabItem,
-            activeTab === 'agreements' && [styles.tabItemActive, { borderBottomColor: theme.colors.primary }],
+            activeTab === 'agreements' && [
+              styles.tabItemActive,
+              { borderBottomColor: theme.colors.primary },
+            ],
           ]}
           onPress={() => setActiveTab('agreements')}
         >
@@ -293,7 +531,8 @@ export default function ActivityScreen() {
               { color: activeTab === 'agreements' ? theme.colors.primary : theme.colors.muted },
             ]}
           >
-            {isFindWork ? 'Jobs' : 'Hired'} {myAgreements.length > 0 ? `(${myAgreements.length})` : ''}
+            {isFindWork ? 'Jobs' : 'Hired'}{' '}
+            {myAgreements.length > 0 ? `(${myAgreements.length})` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -400,24 +639,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  counterBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
+  counterActionRow: {
     flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  counterAcceptBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
   },
-  counterBoxLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#B45309',
+  counterDeclineBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
   },
-  counterBoxValue: {
-    fontSize: 13,
+  counterBtnTextWhite: {
+    color: '#ffffff',
     fontWeight: '700',
-    color: '#B45309',
+    fontSize: 13,
   },
   cardFooter: {
     flexDirection: 'row',
