@@ -2,21 +2,22 @@
 
 **Project:** Gigormoc  
 **Target Market:** Ormoc City, Philippines (18+ Local Freelance Marketplace)  
-**Architecture:** Single-codebase mobile and web (Expo React Native, Expo Router, TypeScript Strict) backed 100% by Supabase (Auth, Postgres RLS, Storage, Realtime, RPC Functions).  
+**Architecture:** Single-codebase mobile and web (Expo React Native, Expo Router, TypeScript Strict) backed 100% by Supabase (Auth, Postgres RLS, Storage, Realtime, Edge Functions, RPC Functions).  
 **Document Generation Date:** October 11, 2026  
 
 ---
 
 ## 1. Executive Summary & Vision
 
-Gigormoc is designed as an honest, localized freelance marketplace tailored specifically for Ormoc City. Rather than adopting complex global escrow models or simulated in-app wallets, Gigormoc coordinates peer-to-peer freelance agreements, milestones, and direct real-world payments (e.g., GCash, Maya, PayPal, or bank transfer in PHP integer centavos). 
+Gigormoc is designed as an honest, localized freelance marketplace tailored specifically for Ormoc City. Rather than adopting complex global escrow models or simulated in-app wallets, Gigormoc coordinates peer-to-peer freelance agreements, milestones, and direct real-world payments (e.g., GCash, Maya, PayPal, or bank transfer in PHP integer centavos).
 
 ### Key Architectural Pillars:
 - **Zero Mock / Zero Seed Policy**: No fake data, mock users, or placeholder counters exist in code. Empty states reflect true database state.
 - **Strict Database-Enforced Modes**: Users toggle between `find_work` (freelancer) and `hire` (client) modes. Modes are enforced via PostgreSQL `SECURITY DEFINER` RPC functions with strict transition restrictions and cooldowns.
 - **Separation of Concerns & Privacy**: Row Level Security (RLS) is default-deny. Date of birth and private contact data are separated into a non-public `profile_private` table.
-- **Own-Content Enforcement**: Users are blocked in both database and UI from applying to, reviewing, or reporting their own listings or identities.
+- **Own-Content Enforcement**: Users are blocked in both database and UI from applying to, reviewing, messaging, or reporting their own listings or identities.
 - **NativeWind & Token Design System**: Role-adaptive theme tokens switch between Freelancer (Cobalt) and Client (Navy/Warm) skins.
+- **Server-Side AI Assist**: Onboarding skill suggestions, bio drafting, and gig description polishing are backed by a secured Supabase Edge Function (`ai-assist`) powered by Google Gemini (`gemini-3.8-flash`), with server-side rate limiting, prompt isolation, and PII sanitization.
 
 ---
 
@@ -87,8 +88,8 @@ Gigormoc is designed as an honest, localized freelance marketplace tailored spec
 - Total elimination of hardcoded demo arrays, fake counters, and mock fallbacks across app services.
 - Rate limiting on messages, applications, and report filings.
 
-### v4 Evolution & Retrofit (R4 & R5):
-- **Database Own-Content Rules (Migration `20261011000010_own_content_rule.sql`)**:
+### v4 Evolution & Retrofit (R4 & R5)
+- **Database Own-Content Rules (`20261011000010_own_content_rule.sql`)**:
   - Added database constraint `agreements_parties_must_differ_check` (`client_id <> freelancer_id`).
   - Added self-application rejection in `submit_application`.
   - Added self-review and self-reporting blocks in `submit_review` and `submit_report`.
@@ -101,6 +102,31 @@ Gigormoc is designed as an honest, localized freelance marketplace tailored spec
   - Complete retrofit across Gigs, Gig Details, Activity, Agreements, Milestones, Payments, and Chat.
 - **Claude Mode Switch Resolution**: Integrated cross-platform modal confirmation dialog (`lib/dialog.ts`) and enhanced RPC `switch_mode` handling.
 - **Milestone 10 Preparation**: Authored Ormoc pilot tester handbook (`docs/PILOT_GUIDE.md`).
+
+### v5 Real Logic Milestones (Milestones 11–15)
+
+#### Milestone 11: Real In-App Notifications (`20261011000011_notifications.sql`)
+- **Schema & Helper**: Created `notifications` table with RLS (`user_id = auth.uid()`), partial index on unread (`read_at IS NULL`), and Realtime publication.
+- **Internal Trigger Engine**: Built private `notify(...)` helper (revoked from public/anon/authenticated) invoked directly inside all `SECURITY DEFINER` lifecycle RPCs (`submit_application`, `respond_to_application`, `respond_to_counter`, `define_milestones`, `submit_milestone`, `review_milestone`, `report_payment`, `confirm_payment`, `dispute_payment`, `complete_agreement`, `cancel_agreement`, `submit_review`, `switch_mode`, `send_message`). Strictly suppresses self-notifications.
+- **Client Integration**: Added `services/notifications.ts`, unread badge on the Home header bell icon with live Realtime subscription, and `app/notifications.tsx` with deep-link resolution by `entity_type` / `entity_id` and `mark_all_notifications_read()`.
+
+#### Milestone 12: Real Messaging (`20261011000012_real_messaging.sql`)
+- **Database Conversation Creation**: Updated `submit_application` to automatically create the participant `conversations` row (`UNIQUE(application_id)`). Direct client inserts into `conversations` and `messages` are revoked.
+- **Read Tracking & Collapsing**: Added `conversation_reads(conversation_id, user_id, last_read_at)`, `mark_conversation_read(p_conversation_id)`, `get_conversations_with_meta()`, and `get_unread_conversations_count()`. Updated `send_message` to collapse unread `new_message` notifications per conversation rather than spamming duplicates.
+- **UI & Realtime**: Built live unread badges on the Messages tab bar, full conversation list (`app/(tabs)/messages.tsx`) with gig title, partner display name, last message preview, and live chat screen (`app/chat/[conversationId].tsx`) with unique Realtime channel topics to prevent duplicate subscription errors on remount.
+
+#### Milestone 13: Post Gig Real (`20261011000013_real_post_gig.sql`)
+- **RPC Lifecycle**: Implemented `create_draft_gig(...)`, hardened `publish_gig(p_gig_id)` with idempotency, and added `cancel_gig(p_gig_id, p_reason)` which declines pending applicants and dispatches `gig_cancelled` notifications.
+- **Validation Parity**: Enforced exact bounds in both database and UI (`app/gigs/post.tsx`): title 5–80 chars, description 30–2000 chars, minimum budget floor of ₱100 (`10,000` centavos), future deadline validation, and an honest empty-category guard when no active categories exist in the database.
+
+#### Milestone 14: AI in Onboarding & Edge Function (`20261011000014_ai_onboarding.sql`)
+- **Custom User Skills & Areas**: Added `source` (`admin` | `user`) and `created_by` to `skills` (allowing nullable `category_id` for pending user skills), created `areas` table for Ormoc barangays, and built `add_profile_skills(p_skill_ids, p_custom_names)` and `complete_onboarding()` RPCs. Resolved PL/pgSQL output column ambiguity (`out_skill_id`, `out_skill_name`) and ensured `profiles.updated_at` column presence.
+- **Edge Function (`supabase/functions/ai-assist/index.ts`)**: Deployed Deno Edge Function integrating Google Gemini (`gemini-3.8-flash` via `GEMINI_API_KEY`) with task allow-listing (`suggest_skills`, `draft_bio`, `polish_gig_description`), JWT + active profile verification, rate limiting (10/hr, 30/day via `rate_limit_events`), PII/URL/phone stripping, `1500` token output allowance, and resilient JSON boundary extraction.
+- **Onboarding UI (`step2-skills.tsx`, `step3-profile.tsx`)**: Wired AI skill suggestion chips, manual custom skill fallback, and AI bio drafting options.
+
+#### Milestone 15: Complete Real Loop & Navigation Hardening (`20261011000015_real_loop.sql`)
+- **End-to-End Loop Hardening**: Fixed `respond_to_counter` agreement role mapping, hardened `cancel_agreement` to notify the counterparty on both free cancellations and post-submission disputes, and authored the two-device verification script in `docs/E2E_LOOP.md`.
+- **Navigation Guards**: Hardened all `router.back()` handlers across 12 screens with `router.canGoBack() ? router.back() : router.replace(fallbackRoute)` to prevent unhandled `GO_BACK` warnings on deep links or fresh reloads.
 
 ---
 
@@ -122,6 +148,11 @@ All database changes are captured in sequential SQL migrations within `supabase/
 | `20261011000009_v3_hardening_and_retrofit.sql` | Security hardening, permission revocations, updated `switch_mode` with report blockers. |
 | `20261011000010_fix_mode_switch.sql` | Client confirmation alignment for mode switching and application withdrawal logic. |
 | `20261011000010_own_content_rule.sql` | Database-level self-dealing prevention: check constraints, `get_available_gigs`, self-action guards. |
+| `20261011000011_notifications.sql` | `notifications` table, internal `notify()` helper, lifecycle notification triggers, read RPCs. |
+| `20261011000012_real_messaging.sql` | Auto-conversation creation on application, `conversation_reads`, collapsed message notifications, metadata RPCs. |
+| `20261011000013_real_post_gig.sql` | `create_draft_gig`, idempotent `publish_gig` with validation parity, `cancel_gig` RPC. |
+| `20261011000014_ai_onboarding.sql` | User-originated `skills`, `areas` table, `add_profile_skills` RPC, `complete_onboarding` RPC, `profiles.updated_at`. |
+| `20261011000015_real_loop.sql` | `respond_to_counter` role fix, `cancel_agreement` notifications, end-to-end loop hardening. |
 
 ---
 
@@ -131,33 +162,34 @@ All routes follow the Expo Router file-system hierarchy under `app/`:
 
 ### Authentication & Onboarding
 - `app/(auth)/welcome.tsx`: Landing screen with app introduction.
-- `app/(auth)/login.tsx`: Email and password sign-in.
+- `app/(auth)/login.tsx`: Email and password sign-in (with `canGoBack` fallback).
 - `app/(auth)/signup-step1.tsx`: Step 1 registration (Name, Email, Password, Terms).
 - `app/(auth)/signup-step2.tsx`: Step 2 registration (Birth date picker, 18+ validation).
 - `app/(auth)/confirm-email.tsx`: Email verification state screen.
 - `app/(auth)/forgot-password.tsx`: Password recovery email flow.
 - `app/(onboarding)/step1-mode.tsx`: Mandatory initial mode selection (`find_work` vs `hire`).
-- `app/(onboarding)/step2-skills.tsx`: Initial skills selection (skippable).
-- `app/(onboarding)/step3-profile.tsx`: Bio and photo setup (skippable).
+- `app/(onboarding)/step2-skills.tsx`: Catalog skill chips + AI skill suggestions (`suggest_skills`) + custom skill entry.
+- `app/(onboarding)/step3-profile.tsx`: Barangay/area selection + short bio with AI bio drafting (`draft_bio`) + `complete_onboarding()`.
 
 ### Core Tab Navigation (`app/(tabs)/`)
-- `_layout.tsx`: Role-adaptive tab labels and icons driven by `useTheme()`.
-- `index.tsx`: Home / Overview screen adapted to active mode.
+- `_layout.tsx`: Role-adaptive tab labels, icons, and live unread conversation badge driven by `useTheme()`.
+- `index.tsx`: Home / Overview screen adapted to active mode with live unread notification bell badge.
 - `gigs.tsx`: 
   - **Freelancer**: Browse and search open gigs (excludes own gigs).
   - **Client**: "My Gigs" management tab with status filters + "Marketplace" view.
 - `activity.tsx`:
   - **Freelancer**: Proposals and Active Jobs tracker.
   - **Client**: Applicants and Hired Freelancers tracker.
-- `messages.tsx`: Realtime conversations list with unread indicators.
+- `messages.tsx`: Realtime conversations list with gig title, last message preview, and unread indicators.
 - `profile.tsx`: User profile view with mode switcher button, settings, and navigation.
 
 ### Detail & Action Screens
-- `app/gigs/post.tsx`: Post/draft a new gig (Client mode only).
-- `app/gigs/[id].tsx`: Gig detail view with viewer-dependent CTA (Apply, Manage Applicants, or Post Same).
+- `app/notifications.tsx`: Real-time notification center with mark-all-read and entity deep-linking.
+- `app/gigs/post.tsx`: Post/draft a new gig with AI description polish (`polish_gig_description`) and category gate.
+- `app/gigs/[id].tsx`: Gig detail view with viewer-dependent CTA (Apply, Manage Applicants, Cancel Gig).
 - `app/gigs/[id]/apply.tsx`: Application submission with proposed price and pitch.
 - `app/gigs/[id]/applicants.tsx`: Applicant review, counteroffer, and acceptance interface.
-- `app/agreements/[id].tsx`: Master agreement dashboard with milestone and payment summaries.
+- `app/agreements/[id].tsx`: Master agreement dashboard with milestone, payment, cancellation, and review actions.
 - `app/agreements/[id]/milestones/setup.tsx`: Milestone breakdown definition (1–5 milestones summing to agreed price).
 - `app/agreements/[id]/milestones/[milestoneId]/submit.tsx`: Submission upload for milestone work.
 - `app/agreements/[id]/milestones/[milestoneId]/review.tsx`: Client milestone review and revision requester.
@@ -166,7 +198,7 @@ All routes follow the Expo Router file-system hierarchy under `app/`:
 - `app/agreements/[id]/review.tsx`: Agreement completion review and star rating form.
 - `app/chat/[conversationId].tsx`: Realtime chat thread between participants.
 - `app/profile/[id].tsx`: Public profile view displaying separated role ratings.
-- `app/profile/edit.tsx`: Edit public name, bio, and avatar.
+- `app/profile/edit.tsx`: Edit public name, bio, area, and avatar.
 - `app/profile/skills.tsx`: Manage profile skills.
 - `app/profile/portfolio.tsx`: Upload and organize portfolio items.
 - `app/reports/new.tsx`: File a report against a user, gig, or message.
@@ -174,43 +206,40 @@ All routes follow the Expo Router file-system hierarchy under `app/`:
 
 ---
 
-## 5. Service Layer Architecture
+## 5. Service Layer & Edge Function Architecture
 
-Business logic is encapsulated in strongly-typed service modules under `services/`:
+Business logic is encapsulated in strongly-typed service modules under `services/` and serverless Deno functions under `supabase/functions/`:
 
-- `services/auth.ts`: Authentication state, signup, signin, password recovery, session handling.
-- `services/profile.ts`: Profile retrieval, private data handling, avatar uploads, portfolio management.
-- `services/gigs.ts`: Gig listing, search queries, creation, and lifecycle management.
-- `services/applications.ts`: Application submission, counteroffers, acceptance, and agreement spawning.
+- `services/auth.ts`: Authentication state, signup, signin, password recovery, `completeOnboarding()`, session handling.
+- `services/profile.ts`: Profile retrieval, categories, areas, `addProfileSkills()`, avatar uploads, portfolio management.
+- `services/ai.ts`: Client wrapper for invoking the `ai-assist` Edge Function (`suggestSkills`, `draftBio`, `polishGigDescription`) with structured error unpacking.
+- `services/notifications.ts`: Notification fetching, `markRead`, `markAllRead`, `getUnreadCount`, deep-link routing, and unique-channel Realtime subscriptions.
+- `services/gigs.ts`: Gig listing, search queries, `createDraftGig`, `publishGig`, `cancelGig`.
+- `services/applications.ts`: Application submission, counteroffers, acceptance, withdrawal, and agreement spawning.
 - `services/milestones.ts`: Milestone definitions, submission handling, revision requests, approvals.
-- `services/payments.ts`: Payment reporting, receipt uploads, payment confirmation, and agreement completion.
+- `services/payments.ts`: Payment reporting, receipt uploads, payment confirmation, disputes, and agreement completion.
 - `services/reviews.ts`: Review submissions, rating calculations, review visibility filtering.
-- `services/chat.ts`: Realtime message subscriptions, message sending, unread handling.
-- `services/reports.ts`: Filing moderation reports with optional evidence attachments.
+- `services/chat.ts`: Conversation metadata, `markConversationRead`, Realtime message subscriptions, message sending.
+- `services/reports.ts`: Filing moderation reports and agreement cancellations.
+- `supabase/functions/ai-assist/index.ts`: Deno Edge Function integrating Google Gemini (`gemini-3.8-flash`) and Anthropic fallback, enforcing auth, active profile checks, rate limits, PII scrubbing, and JSON schema validation.
 
 ---
 
 ## 6. Test Suite & Verification Status
 
-The project includes an automated test suite executed via the native Node.js test runner (`node --test test/*.test.js`):
+The project includes an automated test suite executed via the native Node.js test runner (`node --test test/*.test.js`) alongside SQL pgTAP tests in `supabase/tests/database/`:
 
-### Verified Test Categories (35/35 passing):
-1. **Agreement Lifecycle & Constraints**: Single active status, double-accept race condition protection.
-2. **Mode Switch Eligibility**: Cooldown enforcement, blocker rules (open gigs, active agreements, pending payments, reports).
-3. **Age Verification**: 18+ enforcement on birth dates.
-4. **Data Privacy**: Separation of `profile_private` and public profile safety.
-5. **Currency Math**: Safe centavos integer calculations and formatting in PHP ₱.
-6. **Milestone Integrity**: Sum equality to agreed total, 2-revision ceiling.
-7. **Payment State Transitions**: `reported_sent` to `confirmed_received`, escrow prevention checks.
-8. **Review Rules**: 14-day deadline from `completed_at`, exclusion of hidden reviews, single review per participant.
-9. **Own-Content Rules**: Blocked self-applications, blocked self-agreements, blocked self-reviews, and exclusion of own gigs from marketplace browsing.
-10. **Storage Isolation**: Verification of private bucket policy scopes.
+### Verified Test Categories (58/58 passing):
+1. **AI Onboarding & Assist (`test/ai_onboarding.test.js`)**: Task allow-list enforcement, 600-char field bounds, URL/phone PII sanitizer, custom skill deduplication and limits, `complete_onboarding` mode prerequisite gate.
+2. **Notifications (`test/notifications.test.js`)**: Self-notification suppression, unread count computation, deep-link target resolution, mark-all-read state transitions.
+3. **Real Messaging (`test/messaging.test.js`)**: Participant verification, own-content rule, rate limit threshold (30/min), unread status calculation from `conversation_reads`.
+4. **Post Gig Real (`test/post_gig.test.js`)**: Minimum budget floor (₱100 / 10,000 centavos), title (5–80) and description (30–2000) bounds, category requirement gate, idempotent publish, `cancel_gig` applicant notifications.
+5. **Complete Real Loop (`test/real_loop.test.js`)**: Milestone sum parity with agreed price, 2-revision ceiling, agreement completion gate (approved milestones + confirmed payments), free cancellation vs post-work dispute, `respond_to_counter` role mapping.
+6. **Core Marketplace & Hardening (`test/agreements.test.js`, `test/auth.test.js`, `test/gigs.test.js`, `test/hardening.test.js`, `test/milestones.test.js`, `test/own_content_rule.test.js`, `test/payments.test.js`, `test/profile.test.js`, `test/reports.test.js`, `test/reviews.test.js`, `test/setup.test.js`)**: 18+ verification, centavos math, RLS privacy, 14-day review window, mode switch blockers, and zero-mock verification.
 
 ---
 
 ## 7. Current Project State & Next Steps
 
-- **Completed**: Milestones 0 through 9, Retrofit audits R1–R3, Own-Content rule retrofit R4, and Role UX retrofit R5.
-- **In Progress / Next**: **Milestone 10 (Ormoc City Pilot Testing)**.
-  - The pilot handbook is drafted in `docs/PILOT_GUIDE.md`.
-  - Testing with ~10 local Ormoc testers to gather usability feedback, transaction flows, and edge cases prior to production release.
+- **Completed**: Milestones 0 through 15, Retrofit audits R1–R5, live deployment of `ai-assist` Edge Function with Google Gemini (`gemini-3.8-flash`), and navigation/Realtime channel hardening.
+- **Ready for Execution**: **Two-Account End-to-End Verification (`docs/E2E_LOOP.md`) & Ormoc City Pilot (`docs/PILOT_GUIDE.md`)**.
