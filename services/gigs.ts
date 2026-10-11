@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GigSummary } from '../components/ui/GigCard';
+import { Category } from './profile';
+import { aiService } from './ai';
 
 export interface GigDetail extends GigSummary {
   description: string;
@@ -23,13 +25,30 @@ export interface CreateGigParams {
   title: string;
   description: string;
   requirements: string;
-  category_id: string;
+  category_id?: string | null;
+  category_name?: string | null;
   price_min: number; // in centavos
   price_max: number; // in centavos
   work_type: 'remote' | 'face_to_face' | 'hybrid';
   area?: string;
   application_deadline: string;
   deadline: string;
+}
+
+export interface SuggestedGigCategory {
+  id: string;
+  name: string;
+  slug: string;
+  similarity_score?: number;
+  match_reason: string;
+  source?: 'db' | 'ai';
+}
+
+export interface SimilarCategory {
+  id: string;
+  name: string;
+  slug: string;
+  similarity_score: number;
 }
 
 export interface GetGigsFilter {
@@ -203,27 +222,115 @@ export const gigsService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated.');
 
-    const { data, error } = await supabase
-      .from('gigs')
-      .insert({
-        client_id: user.id,
-        title: params.title,
-        description: params.description,
-        requirements: params.requirements,
-        category_id: params.category_id,
-        price_min: params.price_min,
-        price_max: params.price_max,
-        work_type: params.work_type,
-        area: params.area || '',
-        application_deadline: params.application_deadline,
-        deadline: params.deadline,
-        status: 'draft',
-      })
-      .select('id')
-      .single();
+    const { data, error } = await supabase.rpc('create_draft_gig', {
+      p_title: params.title,
+      p_description: params.description,
+      p_requirements: params.requirements || '',
+      p_price_min: params.price_min,
+      p_price_max: params.price_max,
+      p_work_type: params.work_type,
+      p_area: params.area || '',
+      p_application_deadline: params.application_deadline,
+      p_deadline: params.deadline,
+      p_category_id: params.category_id || null,
+      p_category_name: params.category_name || null,
+    });
 
     if (error) throw error;
-    return { id: data.id };
+    return { id: String(data) };
+  },
+
+  async getOrCreateCategory(name: string): Promise<string> {
+    const { data, error } = await supabase.rpc('get_or_create_category', {
+      p_name: name,
+    });
+    if (error) throw error;
+    return String(data);
+  },
+
+  async suggestCategoriesForGig(title: string, description?: string): Promise<SuggestedGigCategory[]> {
+    const { data, error } = await supabase.rpc('suggest_categories_for_gig', {
+      p_title: title || '',
+      p_description: description || '',
+    });
+    if (error) throw error;
+    return ((data as any[]) || []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+      similarity_score: typeof row.similarity_score === 'number' ? row.similarity_score : undefined,
+      match_reason: String(row.match_reason || 'Matches your gig'),
+      source: 'db' as const,
+    }));
+  },
+
+  /**
+   * Suggests categories using AI (restricted to active DB categories + optional 1 general new category)
+   * and automatically falls back to DB pg_trgm suggest_categories_for_gig if AI fails or returns empty.
+   */
+  async suggestCategoriesWithAiFallback(
+    title: string,
+    description?: string
+  ): Promise<{
+    suggestions: SuggestedGigCategory[];
+    proposed_new_category: string | null;
+    usedFallback: boolean;
+  }> {
+    try {
+      const aiRes = await aiService.suggestGigCategory({ title, description });
+      if (aiRes.suggestions && aiRes.suggestions.length > 0) {
+        return {
+          suggestions: aiRes.suggestions.map((s) => ({
+            id: s.category_id,
+            name: s.name,
+            slug: s.slug,
+            match_reason: s.reason,
+            source: 'ai' as const,
+          })),
+          proposed_new_category: aiRes.proposed_new_category || null,
+          usedFallback: false,
+        };
+      }
+      // If AI returned 0 existing matches, also check DB fuzzy matches before relying solely on proposed_new_category
+      const dbSuggestions = await this.suggestCategoriesForGig(title, description).catch(() => []);
+      return {
+        suggestions: dbSuggestions,
+        proposed_new_category: aiRes.proposed_new_category || null,
+        usedFallback: dbSuggestions.length > 0,
+      };
+    } catch {
+      const dbSuggestions = await this.suggestCategoriesForGig(title, description).catch(() => []);
+      return {
+        suggestions: dbSuggestions,
+        proposed_new_category: null,
+        usedFallback: true,
+      };
+    }
+  },
+
+  async findSimilarCategories(query: string): Promise<SimilarCategory[]> {
+    const { data, error } = await supabase.rpc('find_similar_categories', {
+      p_query: query || '',
+    });
+    if (error) throw error;
+    return ((data as any[]) || []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+      similarity_score: Number(row.similarity_score || 0),
+    }));
+  },
+
+  async getBrowseCategories(): Promise<Category[]> {
+    const { data, error } = await supabase.rpc('get_browse_categories');
+    if (error) throw error;
+    return ((data as any[]) || []).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      slug: String(row.slug),
+      is_active: Boolean(row.is_active),
+      created_at: String(row.created_at || ''),
+    }));
   },
 
   async publishGig(gigId: string): Promise<void> {

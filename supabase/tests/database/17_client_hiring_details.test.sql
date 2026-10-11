@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap;
-SELECT plan(14);
+SELECT plan(15);
 
 -- Setup test users:
 -- User 1: Starts in 'hire' (Client) mode
@@ -53,11 +53,11 @@ SELECT throws_ok(
 -- 3. Client can save hiring details (including 'other' client_type and custom categories)
 SELECT is(
   (public.save_hiring_details(
-    'other',
-    'Ormoc Events Co',
-    'We hire local event helpers and graphic designers.',
+    'other'::text,
+    'Ormoc Events Co'::text,
+    'We hire local event helpers and graphic designers.'::text,
     ARRAY[]::uuid[],
-    ARRAY['Event Staffing', 'Graphic Design', 'Errands & Delivery']
+    ARRAY['Event Staffing', 'Graphic Design', 'Errands & Delivery']::text[]
   )->>'client_type'),
   'other',
   'Client can save client_type = other and custom hiring interest categories'
@@ -71,14 +71,14 @@ SELECT is(
 
 -- 4. Business name validation (2-60 chars if non-empty)
 SELECT throws_ok(
-  $$SELECT public.save_hiring_details('business', 'A', 'Valid about note', NULL, NULL)$$,
+  $$SELECT public.save_hiring_details('business'::text, 'A'::text, 'Valid about note'::text, NULL::uuid[], NULL::text[])$$,
   'P0001',
   'Business or organization name must be between 2 and 60 characters.',
   'Rejects 1-character business_name'
 );
 
 SELECT throws_ok(
-  $$SELECT public.save_hiring_details('business', repeat('B', 61), 'Valid about note', NULL, NULL)$$,
+  $$SELECT public.save_hiring_details('business'::text, repeat('B', 61)::text, 'Valid about note'::text, NULL::uuid[], NULL::text[])$$,
   'P0001',
   'Business or organization name must be between 2 and 60 characters.',
   'Rejects >60-character business_name'
@@ -86,7 +86,7 @@ SELECT throws_ok(
 
 -- 5. About hiring validation (<= 300 chars)
 SELECT throws_ok(
-  $$SELECT public.save_hiring_details('business', 'Valid Shop', repeat('X', 301), NULL, NULL)$$,
+  $$SELECT public.save_hiring_details('business'::text, 'Valid Shop'::text, repeat('X', 301)::text, NULL::uuid[], NULL::text[])$$,
   'P0001',
   'About hiring note must be 300 characters or fewer.',
   'Rejects >300-character about_hiring'
@@ -95,11 +95,11 @@ SELECT throws_ok(
 -- 6. Hiring interests limited to max 8 categories
 SELECT throws_ok(
   $$SELECT public.save_hiring_details(
-    'business',
-    'Valid Shop',
-    'Need help',
+    'business'::text,
+    'Valid Shop'::text,
+    'Need help'::text,
     ARRAY[]::uuid[],
-    ARRAY['Cat 1', 'Cat 2', 'Cat 3', 'Cat 4', 'Cat 5', 'Cat 6', 'Cat 7', 'Cat 8', 'Cat 9']
+    ARRAY['Cat 1', 'Cat 2', 'Cat 3', 'Cat 4', 'Cat 5', 'Cat 6', 'Cat 7', 'Cat 8', 'Cat 9']::text[]
   )$$,
   'P0001',
   'You can select at most 8 hiring interests.',
@@ -110,7 +110,7 @@ SELECT throws_ok(
 SET LOCAL "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000001702';
 
 SELECT throws_ok(
-  $$SELECT public.save_hiring_details('individual', '', 'Looking for work', ARRAY[]::uuid[], ARRAY['Tutoring'])$$,
+  $$SELECT public.save_hiring_details('individual'::text, ''::text, 'Looking for work'::text, ARRAY[]::uuid[], ARRAY['Tutoring']::text[])$$,
   'P0001',
   'Hiring details can only be saved in Hire Someone (Client) mode.',
   'Freelancer in find_work mode cannot call save_hiring_details'
@@ -118,7 +118,7 @@ SELECT throws_ok(
 
 -- 8. Freelancer can add skills, then switch mode to 'hire', add hiring interests, and both skills & interests persist across mode switches
 SELECT is(
-  (SELECT count(*)::integer FROM public.add_profile_skills(ARRAY[]::uuid[], ARRAY['Plumbing Repair', 'Electrical Wiring'])),
+  (SELECT count(*)::integer FROM public.add_profile_skills(ARRAY[]::uuid[], ARRAY['Plumbing Repair', 'Electrical Wiring']::text[])),
   2,
   'Freelancer adds 2 skills in find_work mode'
 );
@@ -138,7 +138,7 @@ SELECT is(
 
 -- Now in hire mode, User 2 saves 2 hiring interests
 SELECT lives_ok(
-  $$SELECT public.save_hiring_details('individual', '', 'Need home repair help', ARRAY[]::uuid[], ARRAY['Home Repair', 'Cleaning'])$$,
+  $$SELECT public.save_hiring_details('individual'::text, ''::text, 'Need home repair help'::text, ARRAY[]::uuid[], ARRAY['Home Repair', 'Cleaning']::text[])$$,
   'User 2 saves hiring interests while in hire mode'
 );
 

@@ -59,7 +59,9 @@ export default function GigsScreen() {
         }
       } else {
         const [categoriesData, gigsData] = await Promise.all([
-          profileService.getCategories().catch(() => []),
+          gigsService
+            .getBrowseCategories()
+            .catch(() => profileService.getCategories().catch(() => [])),
           gigsService.getGigs({
             categoryId: selectedCategory || undefined,
             workType: workTypeFilter === 'all' ? undefined : workTypeFilter,
@@ -206,6 +208,29 @@ export default function GigsScreen() {
                 />
               ))}
             </ScrollView>
+
+            {categories.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.filterRow, { marginTop: 6 }]}
+              >
+                <Chip
+                  key="cat-all"
+                  label={strings.gigs.filterAllCategories}
+                  selected={selectedCategory === null}
+                  onPress={() => setSelectedCategory(null)}
+                />
+                {categories.map((cat) => (
+                  <Chip
+                    key={`cat-${cat.id}`}
+                    label={cat.name}
+                    selected={selectedCategory === cat.id}
+                    onPress={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
+                  />
+                ))}
+              </ScrollView>
+            )}
           </>
         )}
 

@@ -12,7 +12,11 @@ import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Category } from '../../services/profile';
-import { gigsService } from '../../services/gigs';
+import {
+  gigsService,
+  SuggestedGigCategory,
+  SimilarCategory,
+} from '../../services/gigs';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
 import { strings } from '../../constants/strings';
@@ -22,10 +26,19 @@ type WorkType = 'remote' | 'face_to_face' | 'hybrid';
 export default function PostGigScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [customCategoryName, setCustomCategoryName] = useState<string>('');
+  const [categoryQuery, setCategoryQuery] = useState<string>('');
+
+  // Suggestions & "Did you mean...?" state
+  const [suggestedCategories, setSuggestedCategories] = useState<SuggestedGigCategory[]>([]);
+  const [aiProposedCategory, setAiProposedCategory] = useState<string | null>(null);
+  const [similarCategories, setSimilarCategories] = useState<SimilarCategory[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [requirements, setRequirements] = useState('');
@@ -44,11 +57,14 @@ export default function PostGigScreen() {
 
   useEffect(() => {
     let mounted = true;
-    profileService.getCategories()
+    profileService
+      .getCategories()
       .then((data) => {
         if (mounted) {
           setCategories(data);
-          if (data.length > 0) setSelectedCategory(data[0].id);
+          if (data.length > 0) {
+            setSelectedCategoryId(data[0].id);
+          }
         }
       })
       .catch(() => {})
@@ -61,6 +77,129 @@ export default function PostGigScreen() {
     };
   }, []);
 
+  // Source 1 (DB fuzzy match): Auto-suggest existing categories when title/description change
+  useEffect(() => {
+    const cleanTitle = title.trim();
+    const cleanDesc = description.trim();
+    if (cleanTitle.length < 3 && cleanDesc.length < 10) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      gigsService
+        .suggestCategoriesForGig(cleanTitle, cleanDesc)
+        .then((rows) => {
+          if (!cancelled && rows.length > 0) {
+            setSuggestedCategories(rows);
+          }
+        })
+        .catch(() => {});
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [title, description]);
+
+  // "Did you mean...?" fuzzy search while typing in the category box
+  useEffect(() => {
+    const trimmed = categoryQuery.trim();
+    if (trimmed.length < 2) {
+      setSimilarCategories([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      gigsService
+        .findSimilarCategories(trimmed)
+        .then((rows) => {
+          if (!cancelled) {
+            setSimilarCategories(rows);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            // Local fallback filter if RPC is unavailable
+            const lower = trimmed.toLowerCase();
+            const localMatches = categories
+              .filter((c) => c.name.toLowerCase().includes(lower))
+              .slice(0, 5)
+              .map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                similarity_score: 0.7,
+              }));
+            setSimilarCategories(localMatches);
+          }
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [categoryQuery, categories]);
+
+  const handleSelectExistingCategory = (catId: string) => {
+    setSelectedCategoryId(catId);
+    setCustomCategoryName('');
+    setError(null);
+  };
+
+  const handleSelectCustomCategory = (rawName: string) => {
+    const normalized = rawName.replace(/\s+/g, ' ').trim();
+    if (normalized.length < 3 || normalized.length > 40) {
+      setError('Category name must be between 3 and 40 characters.');
+      return;
+    }
+    // Check if an exact case-insensitive match already exists locally
+    const exactMatch = categories.find(
+      (c) => c.name.trim().toLowerCase() === normalized.toLowerCase()
+    );
+    if (exactMatch) {
+      setSelectedCategoryId(exactMatch.id);
+      setCustomCategoryName('');
+      setCategoryQuery('');
+      setError(null);
+      return;
+    }
+
+    setSelectedCategoryId('');
+    setCustomCategoryName(normalized);
+    setError(null);
+  };
+
+  const handleAiSuggestCategory = async () => {
+    const cleanTitle = title.trim();
+    const cleanDesc = description.trim();
+    if (cleanTitle.length < 3 && cleanDesc.length < 3) {
+      setError('Please enter a gig title or description first so we can suggest a category.');
+      return;
+    }
+
+    setSuggestLoading(true);
+    setError(null);
+    try {
+      const result = await gigsService.suggestCategoriesWithAiFallback(cleanTitle, cleanDesc);
+      setSuggestedCategories(result.suggestions);
+      setAiProposedCategory(result.proposed_new_category);
+
+      if (result.suggestions.length > 0) {
+        handleSelectExistingCategory(result.suggestions[0].id);
+      } else if (result.proposed_new_category) {
+        handleSelectCustomCategory(result.proposed_new_category);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not suggest categories right now.');
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
   const validateAndBuildParams = () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) throw new Error('Gig title is required.');
@@ -68,8 +207,13 @@ export default function PostGigScreen() {
       throw new Error('Gig title must be between 5 and 80 characters.');
     }
 
-    if (!selectedCategory) {
-      throw new Error('Please select a category for this gig.');
+    const trimmedCustomCat = customCategoryName.trim();
+    if (!selectedCategoryId && !trimmedCustomCat) {
+      throw new Error('Please select an existing category or enter a new category name (3–40 characters).');
+    }
+
+    if (!selectedCategoryId && (trimmedCustomCat.length < 3 || trimmedCustomCat.length > 40)) {
+      throw new Error('New category name must be between 3 and 40 characters.');
     }
 
     const trimmedDesc = description.trim();
@@ -101,7 +245,8 @@ export default function PostGigScreen() {
       title: trimmedTitle,
       description: trimmedDesc,
       requirements: requirements.trim(),
-      category_id: selectedCategory,
+      category_id: selectedCategoryId || null,
+      category_name: selectedCategoryId ? null : trimmedCustomCat,
       price_min: Math.round(pMin * 100), // convert PHP to integer centavos
       price_max: Math.round(pMax * 100), // convert PHP to integer centavos
       work_type: workType,
@@ -184,6 +329,16 @@ export default function PostGigScreen() {
     );
   }
 
+  const normalizedQuery = categoryQuery.replace(/\s+/g, ' ').trim();
+  const filteredExistingCategories = normalizedQuery
+    ? categories.filter((c) => c.name.toLowerCase().includes(normalizedQuery.toLowerCase()))
+    : categories;
+  const exactExistingMatch = categories.find(
+    (c) => c.name.trim().toLowerCase() === normalizedQuery.toLowerCase()
+  );
+  const canProposeTypedCategory =
+    normalizedQuery.length >= 3 && normalizedQuery.length <= 40 && !exactExistingMatch;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
@@ -216,41 +371,6 @@ export default function PostGigScreen() {
           onChangeText={setTitle}
         />
 
-        {/* Category Picker */}
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Category *</Text>
-          {catsLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : categories.length === 0 ? (
-            <View style={[styles.emptyBox, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-              <Text style={[styles.emptyNoticeTitle, { color: theme.colors.text }]}>
-                {strings.gigs.noCategoriesTitle}
-              </Text>
-              <Text style={[styles.emptyNotice, { color: theme.colors.muted }]}>
-                {strings.gigs.noCategoriesDesc}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.catChip,
-                    { borderColor: theme.colors.border },
-                    selectedCategory === cat.id && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-                  ]}
-                  onPress={() => setSelectedCategory(cat.id)}
-                >
-                  <Text style={[styles.catChipText, selectedCategory === cat.id && { color: '#ffffff' }]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
         <TextInput
           label="Description *"
           placeholder="Detailed explanation of the project or task..."
@@ -260,6 +380,188 @@ export default function PostGigScreen() {
           numberOfLines={4}
           style={{ minHeight: 90 }}
         />
+
+        {/* Unlocked Category Picker (Suggest First, Create Last) */}
+        <View style={styles.fieldGroup}>
+          <View style={styles.categoryHeaderRow}>
+            <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 0 }]}>
+              {strings.gigs.categoryLabel}
+            </Text>
+            <TouchableOpacity
+              onPress={handleAiSuggestCategory}
+              disabled={suggestLoading}
+              style={[styles.aiSuggestBtn, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]}
+            >
+              <Text style={[styles.aiSuggestBtnText, { color: theme.colors.primary }]}>
+                {suggestLoading ? strings.gigs.aiSuggestingCategory : strings.gigs.aiSuggestCategoryBtn}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.helperSubtext, { color: theme.colors.muted }]}>
+            {strings.gigs.categoryHelper}
+          </Text>
+
+          {/* Selected custom category pill */}
+          {customCategoryName ? (
+            <View style={[styles.selectedCustomBanner, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]}>
+              <Text style={[styles.selectedCustomText, { color: theme.colors.primary }]}>
+                New category selected: <Text style={{ fontWeight: '800' }}>{customCategoryName}</Text>
+              </Text>
+              <TouchableOpacity onPress={() => setCustomCategoryName('')}>
+                <Text style={{ color: theme.colors.primary, fontWeight: '700', fontSize: 12 }}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Suggested Categories (from DB pg_trgm or AI) */}
+          {suggestedCategories.length > 0 && (
+            <View style={styles.suggestedSection}>
+              <Text style={[styles.subSectionLabel, { color: theme.colors.muted }]}>
+                {strings.gigs.suggestedCategoriesLabel}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
+                {suggestedCategories.map((sug) => {
+                  const isSelected = selectedCategoryId === sug.id && !customCategoryName;
+                  return (
+                    <TouchableOpacity
+                      key={`sug-${sug.id}`}
+                      style={[
+                        styles.catChip,
+                        { borderColor: theme.colors.primary },
+                        isSelected && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+                      ]}
+                      onPress={() => handleSelectExistingCategory(sug.id)}
+                    >
+                      <Text style={[styles.catChipText, { color: isSelected ? '#ffffff' : theme.colors.primary }]}>
+                        ✨ {sug.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Optional AI-proposed new general category when no existing category fit */}
+          {aiProposedCategory && (
+            <View style={styles.suggestedSection}>
+              <Text style={[styles.subSectionLabel, { color: theme.colors.muted }]}>
+                {strings.gigs.aiProposedCategoryLabel}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.catChip,
+                  { alignSelf: 'flex-start', borderColor: theme.colors.primary },
+                  customCategoryName.toLowerCase() === aiProposedCategory.toLowerCase() && {
+                    backgroundColor: theme.colors.primary,
+                  },
+                ]}
+                onPress={() => handleSelectCustomCategory(aiProposedCategory)}
+              >
+                <Text
+                  style={[
+                    styles.catChipText,
+                    {
+                      color:
+                        customCategoryName.toLowerCase() === aiProposedCategory.toLowerCase()
+                          ? '#ffffff'
+                          : theme.colors.primary,
+                    },
+                  ]}
+                >
+                  + {aiProposedCategory}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Search or create category input */}
+          <TextInput
+            label="Search or Create Category"
+            placeholder={strings.gigs.searchOrCreateCategoryPlaceholder}
+            value={categoryQuery}
+            onChangeText={setCategoryQuery}
+          />
+
+          {/* Existing categories list */}
+          {catsLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : filteredExistingCategories.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
+              {filteredExistingCategories.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id && !customCategoryName;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.catChip,
+                      { borderColor: theme.colors.border },
+                      isSelected && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+                    ]}
+                    onPress={() => handleSelectExistingCategory(cat.id)}
+                  >
+                    <Text style={[styles.catChipText, { color: isSelected ? '#ffffff' : theme.colors.text }]}>
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          {/* "Did you mean...?" + Explicit "No, create '<text>' as a new category" confirmation */}
+          {canProposeTypedCategory && (
+            <View style={[styles.didYouMeanBox, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              {similarCategories.length > 0 ? (
+                <>
+                  <Text style={[styles.didYouMeanTitle, { color: theme.colors.text }]}>
+                    {strings.gigs.didYouMeanLabel}
+                  </Text>
+                  <View style={styles.similarChipsWrap}>
+                    {similarCategories.map((sim) => {
+                      const isSelected = selectedCategoryId === sim.id && !customCategoryName;
+                      return (
+                        <TouchableOpacity
+                          key={`sim-${sim.id}`}
+                          style={[
+                            styles.catChip,
+                            { borderColor: theme.colors.primary, marginBottom: 6 },
+                            isSelected && { backgroundColor: theme.colors.primary },
+                          ]}
+                          onPress={() => {
+                            handleSelectExistingCategory(sim.id);
+                            setCategoryQuery('');
+                          }}
+                        >
+                          <Text style={[styles.catChipText, { color: isSelected ? '#ffffff' : theme.colors.primary }]}>
+                            {sim.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.createNewConfirmBtn, { borderColor: theme.colors.border }]}
+                    onPress={() => handleSelectCustomCategory(normalizedQuery)}
+                  >
+                    <Text style={[styles.createNewConfirmText, { color: theme.colors.text }]}>
+                      {strings.gigs.confirmCreateNewCategoryPrefix} &ldquo;{normalizedQuery}&rdquo; {strings.gigs.confirmCreateNewCategorySuffix}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.createNewConfirmBtn, { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft }]}
+                  onPress={() => handleSelectCustomCategory(normalizedQuery)}
+                >
+                  <Text style={[styles.createNewConfirmText, { color: theme.colors.primary, fontWeight: '700' }]}>
+                    + {strings.gigs.addNewCategoryPrefix} &ldquo;{normalizedQuery}&rdquo; {strings.gigs.addNewCategorySuffix}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
 
         <TextInput
           label="Requirements (optional)"
@@ -353,14 +655,14 @@ export default function PostGigScreen() {
             onPress={handlePublish}
             variant="primary"
             loading={loading}
-            disabled={loading || categories.length === 0}
+            disabled={loading}
             style={{ marginBottom: 12 }}
           />
           <Button
             title={strings.gigs.saveDraftBtn}
             onPress={handleSaveDraft}
             variant="secondary"
-            disabled={loading || categories.length === 0}
+            disabled={loading}
           />
         </View>
       </ScrollView>
@@ -404,13 +706,56 @@ const styles = StyleSheet.create({
   fieldGroup: {
     marginBottom: 16,
   },
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
+  helperSubtext: {
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  aiSuggestBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  aiSuggestBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  selectedCustomBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  selectedCustomText: {
+    fontSize: 13,
+  },
+  suggestedSection: {
+    marginBottom: 10,
+  },
+  subSectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
   catRow: {
     flexDirection: 'row',
+    marginBottom: 6,
   },
   catChip: {
     paddingHorizontal: 14,
@@ -420,6 +765,33 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   catChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  didYouMeanBox: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  didYouMeanTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  similarChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  createNewConfirmBtn: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  createNewConfirmText: {
     fontSize: 13,
     fontWeight: '500',
   },
@@ -443,21 +815,6 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     marginTop: 16,
-  },
-  emptyBox: {
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  emptyNoticeTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  emptyNotice: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   blockedContainer: {
     alignItems: 'center',

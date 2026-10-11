@@ -5,7 +5,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-const ALLOWED_TASKS = ['suggest_skills', 'suggest_categories', 'draft_bio', 'polish_gig_description'] as const;
+const ALLOWED_TASKS = [
+  'suggest_skills',
+  'suggest_categories',
+  'suggest_gig_category',
+  'draft_bio',
+  'polish_gig_description',
+] as const;
 type TaskType = typeof ALLOWED_TASKS[number];
 
 // Bad words / phone / url sanitizers
@@ -135,6 +141,8 @@ serve(async (req: Request) => {
 
     // 5. Server-Built Prompts (Strictly No Client System Prompt)
     let promptText = '';
+    const activeCategoriesMap = new Map<string, { id: string; name: string; slug: string }>();
+
     if (task === 'suggest_skills') {
       const workDesc = sanitizeText(String(body.work_description || ''));
       if (!workDesc || workDesc.length < 3) {
@@ -165,6 +173,51 @@ Do not include phone numbers or prices. Return ONLY a valid JSON object matching
 {"categories": ["Category 1", "Category 2"]}
 
 Client description of what they need help with: "${helpDesc}"`;
+    } else if (task === 'suggest_gig_category') {
+      const gigTitle = sanitizeText(String(body.title || ''));
+      const gigDesc = sanitizeText(String(body.description || ''));
+      if (gigTitle.length < 3 && gigDesc.length < 3) {
+        return new Response(JSON.stringify({ error: 'Please provide a gig title or description (at least 3 characters).' }), {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
+
+      const { data: activeCats } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+        .limit(100);
+
+      for (const c of activeCats || []) {
+        activeCategoriesMap.set(String(c.id), {
+          id: String(c.id),
+          name: String(c.name),
+          slug: String(c.slug),
+        });
+      }
+
+      const categoriesListText =
+        activeCategoriesMap.size > 0
+          ? Array.from(activeCategoriesMap.values())
+              .map((c) => `- id: "${c.id}", name: "${c.name}"`)
+              .join('\n')
+          : '(No active categories yet)';
+
+      promptText = `You are a category matching assistant for Gigormoc, a local freelance marketplace in Ormoc City, Philippines.
+Match the client's gig to up to 3 existing active categories from the list below.
+Rules:
+1. In "suggestions", you may ONLY return "category_id" values that appear in the Active Categories list below, along with a short "reason" (max 60 chars).
+2. If and ONLY if none of the active categories fit well, you may also include "proposed_new_category" with ONE general, reusable service category name (3 to 30 characters, e.g. "Appliance Repair", "Event Photography", "Math & Science Tutoring"). NEVER use a full job title or specific sentence as a category name.
+3. Return ONLY a valid JSON object matching this schema:
+{"suggestions": [{"category_id": "uuid-from-list", "reason": "Short reason"}], "proposed_new_category": null}
+
+Active Categories:
+${categoriesListText}
+
+Gig Title: "${gigTitle}"
+Gig Description: "${gigDesc}"`;
     } else if (task === 'draft_bio') {
       const mode = String(body.mode || profile.active_mode || 'freelancer');
       const skills = Array.isArray(body.skills) ? body.skills.join(', ') : String(body.skills || '');
@@ -355,6 +408,52 @@ Current description: "${currentDesc}"`;
         .filter((c: string) => c.length >= 2 && c.length <= 40)
         .slice(0, 6);
       resultPayload = { categories: cleanedCategories };
+    } else if (task === 'suggest_gig_category') {
+      const rawSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
+      const seenIds = new Set<string>();
+      const validSuggestions: Array<{
+        category_id: string;
+        name: string;
+        slug: string;
+        reason: string;
+      }> = [];
+
+      for (const item of rawSuggestions) {
+        const catId = String(item?.category_id || item?.id || '').trim();
+        const catMeta = activeCategoriesMap.get(catId);
+        if (catMeta && !seenIds.has(catId)) {
+          seenIds.add(catId);
+          const cleanReason = sanitizeText(String(item?.reason || 'Recommended for your gig')).slice(0, 80);
+          validSuggestions.push({
+            category_id: catMeta.id,
+            name: catMeta.name,
+            slug: catMeta.slug,
+            reason: cleanReason || 'Recommended for your gig',
+          });
+        }
+        if (validSuggestions.length >= 3) break;
+      }
+
+      let proposedNewCategory: string | null = null;
+      if (validSuggestions.length === 0 && typeof parsed?.proposed_new_category === 'string') {
+        const candidate = sanitizeText(parsed.proposed_new_category).replace(/\s+/g, ' ').trim();
+        const lettersOnly = candidate.replace(/[^A-Za-z]/g, '');
+        const isShouting = lettersOnly.length >= 4 && candidate === candidate.toUpperCase();
+        if (
+          candidate.length >= 3 &&
+          candidate.length <= 30 &&
+          lettersOnly.length >= 2 &&
+          /^[A-Za-z0-9 &+\-/]+$/.test(candidate) &&
+          !isShouting
+        ) {
+          proposedNewCategory = candidate;
+        }
+      }
+
+      resultPayload = {
+        suggestions: validSuggestions,
+        proposed_new_category: proposedNewCategory,
+      };
     } else if (task === 'draft_bio') {
       if (!Array.isArray(parsed?.drafts)) {
         return new Response(JSON.stringify({ error: 'AI response missing drafts array.' }), {

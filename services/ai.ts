@@ -8,6 +8,18 @@ export interface SuggestCategoriesResponse {
   categories: string[];
 }
 
+export interface SuggestGigCategoryItem {
+  category_id: string;
+  name: string;
+  slug: string;
+  reason: string;
+}
+
+export interface SuggestGigCategoryResponse {
+  suggestions: SuggestGigCategoryItem[];
+  proposed_new_category: string | null;
+}
+
 export interface DraftBioResponse {
   drafts: string[];
 }
@@ -87,6 +99,51 @@ export const aiService = {
     }
 
     return data?.categories || [];
+  },
+
+  /**
+   * Request AI category suggestions for a specific gig (matches active DB categories first,
+   * and only proposes ONE general new category if none fit).
+   * Calls Edge Function 'ai-assist' with task 'suggest_gig_category'.
+   */
+  async suggestGigCategory(params: {
+    title: string;
+    description?: string;
+  }): Promise<SuggestGigCategoryResponse> {
+    const cleanTitle = (params.title || '').trim();
+    const cleanDesc = (params.description || '').trim();
+    if (cleanTitle.length < 3 && cleanDesc.length < 3) {
+      throw new Error('Please enter a gig title or description first.');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated.');
+    }
+
+    const { data, error } = await supabase.functions.invoke<SuggestGigCategoryResponse>('ai-assist', {
+      body: {
+        task: 'suggest_gig_category',
+        title: cleanTitle.slice(0, 600),
+        description: cleanDesc.slice(0, 600),
+      },
+    });
+
+    if (error) {
+      let msg = error.message;
+      try {
+        if ((error as any).context?.json) {
+          const bodyJson = await (error as any).context.json();
+          if (bodyJson?.error) msg = bodyJson.error;
+        }
+      } catch {}
+      throw new Error(msg || 'Could not fetch AI category suggestions.');
+    }
+
+    return {
+      suggestions: Array.isArray(data?.suggestions) ? data.suggestions : [],
+      proposed_new_category: data?.proposed_new_category || null,
+    };
   },
 
   /**
