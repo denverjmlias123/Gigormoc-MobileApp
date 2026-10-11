@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
+import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 
 export default function SignUpStep2Screen() {
@@ -26,6 +27,12 @@ export default function SignUpStep2Screen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDuplicateEmail, setIsDuplicateEmail] = useState(false);
+
+  useEffect(() => {
+    if (!params.email || !params.password || !params.displayName) {
+      router.replace('/(auth)/signup-step1');
+    }
+  }, [params.email, params.password, params.displayName]);
 
   const calculateAge = (birthDate: Date): number => {
     const today = new Date();
@@ -41,6 +48,11 @@ export default function SignUpStep2Screen() {
     if (loading) return;
     setError(null);
     setIsDuplicateEmail(false);
+
+    if (!params.email || !params.password || !params.displayName) {
+      router.replace('/(auth)/signup-step1');
+      return;
+    }
 
     const y = parseInt(year, 10);
     const m = parseInt(month, 10);
@@ -87,7 +99,7 @@ export default function SignUpStep2Screen() {
         setIsDuplicateEmail(true);
         setError(strings.auth.duplicateEmailMessage);
       } else {
-        setError(err?.message || 'Registration failed. Please check your details and try again.');
+        setError(toAppError(err, 'Registration failed. Please check your details and try again.').message);
       }
     } finally {
       setLoading(false);

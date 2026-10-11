@@ -25,6 +25,8 @@ import { chatService } from '../../services/chat';
 import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 import {
   Timeline,
   NextStepBanner,
@@ -45,6 +47,7 @@ export default function ActivityScreen() {
   const [activeTab, setActiveTab] = useState<'primary' | 'agreements'>('primary');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [counterBusyId, setCounterBusyId] = useState<string | null>(null);
 
   // Freelancer state
@@ -63,6 +66,7 @@ export default function ActivityScreen() {
       setLoading(false);
       return;
     }
+    setLoadError(null);
     try {
       let agrs: AgreementItem[] = [];
 
@@ -144,7 +148,7 @@ export default function ActivityScreen() {
       );
       setAgreementLoopMap(loopMap);
     } catch (err) {
-      console.error('Failed to load activity data:', err);
+      setLoadError(mapSqlErrorToFriendlyMessage(err, 'Failed to load activity data.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -547,11 +551,17 @@ export default function ActivityScreen() {
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {activeTab === 'primary'
-            ? isFindWork
-              ? renderFreelancerPrimaryTab()
-              : renderClientPrimaryTab()
-            : renderAgreementsTab()}
+          {loadError ? (
+            <ErrorState message={loadError} onRetry={loadData} />
+          ) : activeTab === 'primary' ? (
+            isFindWork ? (
+              renderFreelancerPrimaryTab()
+            ) : (
+              renderClientPrimaryTab()
+            )
+          ) : (
+            renderAgreementsTab()
+          )}
         </ScrollView>
       )}
     </View>

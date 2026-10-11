@@ -26,7 +26,8 @@ import {
   ProfileCompleteness,
   CompletenessMissingItem,
 } from '../../services/profile';
-import { strings } from '../../constants/strings';
+import { strings, mapSqlErrorToFriendlyMessage } from '../../constants/strings';
+import { confirmDialog } from '../../lib/dialog';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -52,12 +53,24 @@ export default function ProfileScreen() {
     loadCompleteness();
   }, [loadCompleteness, profile]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (scope: 'local' | 'global' = 'local') => {
+    if (loggingOut) return;
+    if (scope === 'global') {
+      const confirmed = await confirmDialog({
+        title: 'Log out of all devices?',
+        message: 'This will sign out your account on this device and revoke active sessions on other devices.',
+        confirmText: 'Log out everywhere',
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+
     setLoggingOut(true);
     try {
-      await signOut();
+      await signOut({ scope, reason: 'user' });
+      router.replace('/(auth)/welcome');
     } catch (err: any) {
-      Alert.alert('Sign Out Error', err?.message || 'Could not sign out.');
+      setPhotoError(mapSqlErrorToFriendlyMessage(err, 'Could not sign out.'));
     } finally {
       setLoggingOut(false);
     }
@@ -75,7 +88,7 @@ export default function ProfileScreen() {
         await loadCompleteness();
       }
     } catch (err: any) {
-      setPhotoError(err?.message || 'Could not upload profile photo.');
+      setPhotoError(mapSqlErrorToFriendlyMessage(err, 'Could not upload profile photo.'));
     } finally {
       setPhotoBusy(false);
     }
@@ -91,7 +104,7 @@ export default function ProfileScreen() {
       await refreshProfile();
       await loadCompleteness();
     } catch (err: any) {
-      setPhotoError(err?.message || 'Could not remove profile photo.');
+      setPhotoError(mapSqlErrorToFriendlyMessage(err, 'Could not remove profile photo.'));
     } finally {
       setPhotoBusy(false);
     }
@@ -301,10 +314,17 @@ export default function ProfileScreen() {
             title="Log out"
             variant="secondary"
             icon="log-out-outline"
-            onPress={handleSignOut}
+            onPress={() => handleSignOut('local')}
             loading={loggingOut}
+            disabled={loggingOut}
             textStyle={{ color: theme.colors.dangerText }}
-            style={{ borderColor: theme.colors.danger }}
+            style={{ borderColor: theme.colors.danger, marginBottom: 10 }}
+          />
+          <Button
+            title="Log out of all devices"
+            variant="ghost"
+            onPress={() => handleSignOut('global')}
+            disabled={loggingOut}
           />
         </View>
       </ScrollView>

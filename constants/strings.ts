@@ -195,11 +195,27 @@ export const strings = {
     invalidMilestoneSum: 'The sum of all milestone amounts must equal the agreed project price.',
     maxRevisionsReached: 'Maximum of 2 revisions has already been used for this milestone.',
     reviewWindowClosed: 'The 14-day review window for this agreement has closed.',
+    offline: "You appear to be offline. Changes can't be saved until your connection returns.",
+    timeout: 'The request took too long. Please check your connection and try again.',
+    sessionExpired: 'Your session expired. Please log in again.',
+    loggedOutNotice: 'You were logged out.',
+    conflict: 'This was already updated. Showing the latest.',
+    alreadyDoneOtherDevice: 'Already done on your other device.',
+    rateLimited: 'Too many tries. Please wait a moment and try again.',
+    notFound: 'The requested item could not be found or was removed.',
+    serverError: 'Our server encountered a temporary issue. Please try again in a moment.',
+    wrongCredentials: 'Incorrect email or password. Please check your credentials and try again.',
+    emailNotConfirmed: 'Please confirm your email address before logging in.',
+    accountSuspended: 'Your account is currently suspended or inactive. Please contact support.',
+    wrongMode: 'This action requires switching your active mode in Settings.',
+    uploadTooLarge: 'File is too large. Please choose a file under 5 MB.',
+    uploadInvalidType: 'Unsupported file format. Please upload a JPG, PNG, or WebP image.',
+    uploadPermissionDenied: 'Permission to access your files or photos was denied.',
   },
 };
 
 /**
- * Maps raw Postgres / Supabase RPC or storage errors to friendly user-facing messages
+ * Maps raw Postgres / Supabase RPC, Auth, Network, or Storage errors to friendly user-facing messages
  * from constants/strings.ts while preserving explicit human-readable validation messages.
  */
 export function mapSqlErrorToFriendlyMessage(
@@ -214,17 +230,139 @@ export function mapSqlErrorToFriendlyMessage(
       ? (err as any).message
       : '';
   const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+  const status = typeof (err as any)?.status === 'number' ? (err as any).status : 0;
+  const name = typeof (err as any)?.name === 'string' ? (err as any).name : '';
   const lower = rawMessage.toLowerCase();
 
-  if (lower.includes('failed to fetch') || lower.includes('network request failed')) {
+  // 1. Offline / Network
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network request failed') ||
+    lower.includes('networkerror') ||
+    lower.includes('offline') ||
+    lower.includes('internet connection')
+  ) {
     return strings.errors.network;
   }
-  if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {
+
+  // 2. Timeout / Abort
+  if (
+    name === 'AbortError' ||
+    code === 'ETIMEDOUT' ||
+    code === '57014' ||
+    lower.includes('timed out') ||
+    lower.includes('timeout') ||
+    lower.includes('aborted')
+  ) {
+    return strings.errors.timeout;
+  }
+
+  // 3. Auth / Session Expired / 401
+  if (
+    status === 401 ||
+    code === 'PGRST301' ||
+    lower.includes('jwt expired') ||
+    lower.includes('invalid jwt') ||
+    lower.includes('refresh_token_not_found') ||
+    lower.includes('session_not_found') ||
+    lower.includes('session expired')
+  ) {
+    return strings.errors.sessionExpired;
+  }
+
+  if (lower.includes('not authenticated') || lower.includes('authentication required')) {
+    return strings.errors.unauthorized;
+  }
+
+  if (
+    lower.includes('invalid login credentials') ||
+    lower.includes('invalid_credentials') ||
+    lower.includes('wrong password')
+  ) {
+    return strings.errors.wrongCredentials;
+  }
+
+  if (lower.includes('email not confirmed') || code === 'email_not_confirmed') {
+    return strings.errors.emailNotConfirmed;
+  }
+
+  // 4. Rate limit / 429
+  if (
+    status === 429 ||
+    code === 'over_email_send_rate_limit' ||
+    code === 'over_request_rate_limit' ||
+    lower.includes('rate limit') ||
+    lower.includes('too many requests') ||
+    lower.includes('too many attempts') ||
+    lower.includes('for security purposes, you can only request this after')
+  ) {
+    const waitMatch = rawMessage.match(/(\d+)\s*second/i);
+    if (waitMatch) {
+      return `Too many tries. Please wait ${waitMatch[1]} seconds.`;
+    }
+    return strings.errors.rateLimited;
+  }
+
+  // 5. Account suspended / Mode / Forbidden
+  if (
+    lower.includes('account is not active') ||
+    lower.includes('suspended') ||
+    lower.includes('deactivated')
+  ) {
+    return strings.errors.accountSuspended;
+  }
+
+  if (
+    lower.includes('must be in hire') ||
+    lower.includes('must be in find work') ||
+    lower.includes('only be added in find work') ||
+    lower.includes('only be modified in find work') ||
+    lower.includes('only be saved in hire')
+  ) {
+    return rawMessage || strings.errors.wrongMode;
+  }
+
+  if (
+    status === 403 ||
+    code === '42501' ||
+    lower.includes('row-level security') ||
+    lower.includes('permission denied') ||
+    lower.includes('access denied')
+  ) {
     return strings.errors.forbidden;
   }
-  if (code === '23505' || lower.includes('duplicate key value')) {
-    return strings.errors.duplicateEntry;
+
+  // 6. Not found
+  if (
+    status === 404 ||
+    code === 'PGRST116' ||
+    lower.includes('not found') ||
+    lower.includes('no rows')
+  ) {
+    return rawMessage && !rawMessage.includes('PGRST') ? rawMessage : strings.errors.notFound;
   }
+
+  // 7. Conflict / Duplicate / Stale state
+  if (
+    status === 409 ||
+    code === '23505' ||
+    lower.includes('duplicate key value') ||
+    lower.includes('unique constraint') ||
+    lower.includes('already_done') ||
+    lower.includes('already updated')
+  ) {
+    return strings.errors.conflict;
+  }
+
+  // 8. Storage upload errors
+  if (lower.includes('payload too large') || lower.includes('exceeded the maximum allowed size') || lower.includes('5mb') || lower.includes('5 mb')) {
+    return strings.errors.uploadTooLarge;
+  }
+  if (lower.includes('mime type') || lower.includes('invalid_mime_type') || lower.includes('unsupported file')) {
+    return strings.errors.uploadInvalidType;
+  }
+
+  // 9. Domain rules
   if (lower.includes('cooldown')) {
     return rawMessage || strings.errors.cooldownActive;
   }
@@ -238,6 +376,20 @@ export function mapSqlErrorToFriendlyMessage(
     return rawMessage || strings.errors.reviewWindowClosed;
   }
 
+  // 10. Server / raw SQL sanitization (never leak PGRST*, SQLSTATE codes, or syntax error text)
+  if (
+    status >= 500 ||
+    /^PGRST\d+/i.test(code) ||
+    /^(22|23|42|53|54|55|57|58|XX)\w{3}$/i.test(code) ||
+    lower.includes('syntax error at or near') ||
+    lower.includes('relation "') ||
+    lower.includes('column "') ||
+    lower.includes('internal server error')
+  ) {
+    return strings.errors.serverError;
+  }
+
   return rawMessage.trim() || fallback;
 }
+
 

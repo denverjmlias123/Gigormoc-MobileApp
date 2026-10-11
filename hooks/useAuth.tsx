@@ -1,16 +1,25 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../lib/supabase';
+import { supabase, registerSessionExpiredHandler } from '../lib/supabase';
+import { performSharedCleanup } from '../lib/sessionCleanup';
 import { authService, Profile } from '../services/auth';
+import { strings } from '../constants/strings';
+
+export interface SignOutOptions {
+  scope?: 'local' | 'global';
+  reason?: 'user' | 'session_expired';
+}
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  refreshProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  authNotice: string | null;
+  clearAuthNotice: () => void;
+  refreshProfile: () => Promise<Profile | null>;
+  signOut: (options?: SignOutOptions) => Promise<void>;
+  runSharedCleanup: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,8 +27,11 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  refreshProfile: async () => {},
+  authNotice: null,
+  clearAuthNotice: () => {},
+  refreshProfile: async () => null,
   signOut: async () => {},
+  runSharedCleanup: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -27,37 +39,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  const clearAuth = async () => {
+  const signOutInFlightRef = useRef<Promise<void> | null>(null);
+  const hadActiveSessionRef = useRef<boolean>(false);
+  const handledSignedOutRef = useRef<boolean>(false);
+
+  const clearAuthNotice = () => setAuthNotice(null);
+
+  const runSharedCleanup = async () => {
     try {
       await supabase.removeAllChannels();
     } catch {
       // Ignore
     }
-    try {
-      await authService.signOut();
-    } catch {
-      // Ignore
+    await performSharedCleanup({ clearAuthStorage: false });
+  };
+
+  const clearAuth = async (options?: SignOutOptions) => {
+    if (signOutInFlightRef.current) {
+      return signOutInFlightRef.current;
     }
-    try {
-      await AsyncStorage.clear();
-    } catch {
-      // Ignore
-    }
-    if (typeof window !== 'undefined' && window?.localStorage) {
+
+    signOutInFlightRef.current = (async () => {
       try {
-        Object.keys(window.localStorage).forEach((key) => {
-          if (key.startsWith('sb-') || key.includes('supabase')) {
-            window.localStorage.removeItem(key);
-          }
-        });
-      } catch {
-        // Ignore
+        handledSignedOutRef.current = true;
+        try {
+          await supabase.removeAllChannels();
+        } catch {
+          // Ignore
+        }
+        try {
+          await authService.signOut({ scope: options?.scope ?? 'local' });
+        } catch {
+          // Ignore
+        }
+        await performSharedCleanup({ clearAuthStorage: true });
+
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+
+        if (options?.reason === 'session_expired') {
+          setAuthNotice(strings.errors.sessionExpired);
+        } else if (hadActiveSessionRef.current) {
+          setAuthNotice(strings.errors.loggedOutNotice);
+        }
+        hadActiveSessionRef.current = false;
+      } finally {
+        signOutInFlightRef.current = null;
       }
-    }
-    setSession(null);
-    setUser(null);
-    setProfile(null);
+    })();
+
+    return signOutInFlightRef.current;
   };
 
   const syncUserState = async (currentSession: Session | null) => {
@@ -73,24 +107,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // 1. Verify user with Supabase server (in case user was deleted in Supabase)
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData?.user) {
-        // User was deleted from Supabase Auth or token is invalid
-        await clearAuth();
+        await clearAuth({ reason: 'session_expired' });
         setLoading(false);
         return;
       }
 
+      // 2. Fetch profile from database before setting session/user so there is no flash of stale data
+      const p = await authService.getCurrentProfile(userData.user.id);
+      if (!p || p.status === 'suspended' || p.status === 'deactivated') {
+        await clearAuth({ reason: 'user' });
+        if (p && (p.status === 'suspended' || p.status === 'deactivated')) {
+          setAuthNotice(strings.errors.accountSuspended);
+        }
+        setLoading(false);
+        return;
+      }
+
+      hadActiveSessionRef.current = true;
+      handledSignedOutRef.current = false;
       setSession(currentSession);
       setUser(userData.user);
-
-      // 2. Fetch profile from database
-      const p = await authService.getCurrentProfile(userData.user.id);
-      if (!p) {
-        // User exists in auth but profile was deleted or missing -> stale/deleted account
-        await clearAuth();
-        setLoading(false);
-        return;
-      }
-
       setProfile(p);
     } catch (err: any) {
       const isAuthError =
@@ -102,7 +138,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         err?.message?.toLowerCase().includes('user not found');
 
       if (isAuthError) {
-        await clearAuth();
+        await clearAuth({ reason: 'session_expired' });
       } else {
         setProfile(null);
       }
@@ -114,6 +150,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
+    registerSessionExpiredHandler(async () => {
+      if (!mounted) return;
+      await clearAuth({ reason: 'session_expired' });
+    });
+
     // Check initial session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (!mounted) return;
@@ -123,6 +164,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
       if (!mounted) return;
       if (event === 'SIGNED_OUT' || !s) {
+        if (!handledSignedOutRef.current && hadActiveSessionRef.current) {
+          handledSignedOutRef.current = true;
+          hadActiveSessionRef.current = false;
+          await performSharedCleanup({ clearAuthStorage: true });
+          setAuthNotice(strings.errors.loggedOutNotice);
+        }
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -134,43 +181,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       mounted = false;
+      registerSessionExpiredHandler(null);
       subscription.unsubscribe();
     };
   }, []);
 
-  const refreshProfile = async () => {
-    if (user) {
-      try {
-        const p = await authService.getCurrentProfile(user.id);
-        if (!p) {
-          await clearAuth();
-        } else {
-          setProfile(p);
-        }
-      } catch (err: any) {
-        const isAuthError =
-          err?.status === 401 ||
-          err?.status === 403 ||
-          err?.code === 'PGRST301' ||
-          err?.message?.toLowerCase().includes('jwt') ||
-          err?.message?.toLowerCase().includes('sub claim') ||
-          err?.message?.toLowerCase().includes('user not found');
-        if (isAuthError) {
-          await clearAuth();
-        }
+  const refreshProfile = async (): Promise<Profile | null> => {
+    const activeUserId = user?.id || session?.user?.id;
+    if (!activeUserId) {
+      return null;
+    }
+    try {
+      const p = await authService.getCurrentProfile(activeUserId);
+      if (!p) {
+        await clearAuth({ reason: 'user' });
+        return null;
       }
+      setProfile(p);
+      return p;
+    } catch (err: any) {
+      const isAuthError =
+        err?.status === 401 ||
+        err?.status === 403 ||
+        err?.code === 'PGRST301' ||
+        err?.message?.toLowerCase().includes('jwt') ||
+        err?.message?.toLowerCase().includes('sub claim') ||
+        err?.message?.toLowerCase().includes('user not found');
+      if (isAuthError) {
+        await clearAuth({ reason: 'session_expired' });
+      }
+      return null;
     }
   };
 
-  const signOut = async () => {
-    await clearAuth();
+  const signOut = async (options?: SignOutOptions) => {
+    await clearAuth(options);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        profile,
+        loading,
+        authNotice,
+        clearAuthNotice,
+        refreshProfile,
+        signOut,
+        runSharedCleanup,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
+

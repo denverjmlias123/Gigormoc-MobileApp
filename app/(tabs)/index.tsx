@@ -7,12 +7,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
 import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { notificationsService } from '../../services/notifications';
-import { strings } from '../../constants/strings';
+import { strings, mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -26,9 +27,11 @@ export default function HomeScreen() {
   const [myGigs, setMyGigs] = useState<GigSummary[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadHomeData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       if (isHire && user) {
         const gigs = await gigsService.getMyGigs(user.id);
@@ -41,8 +44,8 @@ export default function HomeScreen() {
         const count = await notificationsService.getUnreadCount();
         setUnreadNotifications(count);
       }
-    } catch {
-      // Keep empty list on error
+    } catch (err: any) {
+      setLoadError(mapSqlErrorToFriendlyMessage(err, 'Could not load gigs. Please check your connection and try again.'));
     } finally {
       setLoading(false);
     }
@@ -182,6 +185,8 @@ export default function HomeScreen() {
               <SectionHeader title={strings.gigs.myGigs} />
               {loading ? (
                 renderLoading()
+              ) : loadError ? (
+                <ErrorState message={loadError} onRetry={loadHomeData} />
               ) : myGigs.length === 0 ? (
                 <EmptyState
                   icon="document-text-outline"
@@ -209,6 +214,8 @@ export default function HomeScreen() {
               />
               {loading ? (
                 renderLoading()
+              ) : loadError ? (
+                <ErrorState message={loadError} onRetry={loadHomeData} />
               ) : availableGigs.length === 0 ? (
                 <EmptyState
                   icon="briefcase-outline"

@@ -19,7 +19,7 @@ import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 export default function ModeSettingsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, runSharedCleanup } = useAuth();
 
   const [status, setStatus] = useState<ModeSwitchStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +70,7 @@ export default function ModeSettingsScreen() {
       await applicationsService.switchMode(targetMode, true);
       try {
         await supabase.removeAllChannels();
+        await runSharedCleanup();
       } catch {
         // Ignore channel cleanup errors
       }

@@ -53,8 +53,8 @@ export default function SignUpStep1Screen() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (password.length < 6 || password.length > 72) {
+      setError('Password must be between 6 and 72 characters long.');
       return;
     }
     if (password !== confirmPassword) {

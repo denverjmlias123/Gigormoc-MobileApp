@@ -102,6 +102,13 @@ export function isDuplicateEmailAuthResult(error: any, data?: any): boolean {
 }
 
 let signUpInFlight = false;
+let signInInFlight: Promise<any> | null = null;
+let signOutInFlight: Promise<void> | null = null;
+let resetPasswordInFlight = false;
+let resendConfirmationInFlight = false;
+let lastResendConfirmationAt = 0;
+
+export const RESEND_CONFIRMATION_COOLDOWN_SECONDS = 60;
 
 export const authService = {
   normalizeEmail,
@@ -120,6 +127,7 @@ export const authService = {
     if (!emailCheck.valid) {
       const invalidErr: any = new Error(emailCheck.message || strings.auth.invalidEmailFormat);
       invalidErr.code = 'INVALID_EMAIL';
+      invalidErr.field = 'email';
       throw invalidErr;
     }
 
@@ -140,6 +148,7 @@ export const authService = {
       if (isDuplicateEmailAuthResult(error, data)) {
         const dupErr: any = new Error(strings.auth.duplicateEmailMessage);
         dupErr.code = 'EMAIL_ALREADY_REGISTERED';
+        dupErr.field = 'email';
         throw dupErr;
       }
 
@@ -154,37 +163,145 @@ export const authService = {
   },
 
   async signIn({ email, password }: SignInParams) {
-    const normalizedEmail = normalizeEmail(email);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
-
-    if (error) {
-      throw error;
+    if (signInInFlight) {
+      return signInInFlight;
     }
 
-    return data;
+    const normalizedEmail = normalizeEmail(email);
+    const emailCheck = validateEmailInput(normalizedEmail);
+    if (!emailCheck.valid) {
+      const invalidErr: any = new Error(emailCheck.message || strings.auth.invalidEmailFormat);
+      invalidErr.code = 'INVALID_EMAIL';
+      invalidErr.field = 'email';
+      throw invalidErr;
+    }
+
+    signInInFlight = (async () => {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (error) {
+          const lower = String(error.message || '').toLowerCase();
+          if (lower.includes('email not confirmed') || (error as any).code === 'email_not_confirmed') {
+            const unconfErr: any = new Error(strings.errors.emailNotConfirmed);
+            unconfErr.code = 'EMAIL_NOT_CONFIRMED';
+            unconfErr.field = 'email';
+            throw unconfErr;
+          }
+          if (lower.includes('invalid login credentials') || (error as any).code === 'invalid_credentials') {
+            const credErr: any = new Error(strings.errors.wrongCredentials);
+            credErr.code = 'INVALID_CREDENTIALS';
+            throw credErr;
+          }
+          throw error;
+        }
+
+        return data;
+      } finally {
+        signInInFlight = null;
+      }
+    })();
+
+    return signInInFlight;
   },
 
-  async signOut() {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.warn('Supabase signOut warning:', error.message);
-      }
-    } catch (e: any) {
-      console.warn('Supabase signOut exception:', e?.message);
+  async signOut(options?: { scope?: 'local' | 'global' }) {
+    if (signOutInFlight) {
+      return signOutInFlight;
     }
+
+    signOutInFlight = (async () => {
+      try {
+        // 1. Always clear local session first so logout works even when offline
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch (localErr: any) {
+          console.warn('Supabase local signOut warning:', localErr?.message);
+        }
+
+        // 2. Best-effort global revoke when requested (never blocks local logout if offline)
+        if (options?.scope === 'global') {
+          try {
+            await supabase.auth.signOut({ scope: 'global' });
+          } catch {
+            // Best-effort server revoke; local session is already cleared
+          }
+        }
+      } finally {
+        signOutInFlight = null;
+      }
+    })();
+
+    return signOutInFlight;
   },
 
   async resetPassword(email: string) {
-    const normalizedEmail = normalizeEmail(email);
-    const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
-    if (error) {
-      throw error;
+    if (resetPasswordInFlight) {
+      return;
     }
-    return data;
+    const normalizedEmail = normalizeEmail(email);
+    const emailCheck = validateEmailInput(normalizedEmail);
+    if (!emailCheck.valid) {
+      const invalidErr: any = new Error(emailCheck.message || strings.auth.invalidEmailFormat);
+      invalidErr.code = 'INVALID_EMAIL';
+      invalidErr.field = 'email';
+      throw invalidErr;
+    }
+
+    resetPasswordInFlight = true;
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+      if (error) {
+        throw error;
+      }
+      return data;
+    } finally {
+      resetPasswordInFlight = false;
+    }
+  },
+
+  async resendConfirmationEmail(email: string) {
+    if (resendConfirmationInFlight) {
+      return;
+    }
+    const normalizedEmail = normalizeEmail(email);
+    const emailCheck = validateEmailInput(normalizedEmail);
+    if (!emailCheck.valid) {
+      const invalidErr: any = new Error(emailCheck.message || strings.auth.invalidEmailFormat);
+      invalidErr.code = 'INVALID_EMAIL';
+      invalidErr.field = 'email';
+      throw invalidErr;
+    }
+
+    const elapsedSeconds = Math.floor((Date.now() - lastResendConfirmationAt) / 1000);
+    if (lastResendConfirmationAt > 0 && elapsedSeconds < RESEND_CONFIRMATION_COOLDOWN_SECONDS) {
+      const remaining = RESEND_CONFIRMATION_COOLDOWN_SECONDS - elapsedSeconds;
+      const rateErr: any = new Error(`Too many tries. Please wait ${remaining} seconds.`);
+      rateErr.code = 'RATE_LIMITED';
+      rateErr.retryAfterSeconds = remaining;
+      throw rateErr;
+    }
+
+    resendConfirmationInFlight = true;
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+      });
+      if (error) {
+        throw error;
+      }
+      lastResendConfirmationAt = Date.now();
+    } finally {
+      resendConfirmationInFlight = false;
+    }
+  },
+
+  resetResendCooldownForTesting() {
+    lastResendConfirmationAt = 0;
   },
 
   async getCurrentProfile(userId: string): Promise<Profile | null> {
@@ -236,3 +353,4 @@ export const authService = {
     }
   },
 };
+

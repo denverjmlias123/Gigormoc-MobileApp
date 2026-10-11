@@ -1,13 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, clientTheme } from '../theme';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { authNotice, clearAuthNotice } = useAuth();
   const navy = clientTheme.colors.heroBg;
 
   return (
@@ -41,8 +43,34 @@ export default function WelcomeScreen() {
       </View>
 
       <View style={styles.actions}>
-        <Button title="Create account" onPress={() => router.push('/(auth)/signup-step1')} />
-        <Button title="Log in" variant="secondary" onPress={() => router.push('/(auth)/login')} />
+        {authNotice ? (
+          <Pressable
+            onPress={clearAuthNotice}
+            accessibilityRole="alert"
+            style={[
+              styles.noticeBox,
+              { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
+            ]}
+          >
+            <Ionicons name="information-circle-outline" size={18} color={theme.colors.primary} />
+            <Text style={[styles.noticeText, { color: theme.colors.text }]}>{authNotice}</Text>
+          </Pressable>
+        ) : null}
+        <Button
+          title="Create account"
+          onPress={() => {
+            clearAuthNotice();
+            router.push('/(auth)/signup-step1');
+          }}
+        />
+        <Button
+          title="Log in"
+          variant="secondary"
+          onPress={() => {
+            clearAuthNotice();
+            router.push('/(auth)/login');
+          }}
+        />
       </View>
     </View>
   );
@@ -69,4 +97,13 @@ const styles = StyleSheet.create({
   pairTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 6 },
   pairText: { color: '#D6E2FF', fontSize: 13, lineHeight: 18 },
   actions: { padding: 24, paddingBottom: 36, gap: 12 },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  noticeText: { flex: 1, fontSize: 13, fontWeight: '600' },
 });

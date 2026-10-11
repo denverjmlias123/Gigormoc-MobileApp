@@ -13,6 +13,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
+import { toAppError } from '../../lib/errors';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function ForgotPasswordScreen() {
       await authService.resetPassword(normalizedEmail);
       setSent(true);
     } catch (err: any) {
-      setError(err?.message || 'Could not send reset email. Please try again.');
+      setError(toAppError(err, 'Could not send reset email. Please try again.').message);
     } finally {
       setLoading(false);
     }
@@ -57,15 +58,15 @@ export default function ForgotPasswordScreen() {
         </Text>
 
         {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}>
+            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
           </View>
         )}
 
         {sent ? (
-          <View style={styles.successBox}>
-            <Text style={styles.successTitle}>Check your email</Text>
-            <Text style={styles.successText}>
+          <View style={[styles.successBox, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}>
+            <Text style={[styles.successTitle, { color: theme.colors.successText }]}>Check your email</Text>
+            <Text style={[styles.successText, { color: theme.colors.successText }]}>
               A password reset link has been dispatched to {email.trim()}.
             </Text>
             <TouchableOpacity
