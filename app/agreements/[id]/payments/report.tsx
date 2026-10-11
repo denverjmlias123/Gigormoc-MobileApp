@@ -38,7 +38,9 @@ export default function ReportPaymentScreen() {
   const [notes, setNotes] = useState('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const safeNavigateBack = () => {
     if (router.canGoBack()) {
@@ -50,8 +52,16 @@ export default function ReportPaymentScreen() {
     }
   };
 
+  const navigateAfterSuccess = () => {
+    if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
   const handleUploadReceipt = async () => {
-    if (!id || uploadingReceipt) return;
+    if (!id || uploadingReceipt || submitted) return;
     setUploadingReceipt(true);
     setError(null);
     try {
@@ -67,7 +77,7 @@ export default function ReportPaymentScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!id) return;
+    if (!id || inFlightRef.current || submitting || submitted) return;
     const amountNum = parseFloat(amountStr);
     if (isNaN(amountNum) || amountNum <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid positive payment amount.');
@@ -81,6 +91,7 @@ export default function ReportPaymentScreen() {
       );
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -93,6 +104,7 @@ export default function ReportPaymentScreen() {
         receiptPath: receiptPath.trim() || undefined,
         notes: notes.trim(),
       });
+      setSubmitted(true);
 
       Alert.alert(
         'Payment Reported',
@@ -100,13 +112,14 @@ export default function ReportPaymentScreen() {
         [
           {
             text: 'OK',
-            onPress: safeNavigateBack,
+            onPress: navigateAfterSuccess,
           },
         ]
       );
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Failed to report payment.'));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

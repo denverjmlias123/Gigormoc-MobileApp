@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { createRealtimeDeduper, runOnce } from '../lib/singleFlight';
 
 let notifChannelSeq = 0;
 
@@ -38,21 +39,26 @@ export const notificationsService = {
   },
 
   async markAsRead(id: string): Promise<boolean> {
-    const { data, error } = await supabase.rpc('mark_notification_read', {
-      p_id: id,
+    return runOnce(`mark_notification_read:${id}`, async () => {
+      const { data, error } = await supabase.rpc('mark_notification_read', {
+        p_id: id,
+      });
+      if (error) throw error;
+      return Boolean(data);
     });
-    if (error) throw error;
-    return Boolean(data);
   },
 
   async markAllAsRead(): Promise<number> {
-    const { data, error } = await supabase.rpc('mark_all_notifications_read');
-    if (error) throw error;
-    return (data as number) || 0;
+    return runOnce('mark_all_notifications_read', async () => {
+      const { data, error } = await supabase.rpc('mark_all_notifications_read');
+      if (error) throw error;
+      return (data as number) || 0;
+    });
   },
 
   subscribeToNotifications(userId: string, onNotification: (item: NotificationItem) => void) {
     notifChannelSeq += 1;
+    const deduper = createRealtimeDeduper(500);
     const channelTopic = `user-notifications:${userId}-${Date.now()}-${notifChannelSeq}`;
     const channel = supabase
       .channel(channelTopic)
@@ -65,14 +71,16 @@ export const notificationsService = {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          if (payload.new) {
-            onNotification(payload.new as NotificationItem);
+          const item = payload.new as NotificationItem | undefined;
+          if (item && deduper.shouldProcess(item.id)) {
+            onNotification(item);
           }
         }
       )
       .subscribe();
 
     return () => {
+      deduper.clear();
       supabase.removeChannel(channel);
     };
   },

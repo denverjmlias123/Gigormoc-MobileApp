@@ -32,7 +32,9 @@ export default function SubmitMilestoneScreen() {
   const [filePaths, setFilePaths] = useState<string[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const safeNavigateBack = () => {
     if (router.canGoBack()) {
@@ -44,14 +46,22 @@ export default function SubmitMilestoneScreen() {
     }
   };
 
+  const navigateAfterSuccess = () => {
+    if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
   const handleAddFile = () => {
-    if (!fileUrlInput.trim()) return;
+    if (!fileUrlInput.trim() || submitted) return;
     setFilePaths([...filePaths, fileUrlInput.trim()]);
     setFileUrlInput('');
   };
 
   const handleUploadFromDevice = async () => {
-    if (!id || !milestoneId || uploadingFile) return;
+    if (!id || !milestoneId || uploadingFile || submitted) return;
     setUploadingFile(true);
     setError(null);
     try {
@@ -67,33 +77,37 @@ export default function SubmitMilestoneScreen() {
   };
 
   const handleRemoveFile = (index: number) => {
+    if (submitted) return;
     setFilePaths(filePaths.filter((_, idx) => idx !== index));
   };
 
   const handleSubmit = async () => {
-    if (!milestoneId) return;
+    if (!milestoneId || inFlightRef.current || submitting || submitted) return;
     if (message.trim().length < 10) {
       Alert.alert('Too Short', 'Please provide a clear description of your submitted work (at least 10 characters).');
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
       await milestonesService.submitMilestone(milestoneId, message.trim(), filePaths);
+      setSubmitted(true);
       Alert.alert(
         'Work Submitted',
         'Your milestone submission has been sent to the client for review.',
         [
           {
             text: 'OK',
-            onPress: safeNavigateBack,
+            onPress: navigateAfterSuccess,
           },
         ]
       );
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit milestone work.'));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

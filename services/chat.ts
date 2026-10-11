@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { createRealtimeDeduper, runOnce } from '../lib/singleFlight';
 
 let chatChannelSeq = 0;
 
@@ -57,23 +58,28 @@ export const chatService = {
   },
 
   async markConversationRead(conversationId: string): Promise<void> {
-    const { error } = await supabase.rpc('mark_conversation_read', {
-      p_conversation_id: conversationId,
+    return runOnce(`mark_conversation_read:${conversationId}`, async () => {
+      const { error } = await supabase.rpc('mark_conversation_read', {
+        p_conversation_id: conversationId,
+      });
+      if (error) throw error;
     });
-    if (error) throw error;
   },
 
   async getOrCreateConversation(params: {
     applicationId?: string;
     agreementId?: string;
   }): Promise<string> {
-    const { data, error } = await supabase.rpc('get_or_create_conversation', {
-      p_application_id: params.applicationId || null,
-      p_agreement_id: params.agreementId || null,
-    });
+    const key = `get_or_create_conversation:${params.applicationId || ''}:${params.agreementId || ''}`;
+    return runOnce(key, async () => {
+      const { data, error } = await supabase.rpc('get_or_create_conversation', {
+        p_application_id: params.applicationId || null,
+        p_agreement_id: params.agreementId || null,
+      });
 
-    if (error) throw error;
-    return data as string;
+      if (error) throw error;
+      return data as string;
+    });
   },
 
   async getConversation(conversationId: string): Promise<ConversationItem | null> {
@@ -114,14 +120,27 @@ export const chatService = {
     return (data || []) as any[];
   },
 
-  async sendMessage(conversationId: string, content: string): Promise<string> {
-    const { data, error } = await supabase.rpc('send_message', {
-      p_conversation_id: conversationId,
-      p_content: content,
-    });
+  async sendMessage(conversationId: string, content: string, requestId?: string): Promise<string> {
+    return runOnce(
+      `send_message:${conversationId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_conversation_id: conversationId,
+          p_content: content,
+        };
+        let { data, error } = await supabase.rpc('send_message', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('send_message', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string;
+        if (error) throw error;
+        return data as string;
+      },
+      { requestId }
+    );
   },
 
   subscribeToMessages(
@@ -129,6 +148,7 @@ export const chatService = {
     onMessage: (message: MessageItem) => void
   ) {
     chatChannelSeq += 1;
+    const deduper = createRealtimeDeduper(500);
     const channelTopic = `conversation:${conversationId}-${Date.now()}-${chatChannelSeq}`;
     const channel = supabase
       .channel(channelTopic)
@@ -141,6 +161,11 @@ export const chatService = {
           filter: `conversation_id=eq.${conversationId}`,
         },
         async (payload) => {
+          const msgId = payload.new?.id;
+          if (!deduper.shouldProcess(msgId)) {
+            return;
+          }
+
           const { data } = await supabase
             .from('profiles')
             .select('id, display_name, avatar_path')
@@ -161,6 +186,7 @@ export const chatService = {
       .subscribe();
 
     return () => {
+      deduper.clear();
       supabase.removeChannel(channel);
     };
   },

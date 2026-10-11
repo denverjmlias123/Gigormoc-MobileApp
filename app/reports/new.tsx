@@ -40,10 +40,12 @@ export default function NewReportScreen() {
   const [details, setDetails] = useState('');
   const [evidencePath, setEvidencePath] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const handleSubmit = async () => {
-    if (!targetId || !targetType) return;
+    if (!targetId || !targetType || inFlightRef.current || submitting || submitted) return;
     if (details.trim().length < 10) {
       Alert.alert(
         'Details Required',
@@ -52,6 +54,7 @@ export default function NewReportScreen() {
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -62,6 +65,7 @@ export default function NewReportScreen() {
         details: details.trim(),
         evidencePath: evidencePath.trim() || undefined,
       });
+      setSubmitted(true);
 
       Alert.alert(
         'Report Submitted',
@@ -70,11 +74,7 @@ export default function NewReportScreen() {
           {
             text: 'OK',
             onPress: () => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)');
-              }
+              router.replace('/(tabs)');
             },
           },
         ]
@@ -82,6 +82,7 @@ export default function NewReportScreen() {
     } catch (err: any) {
       setError(err?.message || 'Failed to submit report.');
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

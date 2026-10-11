@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 import { pickImagesUniversal } from '../utils/imageUpload';
 
 let submissionUploadSeq = 0;
@@ -50,42 +51,87 @@ export const milestonesService = {
     return (data || []) as MilestoneItem[];
   },
 
-  async defineMilestones(agreementId: string, milestones: DefineMilestoneParam[]): Promise<void> {
-    const { error } = await supabase.rpc('define_milestones', {
-      p_agreement_id: agreementId,
-      p_milestones: milestones,
-    });
+  async defineMilestones(
+    agreementId: string,
+    milestones: DefineMilestoneParam[],
+    requestId?: string
+  ): Promise<void> {
+    return runOnce(
+      `define_milestones:${agreementId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_agreement_id: agreementId,
+          p_milestones: milestones,
+        };
+        let { error } = await supabase.rpc('define_milestones', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('define_milestones', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
   async submitMilestone(
     milestoneId: string,
     message: string,
-    filePaths: string[] = []
+    filePaths: string[] = [],
+    requestId?: string
   ): Promise<string> {
-    const { data, error } = await supabase.rpc('submit_milestone', {
-      p_milestone_id: milestoneId,
-      p_message: message,
-      p_file_paths: filePaths,
-    });
+    return runOnce(
+      `submit_milestone:${milestoneId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_milestone_id: milestoneId,
+          p_message: message,
+          p_file_paths: filePaths,
+        };
+        let { data, error } = await supabase.rpc('submit_milestone', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('submit_milestone', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string;
+        if (error) throw error;
+        return data as string;
+      },
+      { requestId }
+    );
   },
 
   async reviewMilestone(
     milestoneId: string,
     action: 'approve' | 'request_revision',
-    feedback: string = ''
+    feedback: string = '',
+    requestId?: string
   ): Promise<void> {
-    const { error } = await supabase.rpc('review_milestone', {
-      p_milestone_id: milestoneId,
-      p_action: action,
-      p_feedback: feedback,
-    });
+    return runOnce(
+      `review_milestone:${milestoneId}:${action}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_milestone_id: milestoneId,
+          p_action: action,
+          p_feedback: feedback,
+        };
+        let { error } = await supabase.rpc('review_milestone', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('review_milestone', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
   async getMilestoneSubmissions(milestoneId: string): Promise<SubmissionItem[]> {
@@ -113,52 +159,63 @@ export const milestonesService = {
     milestoneId: string,
     fileName: string,
     fileBlob: Blob | ArrayBuffer | Uint8Array,
-    contentType?: string
+    contentType?: string,
+    requestId?: string
   ): Promise<string> {
-    submissionUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const path = `${agreementId}/${milestoneId}/${Date.now()}_${submissionUploadSeq}_${safeName}`;
+    return runOnce(
+      `upload_submission:${milestoneId}:${safeName}`,
+      async (reqId) => {
+        submissionUploadSeq += 1;
+        const deterministicToken = requestId || reqId || `${Date.now()}_${submissionUploadSeq}`;
+        const path = `${agreementId}/${milestoneId}/${deterministicToken}_${safeName}`;
 
-    const { error } = await supabase.storage
-      .from('submissions')
-      .upload(path, fileBlob, {
-        upsert: false,
-        ...(contentType ? { contentType } : {}),
-      });
+        const { error } = await supabase.storage
+          .from('submissions')
+          .upload(path, fileBlob, {
+            upsert: false,
+            ...(contentType ? { contentType } : {}),
+          });
 
-    if (error) throw error;
-    return path;
+        if (error) throw error;
+        return path;
+      },
+      { requestId }
+    );
   },
 
   async pickAndUploadSubmissionFile(
     agreementId: string,
     milestoneId: string
   ): Promise<string | null> {
-    const picked = await pickImagesUniversal({
-      source: 'library',
-      allowsMultipleSelection: false,
-      cropSquare: false,
-      maxDimension: 1920,
-      quality: 0.85,
+    return runOnce(`pick_upload_submission:${milestoneId}`, async (reqId) => {
+      const picked = await pickImagesUniversal({
+        source: 'library',
+        allowsMultipleSelection: false,
+        cropSquare: false,
+        maxDimension: 1920,
+        quality: 0.85,
+      });
+
+      if (!picked || picked.length === 0) {
+        return null;
+      }
+
+      const file = picked[0];
+      if (file.bytes.byteLength > 10 * 1024 * 1024) {
+        throw new Error('Attachment is too large. Maximum allowed file size is 10 MB.');
+      }
+
+      const fileName = file.fileName || `deliverable_${reqId}.${file.ext}`;
+      return await milestonesService.uploadSubmissionFile(
+        agreementId,
+        milestoneId,
+        fileName,
+        file.bytes,
+        file.mimeType,
+        reqId
+      );
     });
-
-    if (!picked || picked.length === 0) {
-      return null;
-    }
-
-    const file = picked[0];
-    if (file.bytes.byteLength > 10 * 1024 * 1024) {
-      throw new Error('Attachment is too large. Maximum allowed file size is 10 MB.');
-    }
-
-    const fileName = file.fileName || `deliverable_${Date.now()}.${file.ext}`;
-    return await milestonesService.uploadSubmissionFile(
-      agreementId,
-      milestoneId,
-      fileName,
-      file.bytes,
-      file.mimeType
-    );
   },
 
   async createSignedUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {

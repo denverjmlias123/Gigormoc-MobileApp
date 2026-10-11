@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 import { Profile } from './auth';
 import { pickImagesUniversal, resolveImageFormat } from '../utils/imageUpload';
 
@@ -320,43 +321,47 @@ export const profileService = {
   },
 
   async updateProfileDetails(params: UpdateProfileDetailsParams): Promise<Profile> {
-    const { data, error } = await supabase.rpc('update_profile_details', {
-      p_display_name: params.displayName,
-      p_headline: params.headline ?? null,
-      p_bio: params.bio ?? null,
-      p_area: params.area ?? null,
-      p_preferred_contact: params.preferredContact ?? null,
-      p_languages: params.languages ?? null,
-      p_phone: params.phone ?? null,
-      p_work_types: params.workTypes ?? null,
-      p_availability: params.availability ?? null,
-      p_experience_years: params.experienceYears ?? null,
-      p_starting_rate_note: params.startingRateNote ?? null,
-      p_client_type: params.clientType ?? null,
-      p_business_name: params.businessName ?? null,
-      p_about_hiring: params.aboutHiring ?? null,
-    });
+    return runOnce('update_profile_details', async () => {
+      const { data, error } = await supabase.rpc('update_profile_details', {
+        p_display_name: params.displayName,
+        p_headline: params.headline ?? null,
+        p_bio: params.bio ?? null,
+        p_area: params.area ?? null,
+        p_preferred_contact: params.preferredContact ?? null,
+        p_languages: params.languages ?? null,
+        p_phone: params.phone ?? null,
+        p_work_types: params.workTypes ?? null,
+        p_availability: params.availability ?? null,
+        p_experience_years: params.experienceYears ?? null,
+        p_starting_rate_note: params.startingRateNote ?? null,
+        p_client_type: params.clientType ?? null,
+        p_business_name: params.businessName ?? null,
+        p_about_hiring: params.aboutHiring ?? null,
+      });
 
-    if (error) throw error;
-    return data as Profile;
+      if (error) throw error;
+      return data as Profile;
+    });
   },
 
   async addProfileSkills(skillIds: string[], customNames: string[]): Promise<Skill[]> {
-    const { data, error } = await supabase.rpc('add_profile_skills', {
-      p_skill_ids: skillIds,
-      p_custom_names: customNames,
+    return runOnce('add_profile_skills', async () => {
+      const { data, error } = await supabase.rpc('add_profile_skills', {
+        p_skill_ids: skillIds,
+        p_custom_names: customNames,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({
+        id: row.out_skill_id || row.skill_id,
+        name: row.out_skill_name || row.skill_name || row.name,
+        category_id: null,
+        is_active: row.out_is_active ?? row.is_active,
+        source: row.out_source || row.source,
+        created_at: new Date().toISOString(),
+      }));
     });
-
-    if (error) throw error;
-
-    return (data || []).map((row: any) => ({
-      id: row.out_skill_id || row.skill_id,
-      name: row.out_skill_name || row.skill_name || row.name,
-      category_id: null,
-      is_active: row.out_is_active ?? row.is_active,
-      source: row.out_source || row.source,
-      created_at: new Date().toISOString(),
-    }));
   },
 
   async getUserSkills(profileId: string): Promise<Skill[]> {
@@ -391,11 +396,13 @@ export const profileService = {
   },
 
   async removeUserSkill(_profileId: string, skillId: string): Promise<void> {
-    const { error } = await supabase.rpc('remove_profile_skill', {
-      p_skill_id: skillId,
-    });
+    return runOnce(`remove_profile_skill:${skillId}`, async () => {
+      const { error } = await supabase.rpc('remove_profile_skill', {
+        p_skill_id: skillId,
+      });
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   },
 
   async getUserHiringInterests(profileId: string): Promise<Category[]> {
@@ -425,16 +432,18 @@ export const profileService = {
   },
 
   async saveHiringDetails(params: SaveHiringDetailsParams): Promise<SaveHiringDetailsResult> {
-    const { data, error } = await supabase.rpc('save_hiring_details', {
-      p_client_type: params.clientType ?? null,
-      p_business_name: params.businessName ?? null,
-      p_about_hiring: params.aboutHiring ?? null,
-      p_category_ids: params.categoryIds ?? null,
-      p_custom_category_names: params.customCategoryNames ?? null,
-    });
+    return runOnce('save_hiring_details', async () => {
+      const { data, error } = await supabase.rpc('save_hiring_details', {
+        p_client_type: params.clientType ?? null,
+        p_business_name: params.businessName ?? null,
+        p_about_hiring: params.aboutHiring ?? null,
+        p_category_ids: params.categoryIds ?? null,
+        p_custom_category_names: params.customCategoryNames ?? null,
+      });
 
-    if (error) throw error;
-    return data as SaveHiringDetailsResult;
+      if (error) throw error;
+      return data as SaveHiringDetailsResult;
+    });
   },
 
   async getClientPostedGigsCount(profileId: string): Promise<number> {
@@ -465,29 +474,33 @@ export const profileService = {
     description?: string;
     filePaths?: string[];
   }): Promise<PortfolioItem> {
-    const { data, error } = await supabase
-      .from('portfolio_items')
-      .insert({
-        profile_id: params.profileId,
-        title: params.title,
-        description: params.description || '',
-        file_paths: params.filePaths || [],
-      })
-      .select()
-      .single();
+    return runOnce(`add_portfolio_item:${params.profileId}:${params.title.trim().toLowerCase()}`, async () => {
+      const { data, error } = await supabase
+        .from('portfolio_items')
+        .insert({
+          profile_id: params.profileId,
+          title: params.title,
+          description: params.description || '',
+          file_paths: params.filePaths || [],
+        })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data as PortfolioItem;
+      if (error) throw error;
+      return data as PortfolioItem;
+    });
   },
 
   async deletePortfolioItem(id: string, profileId: string): Promise<void> {
-    const { error } = await supabase
-      .from('portfolio_items')
-      .delete()
-      .eq('id', id)
-      .eq('profile_id', profileId);
+    return runOnce(`delete_portfolio_item:${id}`, async () => {
+      const { error } = await supabase
+        .from('portfolio_items')
+        .delete()
+        .eq('id', id)
+        .eq('profile_id', profileId);
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   },
 
   async uploadAvatar(
@@ -496,71 +509,75 @@ export const profileService = {
     fileExt: string = 'jpg',
     mimeType?: string
   ): Promise<string> {
-    const byteLength =
-      fileData instanceof Blob
-        ? fileData.size
-        : fileData instanceof ArrayBuffer
-        ? fileData.byteLength
-        : fileData.byteLength;
+    return runOnce(`upload_avatar:${userId}`, async () => {
+      const byteLength =
+        fileData instanceof Blob
+          ? fileData.size
+          : fileData instanceof ArrayBuffer
+          ? fileData.byteLength
+          : fileData.byteLength;
 
-    const validation = validateImageFile({
-      mimeType: mimeType || `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
-      fileName: `avatar.${fileExt}`,
-      fileSize: byteLength,
-    });
-
-    if (!validation.valid) {
-      throw new Error(validation.error);
-    }
-
-    const path = buildAvatarStoragePath(userId, Date.now(), validation.ext);
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, fileData, {
-        upsert: false,
-        contentType: validation.mimeType,
+      const validation = validateImageFile({
+        mimeType: mimeType || `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+        fileName: `avatar.${fileExt}`,
+        fileSize: byteLength,
       });
 
-    // A failed upload never changes the profile
-    if (uploadError) throw uploadError;
+      if (!validation.valid) {
+        throw new Error(validation.error);
+      }
 
-    const { data: publicUrlData } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(path);
+      const path = buildAvatarStoragePath(userId, Date.now(), validation.ext);
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, fileData, {
+          upsert: false,
+          contentType: validation.mimeType,
+        });
 
-    const publicUrl = publicUrlData.publicUrl;
+      // A failed upload never changes the profile
+      if (uploadError) throw uploadError;
 
-    // Update profile avatar_path via RPC (returns previous_avatar_path)
-    const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
-      p_avatar_path: publicUrl,
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      // Update profile avatar_path via RPC (returns previous_avatar_path)
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
+        p_avatar_path: publicUrl,
+      });
+
+      if (rpcError) {
+        // Clean up newly uploaded object if DB update failed
+        await supabase.storage.from('avatars').remove([path]).catch(() => {});
+        throw rpcError;
+      }
+
+      // Delete previous avatar object from storage if one existed
+      const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
+      if (prevPath && prevPath !== path && prevPath.startsWith(`${userId}/`)) {
+        await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
+      }
+
+      return publicUrl;
     });
-
-    if (rpcError) {
-      // Clean up newly uploaded object if DB update failed
-      await supabase.storage.from('avatars').remove([path]).catch(() => {});
-      throw rpcError;
-    }
-
-    // Delete previous avatar object from storage if one existed
-    const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
-    if (prevPath && prevPath !== path && prevPath.startsWith(`${userId}/`)) {
-      await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
-    }
-
-    return publicUrl;
   },
 
   async removeAvatar(userId: string): Promise<void> {
-    const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
-      p_avatar_path: null,
+    return runOnce(`remove_avatar:${userId}`, async () => {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
+        p_avatar_path: null,
+      });
+
+      if (rpcError) throw rpcError;
+
+      const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
+      if (prevPath && prevPath.startsWith(`${userId}/`)) {
+        await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
+      }
     });
-
-    if (rpcError) throw rpcError;
-
-    const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
-    if (prevPath && prevPath.startsWith(`${userId}/`)) {
-      await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
-    }
   },
 
   async pickAndUploadAvatar(userId: string, source: 'library' | 'camera'): Promise<string | null> {

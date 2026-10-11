@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 import { pickImagesUniversal } from '../utils/imageUpload';
 
 let receiptUploadSeq = 0;
@@ -44,6 +45,7 @@ export interface ReportPaymentParams {
   referenceNumber: string;
   receiptPath?: string;
   notes?: string;
+  requestId?: string;
 }
 
 export const paymentsService = {
@@ -79,91 +81,150 @@ export const paymentsService = {
   },
 
   async reportPayment(params: ReportPaymentParams): Promise<string> {
-    const { data, error } = await supabase.rpc('report_payment', {
-      p_agreement_id: params.agreementId,
-      p_milestone_id: params.milestoneId || null,
-      p_amount: params.amount,
-      p_payment_method: params.paymentMethod,
-      p_reference_number: params.referenceNumber,
-      p_receipt_path: params.receiptPath || null,
-      p_notes: params.notes || '',
-    });
+    return runOnce(
+      `report_payment:${params.agreementId}:${params.milestoneId || 'all'}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_agreement_id: params.agreementId,
+          p_milestone_id: params.milestoneId || null,
+          p_amount: params.amount,
+          p_payment_method: params.paymentMethod,
+          p_reference_number: params.referenceNumber,
+          p_receipt_path: params.receiptPath || null,
+          p_notes: params.notes || '',
+        };
+        let { data, error } = await supabase.rpc('report_payment', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('report_payment', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string;
+        if (error) throw error;
+        return data as string;
+      },
+      { requestId: params.requestId }
+    );
   },
 
-  async confirmPayment(paymentId: string): Promise<void> {
-    const { error } = await supabase.rpc('confirm_payment', {
-      p_payment_id: paymentId,
-    });
+  async confirmPayment(paymentId: string, requestId?: string): Promise<void> {
+    return runOnce(
+      `confirm_payment:${paymentId}`,
+      async (reqId) => {
+        const baseArgs = { p_payment_id: paymentId };
+        let { error } = await supabase.rpc('confirm_payment', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('confirm_payment', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
-  async disputePayment(paymentId: string, reason: string): Promise<void> {
-    const { error } = await supabase.rpc('dispute_payment', {
-      p_payment_id: paymentId,
-      p_reason: reason,
-    });
+  async disputePayment(paymentId: string, reason: string, requestId?: string): Promise<void> {
+    return runOnce(
+      `dispute_payment:${paymentId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_payment_id: paymentId,
+          p_reason: reason,
+        };
+        let { error } = await supabase.rpc('dispute_payment', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('dispute_payment', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
-  async completeAgreement(agreementId: string): Promise<void> {
-    const { error } = await supabase.rpc('complete_agreement', {
-      p_agreement_id: agreementId,
-    });
+  async completeAgreement(agreementId: string, requestId?: string): Promise<void> {
+    return runOnce(
+      `complete_agreement:${agreementId}`,
+      async (reqId) => {
+        const baseArgs = { p_agreement_id: agreementId };
+        let { error } = await supabase.rpc('complete_agreement', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('complete_agreement', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
   async uploadReceiptFile(
     agreementId: string,
     fileName: string,
     fileBlob: Blob | ArrayBuffer | Uint8Array,
-    contentType?: string
+    contentType?: string,
+    requestId?: string
   ): Promise<string> {
-    receiptUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const path = `${agreementId}/receipts/${Date.now()}_${receiptUploadSeq}_${safeName}`;
+    return runOnce(
+      `upload_receipt:${agreementId}:${safeName}`,
+      async (reqId) => {
+        receiptUploadSeq += 1;
+        const deterministicToken = requestId || reqId || `${Date.now()}_${receiptUploadSeq}`;
+        const path = `${agreementId}/receipts/${deterministicToken}_${safeName}`;
 
-    const { error } = await supabase.storage
-      .from('receipts')
-      .upload(path, fileBlob, {
-        upsert: false,
-        ...(contentType ? { contentType } : {}),
-      });
+        const { error } = await supabase.storage
+          .from('receipts')
+          .upload(path, fileBlob, {
+            upsert: false,
+            ...(contentType ? { contentType } : {}),
+          });
 
-    if (error) throw error;
-    return path;
+        if (error) throw error;
+        return path;
+      },
+      { requestId }
+    );
   },
 
   async pickAndUploadReceiptImage(agreementId: string): Promise<string | null> {
-    const picked = await pickImagesUniversal({
-      source: 'library',
-      allowsMultipleSelection: false,
-      cropSquare: false,
-      maxDimension: 1920,
-      quality: 0.85,
+    return runOnce(`pick_upload_receipt:${agreementId}`, async (reqId) => {
+      const picked = await pickImagesUniversal({
+        source: 'library',
+        allowsMultipleSelection: false,
+        cropSquare: false,
+        maxDimension: 1920,
+        quality: 0.85,
+      });
+
+      if (!picked || picked.length === 0) {
+        return null;
+      }
+
+      const file = picked[0];
+      if (file.bytes.byteLength > 10 * 1024 * 1024) {
+        throw new Error('Receipt image is too large. Maximum allowed file size is 10 MB.');
+      }
+
+      const fileName = file.fileName || `receipt_${reqId}.${file.ext}`;
+      return await paymentsService.uploadReceiptFile(
+        agreementId,
+        fileName,
+        file.bytes,
+        file.mimeType,
+        reqId
+      );
     });
-
-    if (!picked || picked.length === 0) {
-      return null;
-    }
-
-    const file = picked[0];
-    if (file.bytes.byteLength > 10 * 1024 * 1024) {
-      throw new Error('Receipt image is too large. Maximum allowed file size is 10 MB.');
-    }
-
-    const fileName = file.fileName || `receipt_${Date.now()}.${file.ext}`;
-    return await paymentsService.uploadReceiptFile(
-      agreementId,
-      fileName,
-      file.bytes,
-      file.mimeType
-    );
   },
 
   async createSignedReceiptUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {

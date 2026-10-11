@@ -343,12 +343,15 @@ export function mapSqlErrorToFriendlyMessage(
   }
 
   // 7. Conflict / Duplicate / Stale state
+  if (lower.includes('already_done') || lower.includes('already done on your other device')) {
+    return strings.errors.alreadyDoneOtherDevice;
+  }
+
   if (
     status === 409 ||
     code === '23505' ||
     lower.includes('duplicate key value') ||
     lower.includes('unique constraint') ||
-    lower.includes('already_done') ||
     lower.includes('already updated')
   ) {
     return strings.errors.conflict;

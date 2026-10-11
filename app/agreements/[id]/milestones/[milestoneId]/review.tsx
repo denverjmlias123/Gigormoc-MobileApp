@@ -33,14 +33,24 @@ export default function ReviewMilestoneScreen() {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
+  const [actionDone, setActionDone] = useState(false);
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const safeNavigateBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
+  const navigateAfterSuccess = () => {
+    if (id) {
       router.replace({ pathname: '/agreements/[id]', params: { id } });
     } else {
       router.replace('/(tabs)/activity');
@@ -92,7 +102,7 @@ export default function ReviewMilestoneScreen() {
   };
 
   const handleApprove = () => {
-    if (!milestoneId) return;
+    if (!milestoneId || inFlightRef.current || actionBusy || actionDone) return;
 
     Alert.alert(
       'Approve Milestone',
@@ -102,11 +112,14 @@ export default function ReviewMilestoneScreen() {
         {
           text: 'Approve Deliverable',
           onPress: async () => {
+            if (inFlightRef.current || actionBusy || actionDone) return;
+            inFlightRef.current = true;
             setActionBusy(true);
             try {
               await milestonesService.reviewMilestone(milestoneId, 'approve');
+              setActionDone(true);
               Alert.alert('Milestone Approved', 'The milestone has been approved successfully.', [
-                { text: 'OK', onPress: safeNavigateBack },
+                { text: 'OK', onPress: navigateAfterSuccess },
               ]);
             } catch (err: any) {
               Alert.alert(
@@ -114,6 +127,7 @@ export default function ReviewMilestoneScreen() {
                 mapSqlErrorToFriendlyMessage(err, 'Could not approve milestone.')
               );
             } finally {
+              inFlightRef.current = false;
               setActionBusy(false);
             }
           },
@@ -123,12 +137,13 @@ export default function ReviewMilestoneScreen() {
   };
 
   const handleRequestRevision = async () => {
-    if (!milestoneId) return;
+    if (!milestoneId || inFlightRef.current || actionBusy || actionDone) return;
     if (revisionFeedback.trim().length < 5) {
       Alert.alert('Feedback Required', 'Please provide clear feedback explaining what changes are required.');
       return;
     }
 
+    inFlightRef.current = true;
     setActionBusy(true);
     try {
       await milestonesService.reviewMilestone(
@@ -136,10 +151,11 @@ export default function ReviewMilestoneScreen() {
         'request_revision',
         revisionFeedback.trim()
       );
+      setActionDone(true);
       Alert.alert(
         'Revision Requested',
         `Revision request submitted. (${revisionsLeft - 1} revision(s) remaining for this milestone).`,
-        [{ text: 'OK', onPress: safeNavigateBack }]
+        [{ text: 'OK', onPress: navigateAfterSuccess }]
       );
     } catch (err: any) {
       Alert.alert(
@@ -147,6 +163,7 @@ export default function ReviewMilestoneScreen() {
         mapSqlErrorToFriendlyMessage(err, 'Could not request revision.')
       );
     } finally {
+      inFlightRef.current = false;
       setActionBusy(false);
     }
   };

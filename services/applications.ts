@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 
 export interface ApplicationItem {
   id: string;
@@ -72,44 +73,86 @@ export const applicationsService = {
     proposedPrice: number; // in centavos
     estimatedDays: number;
     message: string;
+    requestId?: string;
   }): Promise<string> {
-    const { data, error } = await supabase.rpc('submit_application', {
-      p_gig_id: params.gigId,
-      p_proposed_price: params.proposedPrice,
-      p_estimated_days: params.estimatedDays,
-      p_message: params.message,
-    });
+    return runOnce(
+      `submit_application:${params.gigId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_gig_id: params.gigId,
+          p_proposed_price: params.proposedPrice,
+          p_estimated_days: params.estimatedDays,
+          p_message: params.message,
+        };
+        let { data, error } = await supabase.rpc('submit_application', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('submit_application', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string;
+        if (error) throw error;
+        return data as string;
+      },
+      { requestId: params.requestId }
+    );
   },
 
   async respondToApplication(
     applicationId: string,
     action: 'accept' | 'decline' | 'counter',
-    counterPrice?: number
+    counterPrice?: number,
+    requestId?: string
   ): Promise<string | null> {
-    const { data, error } = await supabase.rpc('respond_to_application', {
-      p_application_id: applicationId,
-      p_action: action,
-      p_counter_price: counterPrice || null,
-    });
+    return runOnce(
+      `respond_to_application:${applicationId}:${action}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_application_id: applicationId,
+          p_action: action,
+          p_counter_price: counterPrice || null,
+        };
+        let { data, error } = await supabase.rpc('respond_to_application', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('respond_to_application', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string | null;
+        if (error) throw error;
+        return data as string | null;
+      },
+      { requestId }
+    );
   },
 
   async respondToCounter(
     applicationId: string,
-    action: 'accept' | 'decline' | 'withdraw'
+    action: 'accept' | 'decline' | 'withdraw',
+    requestId?: string
   ): Promise<string | null> {
-    const { data, error } = await supabase.rpc('respond_to_counter', {
-      p_application_id: applicationId,
-      p_action: action,
-    });
+    return runOnce(
+      `respond_to_counter:${applicationId}:${action}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_application_id: applicationId,
+          p_action: action,
+        };
+        let { data, error } = await supabase.rpc('respond_to_counter', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('respond_to_counter', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string | null;
+        if (error) throw error;
+        return data as string | null;
+      },
+      { requestId }
+    );
   },
 
   async getGigApplicants(gigId: string): Promise<ApplicationItem[]> {
@@ -257,11 +300,13 @@ export const applicationsService = {
   },
 
   async switchMode(targetMode: 'find_work' | 'hire', confirm: boolean = true): Promise<void> {
-    const { error } = await supabase.rpc('switch_mode', {
-      p_target_mode: targetMode,
-      p_confirm: confirm,
-    });
+    return runOnce(`switch_mode:${targetMode}`, async () => {
+      const { error } = await supabase.rpc('switch_mode', {
+        p_target_mode: targetMode,
+        p_confirm: confirm,
+      });
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   },
 };

@@ -47,7 +47,17 @@ export default function SetupMilestonesScreen() {
     },
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
+
+  const navigateAfterSuccess = () => {
+    if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   // Calculate current sum in centavos
   const currentTotalCentavos = milestones.reduce((sum, m) => {
@@ -59,6 +69,7 @@ export default function SetupMilestonesScreen() {
   const isSumValid = differenceCentavos === 0 && currentTotalCentavos > 0;
 
   const handleAddMilestone = () => {
+    if (submitted) return;
     if (milestones.length >= 5) {
       Alert.alert('Limit Reached', 'An agreement can have at most 5 milestones.');
       return;
@@ -74,6 +85,7 @@ export default function SetupMilestonesScreen() {
   };
 
   const handleRemoveMilestone = (index: number) => {
+    if (submitted) return;
     if (milestones.length <= 1) {
       Alert.alert('Cannot Remove', 'You must have at least 1 milestone.');
       return;
@@ -83,13 +95,14 @@ export default function SetupMilestonesScreen() {
   };
 
   const handleUpdate = (index: number, field: keyof MilestoneDraft, value: string) => {
+    if (submitted) return;
     const updated = [...milestones];
     updated[index][field] = value;
     setMilestones(updated);
   };
 
   const handleSubmit = async () => {
-    if (!id) return;
+    if (!id || inFlightRef.current || submitting || submitted) return;
     setError(null);
 
     // Validate fields
@@ -114,6 +127,7 @@ export default function SetupMilestonesScreen() {
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     try {
       const payload: DefineMilestoneParam[] = milestones.map((m) => ({
@@ -123,15 +137,17 @@ export default function SetupMilestonesScreen() {
       }));
 
       await milestonesService.defineMilestones(id, payload);
+      setSubmitted(true);
       Alert.alert('Milestones Defined', 'Agreement milestones have been successfully set.', [
         {
           text: 'OK',
-          onPress: safeNavigateBack,
+          onPress: navigateAfterSuccess,
         },
       ]);
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Failed to define milestones.'));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

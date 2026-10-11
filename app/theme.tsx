@@ -57,6 +57,7 @@ const base = {
   borderStrong: '#B9C6E0',
   success: '#12805C',
   successSoft: '#DDF5EA',
+  successText: '#0D5E43',
   warning: '#B45309',
   warningSoft: '#FEF1D6',
   danger: '#D92D3E',

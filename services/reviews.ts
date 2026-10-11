@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 
 export interface ReviewItem {
   id: string;
@@ -22,6 +23,7 @@ export interface SubmitReviewParams {
   agreementId: string;
   rating: number; // 1 to 5
   comment: string;
+  requestId?: string;
 }
 
 export const reviewsService = {
@@ -76,22 +78,37 @@ export const reviewsService = {
   },
 
   async submitReview(params: SubmitReviewParams): Promise<string> {
-    const { data, error } = await supabase.rpc('submit_review', {
-      p_agreement_id: params.agreementId,
-      p_rating: params.rating,
-      p_comment: params.comment,
-    });
+    return runOnce(
+      `submit_review:${params.agreementId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_agreement_id: params.agreementId,
+          p_rating: params.rating,
+          p_comment: params.comment,
+        };
+        let { data, error } = await supabase.rpc('submit_review', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('submit_review', baseArgs));
+        }
 
-    if (error) throw error;
-    return data as string;
+        if (error) throw error;
+        return data as string;
+      },
+      { requestId: params.requestId }
+    );
   },
 
   async adminHideReview(reviewId: string, reason: string): Promise<void> {
-    const { error } = await supabase.rpc('admin_hide_review', {
-      p_review_id: reviewId,
-      p_reason: reason,
-    });
+    return runOnce(`admin_hide_review:${reviewId}`, async () => {
+      const { error } = await supabase.rpc('admin_hide_review', {
+        p_review_id: reviewId,
+        p_reason: reason,
+      });
 
-    if (error) throw error;
+      if (error) throw error;
+    });
   },
 };

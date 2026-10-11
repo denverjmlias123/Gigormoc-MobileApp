@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { runOnce } from '../lib/singleFlight';
 import { GigSummary } from '../components/ui/GigCard';
 import { Category } from './profile';
 import { aiService } from './ai';
@@ -218,34 +219,42 @@ export const gigsService = {
     }));
   },
 
-  async createDraftGig(params: CreateGigParams): Promise<{ id: string }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated.');
+  async createDraftGig(params: CreateGigParams & { requestId?: string }): Promise<{ id: string }> {
+    return runOnce(
+      `create_draft_gig:${params.title.trim().toLowerCase()}`,
+      async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated.');
 
-    const { data, error } = await supabase.rpc('create_draft_gig', {
-      p_title: params.title,
-      p_description: params.description,
-      p_requirements: params.requirements || '',
-      p_price_min: params.price_min,
-      p_price_max: params.price_max,
-      p_work_type: params.work_type,
-      p_area: params.area || '',
-      p_application_deadline: params.application_deadline,
-      p_deadline: params.deadline,
-      p_category_id: params.category_id || null,
-      p_category_name: params.category_name || null,
-    });
+        const { data, error } = await supabase.rpc('create_draft_gig', {
+          p_title: params.title,
+          p_description: params.description,
+          p_requirements: params.requirements || '',
+          p_price_min: params.price_min,
+          p_price_max: params.price_max,
+          p_work_type: params.work_type,
+          p_area: params.area || '',
+          p_application_deadline: params.application_deadline,
+          p_deadline: params.deadline,
+          p_category_id: params.category_id || null,
+          p_category_name: params.category_name || null,
+        });
 
-    if (error) throw error;
-    return { id: String(data) };
+        if (error) throw error;
+        return { id: String(data) };
+      },
+      { requestId: params.requestId }
+    );
   },
 
   async getOrCreateCategory(name: string): Promise<string> {
-    const { data, error } = await supabase.rpc('get_or_create_category', {
-      p_name: name,
+    return runOnce(`get_or_create_category:${name.trim().toLowerCase()}`, async () => {
+      const { data, error } = await supabase.rpc('get_or_create_category', {
+        p_name: name,
+      });
+      if (error) throw error;
+      return String(data);
     });
-    if (error) throw error;
-    return String(data);
   },
 
   async suggestCategoriesForGig(title: string, description?: string): Promise<SuggestedGigCategory[]> {
@@ -333,21 +342,45 @@ export const gigsService = {
     }));
   },
 
-  async publishGig(gigId: string): Promise<void> {
-    const { error } = await supabase.rpc('publish_gig', {
-      p_gig_id: gigId,
-    });
+  async publishGig(gigId: string, requestId?: string): Promise<void> {
+    return runOnce(
+      `publish_gig:${gigId}`,
+      async (reqId) => {
+        const baseArgs = { p_gig_id: gigId };
+        let { error } = await supabase.rpc('publish_gig', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('publish_gig', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 
-  async cancelGig(gigId: string, reason: string): Promise<void> {
-    const { error } = await supabase.rpc('cancel_gig', {
-      p_gig_id: gigId,
-      p_reason: reason,
-    });
+  async cancelGig(gigId: string, reason: string, requestId?: string): Promise<void> {
+    return runOnce(
+      `cancel_gig:${gigId}`,
+      async (reqId) => {
+        const baseArgs = {
+          p_gig_id: gigId,
+          p_reason: reason,
+        };
+        let { error } = await supabase.rpc('cancel_gig', {
+          ...baseArgs,
+          p_request_id: reqId,
+        });
+        if (error && error.code === 'PGRST202') {
+          ({ error } = await supabase.rpc('cancel_gig', baseArgs));
+        }
 
-    if (error) throw error;
+        if (error) throw error;
+      },
+      { requestId }
+    );
   },
 };
 

@@ -27,7 +27,9 @@ export default function DisputePaymentScreen() {
 
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const amountCentavos = parseInt(amount || '0', 10);
 
@@ -41,8 +43,16 @@ export default function DisputePaymentScreen() {
     }
   };
 
+  const navigateAfterSuccess = () => {
+    if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!paymentId) return;
+    if (!paymentId || inFlightRef.current || submitting || submitted) return;
     if (reason.trim().length < 5) {
       Alert.alert(
         'Explanation Required',
@@ -51,23 +61,26 @@ export default function DisputePaymentScreen() {
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
       await paymentsService.disputePayment(paymentId, reason.trim());
+      setSubmitted(true);
       Alert.alert(
         'Dispute Recorded',
         'Payment report has been flagged as disputed. The client has been notified to clarify.',
         [
           {
             text: 'OK',
-            onPress: safeNavigateBack,
+            onPress: navigateAfterSuccess,
           },
         ]
       );
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Could not record payment dispute.'));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

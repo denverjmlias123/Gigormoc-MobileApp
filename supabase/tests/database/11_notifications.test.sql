@@ -16,7 +16,7 @@ SELECT has_table('public', 'notifications', 'notifications table must exist');
 SELECT columns_are(
     'public',
     'notifications',
-    ARRAY['id', 'user_id', 'type', 'title', 'body', 'entity_type', 'entity_id', 'data', 'read_at', 'created_at'],
+    ARRAY['id', 'user_id', 'type', 'title', 'body', 'entity_type', 'entity_id', 'data', 'read_at', 'created_at', 'dedupe_key'],
     'notifications table must have all required columns'
 );
 

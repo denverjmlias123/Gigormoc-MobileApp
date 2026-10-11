@@ -161,7 +161,6 @@ export default function LoginScreen() {
               <Button
                 title={resending ? 'Sending...' : 'Resend confirmation email'}
                 variant="secondary"
-                size="sm"
                 onPress={handleResendConfirmation}
                 loading={resending}
                 disabled={resending || isOffline}

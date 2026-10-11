@@ -250,44 +250,51 @@ export default function PostGigScreen() {
     };
   };
 
+  const inFlightRef = React.useRef(false);
+  const [submitted, setSubmitted] = useState(false);
+
   const handleSaveDraft = async () => {
+    if (inFlightRef.current || loading || submitted) return;
     setError(null);
     try {
       const params = validateAndBuildParams();
+      inFlightRef.current = true;
       setLoading(true);
       await gigsService.createDraftGig(params);
+      setSubmitted(true);
       Alert.alert('Draft Saved', 'Your gig draft has been saved successfully.', [
         {
           text: 'OK',
           onPress: () => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/gigs');
-            }
+            router.replace('/(tabs)/gigs');
           },
         },
       ]);
     } catch (err: any) {
       setError(err?.message || 'Could not save draft.');
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handlePublish = async () => {
+    if (inFlightRef.current || loading || submitted) return;
     setError(null);
     try {
       const params = validateAndBuildParams();
+      inFlightRef.current = true;
       setLoading(true);
       const { id: draftId } = await gigsService.createDraftGig(params);
       await gigsService.publishGig(draftId);
+      setSubmitted(true);
       Alert.alert('Gig Published!', 'Your gig is now open for local applicants in Ormoc City.', [
         { text: 'View Gigs', onPress: () => router.replace('/(tabs)/gigs') },
       ]);
     } catch (err: any) {
       setError(err?.message || 'Could not publish gig.');
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   };

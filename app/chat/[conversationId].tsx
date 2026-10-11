@@ -107,9 +107,12 @@ export default function ChatScreen() {
     router.push('/(tabs)/activity');
   };
 
-  const handleSend = async () => {
-    if (!inputText.trim() || !conversationId) return;
+  const sendingRef = useRef(false);
 
+  const handleSend = async () => {
+    if (sendingRef.current || sending || !inputText.trim() || !conversationId) return;
+
+    sendingRef.current = true;
     const textToSend = inputText.trim();
     setInputText('');
     setSending(true);
@@ -120,6 +123,7 @@ export default function ChatScreen() {
       Alert.alert('Send Failed', err?.message || 'Failed to send message.');
       setInputText(textToSend); // restore on error
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };

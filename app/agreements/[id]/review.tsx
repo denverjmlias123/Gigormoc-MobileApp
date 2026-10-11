@@ -26,7 +26,9 @@ export default function SubmitReviewScreen() {
   const [rating, setRating] = useState<number>(5);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const safeNavigateBack = () => {
     if (router.canGoBack()) {
@@ -38,8 +40,16 @@ export default function SubmitReviewScreen() {
     }
   };
 
+  const navigateAfterSuccess = () => {
+    if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!id) return;
+    if (!id || inFlightRef.current || submitting || submitted) return;
     if (comment.trim().length < 10) {
       Alert.alert(
         'Comment Too Short',
@@ -48,6 +58,7 @@ export default function SubmitReviewScreen() {
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -56,6 +67,7 @@ export default function SubmitReviewScreen() {
         rating,
         comment: comment.trim(),
       });
+      setSubmitted(true);
 
       Alert.alert(
         'Review Submitted',
@@ -63,13 +75,14 @@ export default function SubmitReviewScreen() {
         [
           {
             text: 'OK',
-            onPress: safeNavigateBack,
+            onPress: navigateAfterSuccess,
           },
         ]
       );
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit review.'));
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   };

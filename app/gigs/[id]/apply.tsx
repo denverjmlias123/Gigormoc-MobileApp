@@ -28,10 +28,12 @@ export default function ApplyGigScreen() {
   const [daysStr, setDaysStr] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   const handleSubmit = async () => {
-    if (!id) return;
+    if (!id || inFlightRef.current || loading || submitted) return;
     setError(null);
 
     if (profile?.active_mode !== 'find_work') {
@@ -55,6 +57,7 @@ export default function ApplyGigScreen() {
       return;
     }
 
+    inFlightRef.current = true;
     setLoading(true);
     try {
       const priceCentavos = Math.round(priceNum * 100);
@@ -64,6 +67,7 @@ export default function ApplyGigScreen() {
         estimatedDays: daysNum,
         message: message.trim(),
       });
+      setSubmitted(true);
 
       Alert.alert('Proposal Submitted!', 'Your application has been sent to the client.', [
         { text: 'Go to Activity', onPress: () => router.replace('/(tabs)/activity') },
@@ -71,6 +75,7 @@ export default function ApplyGigScreen() {
     } catch (err: any) {
       setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit application.'));
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   };
