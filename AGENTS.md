@@ -1,6 +1,6 @@
 # AGENTS.md — Gigormoc project rules
 
-Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig) and `docs/MILESTONES.md` (build order).
+Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig), `docs/UX_REAL_LOGIC.md` (every UI control must be real logic), `docs/PROFILE_AND_LOOP_V5_1.md` (profile, client details, categories, skills, photos, email, shared loop; it wins over older docs) and `docs/MILESTONES.md` (build order).
 
 Gigormoc is a local freelance marketplace for Ormoc City, Philippines (18+ only). The developer is solo. Prefer a working, secure, simple product over extra features.
 
@@ -55,7 +55,7 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - **Own-content rule:** nobody applies to, hires, reviews, or reports themselves, and nobody is shown their own gigs as available work. Enforced in the database (not only hidden in the UI). See `docs/ROLE_UX.md` section 4.
 - Ratings are stored separately per role (freelancer rating, client rating), so switching never resets or hides reputation.
 - 18+ enforced in the database from date of birth (sign-up trigger rejects under 18). DOB is never public.
-- Gates enforced in the database: apply = email confirmed + profile photo + 1 skill + 18+; publish gig = email confirmed + 18+.
+- Gates enforced in the database: apply (freelancer only) = email confirmed + profile photo + 1 skill + 18+; publish gig = email confirmed + 18+.
 - Gig: draft → open → in_progress → completed | cancelled | expired.
 - Application: applied → accepted | declined | countered → (freelancer) accepted | declined | withdrawn. One counteroffer round only. One application per freelancer per gig.
 - Accepting an application atomically creates exactly one agreement; the price is copied into it.
@@ -93,3 +93,14 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - Messages are sent only through `send_message` (participant check, length, rate limit). Direct inserts are denied.
 - "Done" means a second real account sees the result after a fresh launch (REAL_LOGIC_V5.md section 0). Remove any button that is not wired; no dead UI, no in-memory stand-ins for tables.
 - The core loop (apply -> accept/counter -> milestones -> submit -> approve -> payment -> review) must work end to end with two real accounts (REAL_LOGIC_V5.md section 8). Status shown in the UI always comes from the database row returned after an RPC, never from local state.
+
+## v5.1 rules (see `docs/PROFILE_AND_LOOP_V5_1.md`)
+- Skills are for freelancers only. Clients never see a Skills screen; they have Hiring details (client type, business name, hiring interests) instead. Both are kept when the mode is switched.
+- Categories are never a blocker: the poster can pick or type one. New categories are created only through `get_or_create_category` (dedupe, similarity check, limits, audit); the app suggests the best existing category first and a new one is the last resort (PROFILE_AND_LOOP_V5_1.md 2A). No seed categories.
+- Profile completeness is computed in the database (`get_profile_completeness`), never stored or trusted from the client. The badge says "Profile complete", never "verified".
+- Photos (avatar, portfolio) can be added, changed and removed at any time in both modes, from device storage or camera, with type/size limits.
+- Duplicate emails are blocked in the app (handle `user_already_exists` and empty `identities`) and the database stays idempotent.
+- Both roles see the same loop stages with a "Next step" banner (who must act).
+
+## v5.2 rule (see `docs/UX_REAL_LOGIC.md`)
+- UX is real logic. Every button, filter, badge, counter, banner and state is driven by database data or an RPC result; unwired UI is removed. After any write the screen re-reads the database. No fake loading, no hardcoded counts, no local-only state for database data. Prove each control with two real accounts.

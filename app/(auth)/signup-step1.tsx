@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,31 +9,50 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
+import { authService } from '../../services/auth';
+import { strings } from '../../constants/strings';
 
 export default function SignUpStep1Screen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const params = useLocalSearchParams<{ duplicateEmail?: string; email?: string }>();
 
   const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.email || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(params.duplicateEmail === '1');
+
+  useEffect(() => {
+    if (params.duplicateEmail === '1') {
+      setIsDuplicateEmail(true);
+      setError(strings.auth.duplicateEmailMessage);
+    }
+  }, [params.duplicateEmail]);
 
   const handleNext = () => {
+    if (pending) return;
     setError(null);
-    if (!displayName.trim()) {
-      setError('Please enter your full name or display name.');
+    setIsDuplicateEmail(false);
+
+    if (!displayName.trim() || displayName.trim().length < 2) {
+      setError('Please enter your display name (at least 2 characters).');
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
-      setError('Please enter a valid email address.');
+
+    const normalizedEmail = authService.normalizeEmail(email);
+    const emailValidation = authService.validateEmailInput(normalizedEmail);
+    if (!emailValidation.valid) {
+      setError(emailValidation.message || strings.auth.invalidEmailFormat);
       return;
     }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
@@ -47,14 +66,19 @@ export default function SignUpStep1Screen() {
       return;
     }
 
-    router.push({
-      pathname: '/(auth)/signup-step2',
-      params: {
-        displayName: displayName.trim(),
-        email: email.trim(),
-        password,
-      },
-    });
+    setPending(true);
+    try {
+      router.push({
+        pathname: '/(auth)/signup-step2',
+        params: {
+          displayName: displayName.trim(),
+          email: normalizedEmail,
+          password,
+        },
+      });
+    } finally {
+      setTimeout(() => setPending(false), 400);
+    }
   };
 
   return (
@@ -64,11 +88,47 @@ export default function SignUpStep1Screen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Step 1 of 2</Text>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Account Details</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step1Title}</Text>
 
         {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View
+            style={[
+              styles.errorBox,
+              { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger },
+            ]}
+          >
+            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+            {isDuplicateEmail && (
+              <View style={styles.dupActionsRow}>
+                <TouchableOpacity
+                  style={[styles.dupActionBtn, { backgroundColor: theme.colors.primary }]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/login',
+                      params: { email: authService.normalizeEmail(email) },
+                    })
+                  }
+                >
+                  <Text style={styles.dupActionBtnText}>{strings.auth.duplicateEmailLoginBtn}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.dupActionBtnOutline,
+                    { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface },
+                  ]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/forgot-password',
+                      params: { email: authService.normalizeEmail(email) },
+                    })
+                  }
+                >
+                  <Text style={[styles.dupActionBtnOutlineText, { color: theme.colors.primary }]}>
+                    {strings.auth.duplicateEmailResetBtn}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -89,7 +149,13 @@ export default function SignUpStep1Screen() {
           <TextInput
             style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(val) => {
+              setEmail(val);
+              if (isDuplicateEmail) {
+                setIsDuplicateEmail(false);
+                setError(null);
+              }
+            }}
             placeholder="you@example.com"
             placeholderTextColor={theme.colors.muted}
             keyboardType="email-address"
@@ -153,8 +219,13 @@ export default function SignUpStep1Screen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
+          style={[
+            styles.button,
+            { backgroundColor: theme.colors.primary },
+            pending && { opacity: 0.7 },
+          ]}
           onPress={handleNext}
+          disabled={pending}
           activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>Continue to Step 2</Text>
@@ -192,16 +263,39 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorBox: {
-    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#D92D3E',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  dupActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  dupActionBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  dupActionBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dupActionBtnOutline: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dupActionBtnOutlineText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   inputGroup: {
     marginBottom: 16,

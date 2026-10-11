@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 import { TextInput } from '../../components/ui/TextInput';
@@ -10,15 +10,18 @@ import { Button } from '../../components/ui/Button';
 export default function LoginScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const params = useLocalSearchParams<{ email?: string }>();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.email || '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    if (loading) return;
     setError(null);
-    if (!email.trim() || !password) {
+    const normalizedEmail = authService.normalizeEmail(email);
+    if (!normalizedEmail || !password) {
       setError('Please enter both email and password.');
       return;
     }
@@ -26,7 +29,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await authService.signIn({
-        email: email.trim(),
+        email: normalizedEmail,
         password,
       });
 

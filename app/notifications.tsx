@@ -71,6 +71,8 @@ export default function NotificationsScreen() {
       }
     } else if (item.entity_type === 'gig' && item.entity_id) {
       router.push({ pathname: '/gigs/[id]', params: { id: item.entity_id } });
+    } else if (item.entity_type === 'profile') {
+      router.push('/(tabs)/profile');
     }
   };
 
@@ -105,6 +107,8 @@ export default function NotificationsScreen() {
         return 'cash-outline';
       case 'review_received':
         return 'star-outline';
+      case 'profile_complete':
+        return 'checkmark-circle-outline';
       default:
         return 'notifications-outline';
     }

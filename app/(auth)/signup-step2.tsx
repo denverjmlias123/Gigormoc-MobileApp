@@ -13,6 +13,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
+import { strings } from '../../constants/strings';
 
 export default function SignUpStep2Screen() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function SignUpStep2Screen() {
   const [day, setDay] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false);
 
   const calculateAge = (birthDate: Date): number => {
     const today = new Date();
@@ -36,7 +38,9 @@ export default function SignUpStep2Screen() {
   };
 
   const handleRegister = async () => {
+    if (loading) return;
     setError(null);
+    setIsDuplicateEmail(false);
 
     const y = parseInt(year, 10);
     const m = parseInt(month, 10);
@@ -60,11 +64,12 @@ export default function SignUpStep2Screen() {
     }
 
     const formattedDob = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const normalizedEmail = authService.normalizeEmail(params.email || '');
 
     setLoading(true);
     try {
       await authService.signUp({
-        email: params.email,
+        email: normalizedEmail,
         password: params.password,
         displayName: params.displayName,
         dob: formattedDob,
@@ -72,14 +77,24 @@ export default function SignUpStep2Screen() {
 
       router.replace({
         pathname: '/(auth)/confirm-email',
-        params: { email: params.email },
+        params: { email: normalizedEmail },
       });
     } catch (err: any) {
-      setError(err?.message || 'Registration failed. Please check your details and try again.');
+      if (
+        err?.code === 'EMAIL_ALREADY_REGISTERED' ||
+        authService.isDuplicateEmailAuthResult(err)
+      ) {
+        setIsDuplicateEmail(true);
+        setError(strings.auth.duplicateEmailMessage);
+      } else {
+        setError(err?.message || 'Registration failed. Please check your details and try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const normalizedEmail = authService.normalizeEmail(params.email || '');
 
   return (
     <KeyboardAvoidingView
@@ -88,14 +103,50 @@ export default function SignUpStep2Screen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Step 2 of 2</Text>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Age Verification</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step2Title}</Text>
         <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-          Gigormoc is strictly for adults aged 18 and older. Your birth date is kept strictly confidential and is never shown publicly.
+          {strings.auth.step2Subtitle}
         </Text>
 
         {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View
+            style={[
+              styles.errorBox,
+              { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger },
+            ]}
+          >
+            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+            {isDuplicateEmail && (
+              <View style={styles.dupActionsRow}>
+                <TouchableOpacity
+                  style={[styles.dupActionBtn, { backgroundColor: theme.colors.primary }]}
+                  onPress={() =>
+                    router.replace({
+                      pathname: '/(auth)/login',
+                      params: { email: normalizedEmail },
+                    })
+                  }
+                >
+                  <Text style={styles.dupActionBtnText}>{strings.auth.duplicateEmailLoginBtn}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.dupActionBtnOutline,
+                    { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface },
+                  ]}
+                  onPress={() =>
+                    router.replace({
+                      pathname: '/(auth)/forgot-password',
+                      params: { email: normalizedEmail },
+                    })
+                  }
+                >
+                  <Text style={[styles.dupActionBtnOutlineText, { color: theme.colors.primary }]}>
+                    {strings.auth.duplicateEmailResetBtn}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -196,16 +247,39 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorBox: {
-    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#D92D3E',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  dupActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  dupActionBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  dupActionBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dupActionBtnOutline: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dupActionBtnOutlineText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   label: {
     fontSize: 15,

@@ -10,29 +10,33 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const params = useLocalSearchParams<{ email?: string }>();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.email || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   const handleReset = async () => {
+    if (loading) return;
     setError(null);
-    if (!email.trim() || !email.includes('@')) {
-      setError('Please enter a valid email address.');
+    const normalizedEmail = authService.normalizeEmail(email);
+    const check = authService.validateEmailInput(normalizedEmail);
+    if (!check.valid) {
+      setError(check.message || 'Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
     try {
-      await authService.resetPassword(email.trim());
+      await authService.resetPassword(normalizedEmail);
       setSent(true);
     } catch (err: any) {
       setError(err?.message || 'Could not send reset email. Please try again.');

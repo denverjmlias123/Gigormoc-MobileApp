@@ -1,3 +1,5 @@
+import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Profile } from './auth';
 
@@ -40,13 +42,128 @@ export interface PortfolioItem {
   created_at: string;
 }
 
+export interface CompletenessMissingItem {
+  key:
+    | 'photo'
+    | 'display_name'
+    | 'headline'
+    | 'bio'
+    | 'area'
+    | 'skills'
+    | 'work_availability'
+    | 'client_type'
+    | 'hiring_interests';
+  label: string;
+}
+
+export interface ProfileCompleteness {
+  profile_id: string;
+  role: 'find_work' | 'hire';
+  percent: number;
+  complete: boolean;
+  missing_items: CompletenessMissingItem[];
+  has_portfolio_bonus: boolean;
+}
+
+export interface UpdateProfileDetailsParams {
+  displayName: string;
+  headline?: string;
+  bio?: string;
+  area?: string;
+  preferredContact?: string;
+  languages?: string[];
+  phone?: string;
+  workTypes?: string[];
+  availability?: 'available_now' | 'part_time' | 'weekends' | 'not_taking_work' | '' | null;
+  experienceYears?: 'lt_1' | '1_3' | '3_5' | '5_plus' | '' | null;
+  startingRateNote?: string;
+  clientType?: 'individual' | 'business' | 'organization' | '' | null;
+  businessName?: string;
+  aboutHiring?: string;
+}
+
 export interface PublicProfileData {
   profile: Profile;
   skills: Skill[];
   portfolioItems: PortfolioItem[];
+  completeness?: ProfileCompleteness | null;
+}
+
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+export const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+export const ALLOWED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+
+export function validateImageFile(params: {
+  mimeType?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+}): { valid: boolean; ext: string; mimeType: string; error?: string } {
+  const { mimeType, fileName, fileSize } = params;
+
+  if (typeof fileSize === 'number' && fileSize > MAX_IMAGE_BYTES) {
+    return {
+      valid: false,
+      ext: 'jpg',
+      mimeType: 'image/jpeg',
+      error: 'Image is too large. Maximum allowed file size is 5 MB.',
+    };
+  }
+
+  let ext = 'jpg';
+  if (fileName && fileName.includes('.')) {
+    ext = fileName.split('.').pop()!.toLowerCase();
+  } else if (mimeType && mimeType.includes('/')) {
+    ext = mimeType.split('/').pop()!.toLowerCase();
+  }
+  if (ext === 'jpeg') ext = 'jpg';
+
+  const normalizedMime = (mimeType || `image/${ext === 'jpg' ? 'jpeg' : ext}`).toLowerCase();
+
+  if (!ALLOWED_IMAGE_EXTS.has(ext) || !ALLOWED_IMAGE_MIMES.has(normalizedMime)) {
+    return {
+      valid: false,
+      ext,
+      mimeType: normalizedMime,
+      error: 'Unsupported file format. Please choose a JPEG, PNG, or WebP image.',
+    };
+  }
+
+  return {
+    valid: true,
+    ext,
+    mimeType: normalizedMime === 'image/jpg' ? 'image/jpeg' : normalizedMime,
+  };
+}
+
+export function extractStorageObjectPath(
+  bucket: 'avatars' | 'portfolio',
+  urlOrPath: string | null | undefined
+): string | null {
+  if (!urlOrPath) return null;
+  const trimmed = urlOrPath.trim();
+  if (!trimmed) return null;
+
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const idx = trimmed.indexOf(marker);
+  if (idx !== -1) {
+    return decodeURIComponent(trimmed.slice(idx + marker.length).split('?')[0]);
+  }
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  return null;
+}
+
+export function buildAvatarStoragePath(userId: string, timestamp: number = Date.now(), ext: string = 'jpg'): string {
+  const cleanExt = ext === 'jpeg' ? 'jpg' : ext.toLowerCase();
+  return `${userId}/avatar-${timestamp}.${cleanExt}`;
 }
 
 export const profileService = {
+  validateImageFile,
+  extractStorageObjectPath,
+  buildAvatarStoragePath,
+
   async getCategories(): Promise<Category[]> {
     const { data, error } = await supabase
       .from('categories')
@@ -84,6 +201,48 @@ export const profileService = {
     return (data || []) as Area[];
   },
 
+  async getProfileCompleteness(profileId: string): Promise<ProfileCompleteness> {
+    const { data, error } = await supabase.rpc('get_profile_completeness', {
+      p_profile_id: profileId,
+    });
+
+    if (error) throw error;
+    return data as ProfileCompleteness;
+  },
+
+  async getOwnPrivatePhone(userId: string): Promise<string> {
+    const { data, error } = await supabase
+      .from('profile_private')
+      .select('phone')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.phone || '';
+  },
+
+  async updateProfileDetails(params: UpdateProfileDetailsParams): Promise<Profile> {
+    const { data, error } = await supabase.rpc('update_profile_details', {
+      p_display_name: params.displayName,
+      p_headline: params.headline ?? null,
+      p_bio: params.bio ?? null,
+      p_area: params.area ?? null,
+      p_preferred_contact: params.preferredContact ?? null,
+      p_languages: params.languages ?? null,
+      p_phone: params.phone ?? null,
+      p_work_types: params.workTypes ?? null,
+      p_availability: params.availability ?? null,
+      p_experience_years: params.experienceYears ?? null,
+      p_starting_rate_note: params.startingRateNote ?? null,
+      p_client_type: params.clientType ?? null,
+      p_business_name: params.businessName ?? null,
+      p_about_hiring: params.aboutHiring ?? null,
+    });
+
+    if (error) throw error;
+    return data as Profile;
+  },
+
   async addProfileSkills(skillIds: string[], customNames: string[]): Promise<Skill[]> {
     const { data, error } = await supabase.rpc('add_profile_skills', {
       p_skill_ids: skillIds,
@@ -93,11 +252,11 @@ export const profileService = {
     if (error) throw error;
 
     return (data || []).map((row: any) => ({
-      id: row.skill_id,
-      name: row.skill_name || row.name,
+      id: row.out_skill_id || row.skill_id,
+      name: row.out_skill_name || row.skill_name || row.name,
       category_id: null,
-      is_active: row.is_active,
-      source: row.source,
+      is_active: row.out_is_active ?? row.is_active,
+      source: row.out_source || row.source,
       created_at: new Date().toISOString(),
     }));
   },
@@ -112,6 +271,7 @@ export const profileService = {
           name,
           category_id,
           is_active,
+          source,
           created_at
         )
       `)
@@ -191,15 +351,38 @@ export const profileService = {
     if (error) throw error;
   },
 
-  async uploadAvatar(userId: string, fileData: Blob | ArrayBuffer | Uint8Array, fileExt: string = 'jpg'): Promise<string> {
-    const path = `${userId}/avatar_${Date.now()}.${fileExt}`;
+  async uploadAvatar(
+    userId: string,
+    fileData: Blob | ArrayBuffer | Uint8Array,
+    fileExt: string = 'jpg',
+    mimeType?: string
+  ): Promise<string> {
+    const byteLength =
+      fileData instanceof Blob
+        ? fileData.size
+        : fileData instanceof ArrayBuffer
+        ? fileData.byteLength
+        : fileData.byteLength;
+
+    const validation = validateImageFile({
+      mimeType: mimeType || `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+      fileName: `avatar.${fileExt}`,
+      fileSize: byteLength,
+    });
+
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    const path = buildAvatarStoragePath(userId, Date.now(), validation.ext);
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(path, fileData, {
-        upsert: true,
-        contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+        upsert: false,
+        contentType: validation.mimeType,
       });
 
+    // A failed upload never changes the profile
     if (uploadError) throw uploadError;
 
     const { data: publicUrlData } = supabase.storage
@@ -208,24 +391,119 @@ export const profileService = {
 
     const publicUrl = publicUrlData.publicUrl;
 
-    // Save avatar_path to profiles table
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ avatar_path: publicUrl })
-      .eq('id', userId);
+    // Update profile avatar_path via RPC (returns previous_avatar_path)
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
+      p_avatar_path: publicUrl,
+    });
 
-    if (profileError) throw profileError;
+    if (rpcError) {
+      // Clean up newly uploaded object if DB update failed
+      await supabase.storage.from('avatars').remove([path]).catch(() => {});
+      throw rpcError;
+    }
+
+    // Delete previous avatar object from storage if one existed
+    const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
+    if (prevPath && prevPath !== path && prevPath.startsWith(`${userId}/`)) {
+      await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
+    }
 
     return publicUrl;
   },
 
-  async uploadPortfolioImage(userId: string, fileData: Blob | ArrayBuffer | Uint8Array, fileExt: string = 'jpg'): Promise<string> {
-    const path = `${userId}/item_${Date.now()}.${fileExt}`;
+  async removeAvatar(userId: string): Promise<void> {
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('set_profile_avatar', {
+      p_avatar_path: null,
+    });
+
+    if (rpcError) throw rpcError;
+
+    const prevPath = extractStorageObjectPath('avatars', rpcResult?.previous_avatar_path);
+    if (prevPath && prevPath.startsWith(`${userId}/`)) {
+      await supabase.storage.from('avatars').remove([prevPath]).catch(() => {});
+    }
+  },
+
+  async pickAndUploadAvatar(userId: string, source: 'library' | 'camera'): Promise<string | null> {
+    if (source === 'camera') {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          throw new Error('Camera permission is required to take a profile photo.');
+        }
+      }
+    } else if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        throw new Error('Photo library permission is required to choose a profile photo.');
+      }
+    }
+
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    };
+
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync(pickerOptions)
+        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    const check = validateImageFile({
+      mimeType: asset.mimeType,
+      fileName: asset.fileName || asset.uri,
+      fileSize: asset.fileSize,
+    });
+
+    if (!check.valid) {
+      throw new Error(check.error);
+    }
+
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    if (blob.size > MAX_IMAGE_BYTES) {
+      throw new Error('Image is too large. Maximum allowed file size is 5 MB.');
+    }
+
+    return await profileService.uploadAvatar(userId, blob, check.ext, check.mimeType);
+  },
+
+  async uploadPortfolioImage(
+    userId: string,
+    fileData: Blob | ArrayBuffer | Uint8Array,
+    fileExt: string = 'jpg',
+    mimeType?: string
+  ): Promise<string> {
+    const byteLength =
+      fileData instanceof Blob
+        ? fileData.size
+        : fileData instanceof ArrayBuffer
+        ? fileData.byteLength
+        : fileData.byteLength;
+
+    const validation = validateImageFile({
+      mimeType: mimeType || `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+      fileName: `item.${fileExt}`,
+      fileSize: byteLength,
+    });
+
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    const path = `${userId}/item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${validation.ext}`;
     const { error: uploadError } = await supabase.storage
       .from('portfolio')
       .upload(path, fileData, {
-        upsert: true,
-        contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`,
+        upsert: false,
+        contentType: validation.mimeType,
       });
 
     if (uploadError) throw uploadError;
@@ -237,25 +515,73 @@ export const profileService = {
     return publicUrlData.publicUrl;
   },
 
+  async pickAndUploadPortfolioImages(userId: string, maxSelection: number = 3): Promise<string[]> {
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        throw new Error('Photo library permission is required to upload portfolio images.');
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: maxSelection,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return [];
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const asset of result.assets.slice(0, maxSelection)) {
+      const check = validateImageFile({
+        mimeType: asset.mimeType,
+        fileName: asset.fileName || asset.uri,
+        fileSize: asset.fileSize,
+      });
+
+      if (!check.valid) {
+        throw new Error(check.error);
+      }
+
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      if (blob.size > MAX_IMAGE_BYTES) {
+        throw new Error('One of the selected images exceeds the 5 MB limit.');
+      }
+
+      const url = await profileService.uploadPortfolioImage(userId, blob, check.ext, check.mimeType);
+      uploadedUrls.push(url);
+    }
+
+    return uploadedUrls;
+  },
+
   async getPublicProfile(profileId: string): Promise<PublicProfileData | null> {
-    // Read only from public.profiles - NEVER touches profile_private
+    // Read only from public.profiles - NEVER touches profile_private (dob or phone)
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('id, display_name, bio, avatar_path, area, active_mode, mode_changed_at, onboarding_complete, freelancer_rating_avg, freelancer_rating_count, client_rating_avg, client_rating_count, freelancer_completed_gigs, client_completed_gigs, rating_avg, rating_count, completed_gigs, status, created_at')
+      .select(
+        'id, display_name, headline, bio, avatar_path, area, preferred_contact, languages, work_types, availability, experience_years, starting_rate_note, client_type, business_name, about_hiring, active_mode, mode_changed_at, onboarding_complete, freelancer_rating_avg, freelancer_rating_count, client_rating_avg, client_rating_count, freelancer_completed_gigs, client_completed_gigs, rating_avg, rating_count, completed_gigs, status, created_at'
+      )
       .eq('id', profileId)
       .maybeSingle();
 
     if (profileError || !profileData) return null;
 
-    const [skills, portfolioItems] = await Promise.all([
+    const [skills, portfolioItems, completeness] = await Promise.all([
       profileService.getUserSkills(profileId).catch(() => []),
       profileService.getPortfolioItems(profileId).catch(() => []),
+      profileService.getProfileCompleteness(profileId).catch(() => null),
     ]);
 
     return {
       profile: profileData as Profile,
       skills,
       portfolioItems,
+      completeness,
     };
   },
 };

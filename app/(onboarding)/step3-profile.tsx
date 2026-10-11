@@ -17,12 +17,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { profileService, Area } from '../../services/profile';
 import { aiService } from '../../services/ai';
+import { Avatar } from '../../components/ui/Avatar';
 import { strings } from '../../constants/strings';
 
 export default function OnboardingStep3ProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { user, profile, refreshProfile, signOut } = useAuth();
+
+  // Photo
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Areas
   const [areas, setAreas] = useState<Area[]>([]);
@@ -39,6 +43,22 @@ export default function OnboardingStep3ProfileScreen() {
   const [aiDrafts, setAiDrafts] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const handlePickPhoto = async (source: 'library' | 'camera') => {
+    if (!user || photoBusy) return;
+    setError(null);
+    setPhotoBusy(true);
+    try {
+      const url = await profileService.pickAndUploadAvatar(user.id, source);
+      if (url) {
+        await refreshProfile();
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not upload photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -140,6 +160,42 @@ export default function OnboardingStep3ProfileScreen() {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
+
+        {/* Profile Photo (Optional) */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Profile Photo (Optional)</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Avatar
+              name={profile?.display_name || user?.user_metadata?.display_name}
+              imageUri={profile?.avatar_path}
+              size={64}
+              editable
+              onPress={() => handlePickPhoto('library')}
+            />
+            <View style={{ flex: 1, gap: 6 }}>
+              <TouchableOpacity
+                style={[styles.chip, { borderColor: theme.colors.primary, alignSelf: 'flex-start' }]}
+                onPress={() => handlePickPhoto('library')}
+                disabled={photoBusy}
+              >
+                <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 13 }}>
+                  {photoBusy ? 'Uploading...' : strings.profile.chooseFromLibraryBtn}
+                </Text>
+              </TouchableOpacity>
+              {Platform.OS !== 'web' ? (
+                <TouchableOpacity
+                  style={[styles.chip, { borderColor: theme.colors.border, alignSelf: 'flex-start' }]}
+                  onPress={() => handlePickPhoto('camera')}
+                  disabled={photoBusy}
+                >
+                  <Text style={{ color: theme.colors.text, fontWeight: '600', fontSize: 13 }}>
+                    {strings.profile.takePhotoBtn}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        </View>
 
         {/* Barangay / Area Selection */}
         <View style={styles.inputGroup}>

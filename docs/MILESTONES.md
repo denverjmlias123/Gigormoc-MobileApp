@@ -2,8 +2,14 @@
 
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
+## v5.2 status
+After M16-M20 run **M21 (UX real-logic audit and fix)**, then **V1**. Spec: `docs/UX_REAL_LOGIC.md`.
+
+## v5.1 status
+v5 milestones M11-M15 are built. Next, in this order: **M16 (email + profile + photos)**, **M17 (client hiring details, skills fix)**, **M18 (categories not locked)**, **M19 (skills flow)**, **M20 (shared loop banner)**, then re-run **V1**. Spec: `docs/PROFILE_AND_LOOP_V5_1.md`.
+
 ## v5 status
-Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**, **M15 (complete real loop, final proof)**. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
+Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**, **M15 (complete real loop, final proof)**. If everything is already built, skip straight to **V1 (full verification)** at the bottom of this file. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
 
 ## Current project status (update this after every milestone)
 - Built so far: Milestones 0-7.
@@ -245,7 +251,7 @@ First show me a plan, then implement. Run tsc, npm test, supabase test db (paste
 ### M14 — AI in onboarding (skills, bio) 
 ```
 Start Milestone 14: AI onboarding. Follow AGENTS.md and docs/REAL_LOGIC_V5.md sections 1, 2 and 5. Build only this milestone. No seed data, no seed skills.
-Migration: skills.source/created_by + unique lower(name) index, add_profile_skills RPC (limits, dedupe, audit, rate limit), complete_onboarding RPC; areas table (empty; do NOT insert barangays unless I approve - ask me first). Edge Function supabase/functions/ai-assist (JWT check, allow-listed tasks suggest_skills + draft_bio, server-built prompts, JSON validation, rate limit via rate_limit_events, audit, no personal data sent). Tell me the exact command to set the secret: supabase secrets set ANTHROPIC_API_KEY=... and supabase functions deploy ai-assist. App: step2-skills with catalog chips + "What kind of work do you do?" + Suggest skills + manual add; step3-profile with Barangay (areas table or free text) + bio with "Help me write this" + real photo upload, then complete_onboarding. Errors show Retry; no canned fallback.
+Migration: skills.source/created_by + unique lower(name) index, add_profile_skills RPC (limits, dedupe, audit, rate limit), complete_onboarding RPC; areas table (empty; do NOT insert barangays unless I approve - ask me first). Edge Function supabase/functions/ai-assist (JWT check, allow-listed tasks suggest_skills + draft_bio, server-built prompts, JSON validation, rate limit via rate_limit_events, audit, no personal data sent). Tell me the exact command to set the secret: supabase secrets set <PROVIDER>_API_KEY (GEMINI_API_KEY or ANTHROPIC_API_KEY)=... and supabase functions deploy ai-assist. App: step2-skills with catalog chips + "What kind of work do you do?" + Suggest skills + manual add; step3-profile with Barangay (areas table or free text) + bio with "Help me write this" + real photo upload, then complete_onboarding. Errors show Retry; no canned fallback.
 Tests: pgTAP for add_profile_skills and complete_onboarding; Edge Function 401/429/400/malformed-output cases. Done when a brand-new account with an EMPTY skills table gets AI suggestions, saves them, and sees them on its profile after relaunch.
 First show me a plan, then implement. Run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
 ```
@@ -257,4 +263,108 @@ Part 1 (read-only): walk the table in section 8 step by step against the code an
 Part 2: fix every gap with NEW migrations and thin screens (no edits to applied migrations). Specifically make real: apply (price/days/message), accept / counter / decline and counter response, atomic agreement creation, define milestones (sum check), submit work with real file upload to the private submissions bucket and signed-URL viewing, approve / request revision (max 2), report payment with optional receipt, confirm / dispute payment, complete_agreement, reviews, cancel_agreement. Status always comes from the database after each RPC; remove any local status logic.
 Part 3: write docs/E2E_LOOP.md with a two-account test script (steps 1-10 plus a revision round, a counteroffer, a dispute and a cancellation) and pgTAP behavior tests for every RPC in the loop: wrong user, wrong mode, wrong state, duplicate call, own gig, direct write denied.
 Run npx tsc --noEmit, npm test, supabase test db and paste raw output, plus repo search for seed/mock/demo code, dead buttons and local-only state, and manual steps. Mark NOT VERIFIED if anything could not run.
+```
+
+### V1 — Full verification (run when everything is implemented; read-only)
+```
+Do NOT write or change any code yet. This is a full verification of the whole app.
+Read AGENTS.md, docs/GIGORMOC_SPEC.md, docs/ROLE_UX.md and docs/REAL_LOGIC_V5.md first.
+Everything is supposedly implemented. Prove it. Never claim something works unless you actually ran or inspected it. If something cannot be run, mark it NOT VERIFIED and say why.
+
+PART 1 - Run and paste the RAW output of:
+  npx tsc --noEmit
+  npm test
+  supabase test db
+  supabase db lint (or the security advisor) and a list of every table with RLS on/off
+  supabase functions list (is ai-assist deployed? is <PROVIDER>_API_KEY (GEMINI_API_KEY or ANTHROPIC_API_KEY) set as a secret? never print the secret)
+
+PART 2 - Repo search (list file paths, expected result is NONE):
+  seed.sql or seed scripts, hardcoded sample arrays standing in for database rows, mock services, demo logins,
+  setTimeout fake loading, "TODO"/"coming soon"/dead buttons with no handler, local-only state used instead of
+  database state, the words "verified" or "guaranteed" in user-facing strings, any service_role key or AI key in
+  the app or EXPO_PUBLIC_* variables, any Appwrite code, any escrow/wallet code, raw hex colors in screens, and every forbidden pattern in docs/UX_REAL_LOGIC.md section 2.
+
+PART 3 - Feature wiring table. For EACH row give: screen file, service function, table/RPC used, wired
+(yes/no), notification created (yes/no), shows loading/empty/error states (yes/no), and what is missing:
+  Onboarding 1 mode choice | Onboarding 2 skills + AI suggestions | Onboarding 3 barangay + bio + AI help + photo
+  Post gig (draft, publish, edit, cancel) | Browse and search gigs (own gigs excluded) | Apply
+  Applicants: accept / counter / decline | Counter response | Agreement creation (exactly one)
+  Define milestones | Submit work with real file upload | Approve / request revision (max 2)
+  Report payment + receipt | Confirm / dispute payment | Complete agreement | Reviews + per-role ratings
+  Cancel agreement | Messages list + Chat (Realtime, unread) | Notifications (bell, list, mark read, deep links)
+  Reports | Mode switch (cooldown + every blocker + confirmation) | Profile edit, skills, portfolio
+  Activity tabs for both roles | Role skin and tab labels per mode
+
+PART 4 - Database and security checks (prove with queries or pgTAP, not by reading):
+  Every protected RPC rejects: wrong user, wrong mode, wrong state, duplicate call. Direct client writes are
+  denied on gigs status, applications, agreements, milestones, payments, reviews, notifications, messages,
+  profiles.active_mode, skills. anon cannot execute any SECURITY DEFINER function. Own-content rule holds
+  (self-apply, self-hire, self-review, self-report). Money is integer centavos. completed_at is set once.
+  Private buckets (submissions, receipts) are not readable by non-participants. 18+ gate rejects a bad DOB.
+  AI function: 401 without login, 429 over limit, no personal data sent, no saving without user confirmation.
+
+PART 5 - Two-account end-to-end test (follow docs/E2E_LOOP.md or create it): Account A (Hire) and Account B
+  (Find Work). Walk: publish gig, apply, accept, milestones, submit with file, revision round, approve,
+  report payment, confirm, complete, both reviews, chat at every step, notification at every step. Also run one
+  counteroffer, one dispute and one cancellation. Record PASS/FAIL per step against the real tables.
+
+OUTPUT: one report with (1) a PASS / FAIL / NOT VERIFIED table for every item above, (2) a prioritized
+list of bugs and gaps with file paths, (3) the exact manual Supabase dashboard steps I still must do.
+Then STOP and wait for me to say which fixes to make. Fix only with NEW migrations, never edit applied ones.
+```
+
+
+## v5.1 prompts
+
+### M16 — Duplicate emails, profile details, completeness mark, photos
+```
+Start Milestone 16. Follow AGENTS.md and docs/PROFILE_AND_LOOP_V5_1.md sections 5 and 6. Build only this. No seed data.
+1) Email: normalize (trim, lowercase); handle user_already_exists AND signUp returning empty identities; show "This email is already registered. Log in or reset your password." with buttons; never advance to step 2 or create a second profile; disable the button while pending. Add pgTAP/Node tests (same email twice, different case, double tap).
+2) get_profile_completeness(p_profile_id) in SQL (percent, complete boolean, missing items) per role checklist; progress ring + tappable missing items + "Profile complete" check badge (own and public profile). Never use the words verified/guaranteed. Notification profile_complete once.
+3) Expand Edit profile with the fields in section 5.2 (new migration for new columns/RPC update_profile_details, validation in SQL, phone only in profile_private, unsaved-changes guard).
+4) Photos: add/change/remove avatar at any time from Profile and Edit profile in BOTH modes using expo-image-picker (library + camera, web file picker), crop square, resize 1024px, jpeg/png/webp, max 5MB, path {user_id}/avatar-{timestamp}.jpg, delete old object, failed upload never changes profile. Same picker for portfolio.
+Show plan first. Then run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M17 — Clients have no skills (hiring details instead)
+```
+Start Milestone 17. Follow AGENTS.md and docs/PROFILE_AND_LOOP_V5_1.md section 3. Build only this. No seed data.
+Remove every Skills screen, requirement and mention shown to clients (onboarding step 2, profile, settings, public profile). Add client_type, business_name, about_hiring columns and profile_hiring_interests (max 8, categories) with RLS and an RPC, hiring-details UI in onboarding step 2 (hire mode) and Edit profile, AI task suggest_categories in ai-assist, client public profile fields. Skills and hiring interests are kept (hidden) on mode switch. add_profile_skills must reject hire mode. Publishing a gig needs no skills.
+Tests: client cannot add skills, interests limit, persist across mode switch.
+Show plan first. Then run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M18 — Post gig category is not locked
+```
+Start Milestone 18. Follow AGENTS.md and docs/PROFILE_AND_LOOP_V5_1.md section 2. Build only this. No seed categories.
+Migration: categories.source/created_by, unique lower(trim(name)), get_or_create_category RPC (3-40 chars, allowed characters, no URL/phone/email/profanity, case-insensitive dedupe returns existing id, 3 new per 24h and 10 per user, audit, rate limit), create_draft_gig accepts p_category_id OR p_category_name. UI: searchable category picker with "Add '<text>' as new category". Remove the "No categories yet" block. Browse filters list admin categories plus user categories used by 2 different posters (or admin-activated).
+Suggest first, create last (docs/PROFILE_AND_LOOP_V5_1.md section 2A): enable pg_trgm, RPC suggest_categories_for_gig (top 3 existing categories by similarity/keywords), Edge Function task suggest_gig_category (server loads active categories; AI may only return ids from that list; never writes), "Did you mean...?" while typing, similarity check inside get_or_create_category (reject names too close to an existing one and return the existing id), optional AI-proposed general name for a new category, admin_merge_categories (admin only, audited), fallback to database suggestions when the AI fails.
+Extra tests: similar names (case/plural/typo) return existing, too-close new name rejected, AI ids limited to active list, merge moves gigs, <2 posters hidden from shared filters, AI failure falls back to DB suggestions.
+Tests: dedupe across case/spacing, limits, invalid input, anon denied, direct insert denied.
+Show plan first. Then run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M19 — Skills flow: show, save, manage
+```
+Start Milestone 19. Follow AGENTS.md and docs/PROFILE_AND_LOOP_V5_1.md section 4. Build only this. No seed skills.
+Onboarding step2-skills (Find Work only): "Your skills (n)" tray showing every selected skill (catalog, AI, typed) as removable chips; Save calls add_profile_skills then re-fetches from the database and shows Saved. app/profile/skills.tsx loads the same saved skills after relaunch, lets the user add more with the restrictions (max 15 per profile, 5 new custom per 24h, 2-40 chars, allowed characters, no URL/email/phone/profanity, case-insensitive dedupe) and remove via remove_profile_skill (warn if it leaves 0).
+Tests: selected set equals saved set, appears in Manage skills after relaunch, limits, dedupe, remove, wrong mode denied.
+Show plan first. Then run tsc, npm test, supabase test db (paste raw output), repo search, manual steps.
+```
+
+### M20 — Shared loop view for both roles
+```
+Start Milestone 20. Follow docs/PROFILE_AND_LOOP_V5_1.md section 1 and docs/ROLE_UX.md. Build only this.
+Add the shared Timeline with the stages and a "Next step" banner (who must act) to the agreement screen, Activity rows and gig detail, for both roles, driven only by database status. Notifications and chat deep-link to the right stage. Do not change database rules.
+Verify with two accounts that both banners and stages match after a relaunch at every stage. Show plan first. Then run tsc, npm test, supabase test db (paste raw output), repo search.
+```
+
+
+### M21 — UX real-logic audit and fix
+```
+Start Milestone 21. Follow AGENTS.md and docs/UX_REAL_LOGIC.md fully.
+Part 1 (read-only): go screen by screen under app/ for BOTH modes. For every interactive control, filter, badge, counter, banner and form, list: file, handler, service/RPC, table read, and whether it meets the 10-point control contract (section 1). Run the forbidden-pattern repo searches (section 2) and list every hit with file:line. Fill the section 3 table. Wait for my approval.
+Part 2: fix every failing item with thin screens and NEW migrations only (never edit applied ones): wire it, or remove it. Add missing loading/empty/error/success states, pending-disable, SQL-error-to-friendly-message mapping from the strings file, re-fetch after writes, cache and Realtime cleanup on logout and mode switch, safe back navigation.
+Part 3: prove with two real accounts (A in Hire, B in Find Work): for each row in the section 3 table record the table + row id that changed and what the other account saw after a fresh launch. Mark PASS / FAIL / NOT VERIFIED. Fix FAILs.
+Run npx tsc --noEmit, npm test, supabase test db and paste raw output, plus the repo search results (must be none) and manual Supabase steps.
 ```

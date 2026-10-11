@@ -92,8 +92,8 @@ Spec already has `conversations` + `messages`. Make it real:
 - Block/report from chat uses the existing report flow. Own-content rule: no conversation with yourself.
 
 ## 5. AI assist (Supabase Edge Function only)
-- One Edge Function `ai-assist` (Deno). The AI provider key (Anthropic) is a Supabase **secret**
-  (`supabase secrets set ANTHROPIC_API_KEY=...`). It is NEVER in the app, `EXPO_PUBLIC_*`, or the repo.
+- One Edge Function `ai-assist` (Deno). The AI provider key (Gemini or Anthropic) is a Supabase **secret**
+  (`supabase secrets set <PROVIDER>_API_KEY=...`). It is NEVER in the app, `EXPO_PUBLIC_*`, or the repo.
 - Auth: verify the caller's JWT, load `profiles.status = 'active'`, reject otherwise. Rate limit per user (e.g. 10
   calls/hour, 30/day) using `rate_limit_events`; return a clear 429 message.
 - Input: `task` in an allow-list (`suggest_skills`, `draft_bio`, `polish_gig_description`), plus bounded fields

@@ -43,6 +43,17 @@ Where this file and DESIGN.md differ on a role-specific screen, this file wins. 
 
 Payments stay external. The UI note stays: "Payments happen outside Gigormoc. Gigormoc only records them."
 
+### 3A. One shared loop, two views (v5.1)
+Both roles see the same stages (Posted, Applied, Accepted, Milestones set, Work submitted, Approved, Payment reported,
+Payment confirmed, Done, Reviewed) on one Timeline, each with a "Next step" banner saying who must act. Full table in
+`docs/PROFILE_AND_LOOP_V5_1.md` section 1.
+
+### 3B. Profile by role (v5.1)
+- Freelancer profile: photo, name, headline, bio, area, skills, work types, availability, experience, portfolio, rating, reviews.
+- Client profile: photo, name, bio, area, client type, business name, hiring interests, gigs posted, client rating, reviews.
+  Clients have no skills.
+- A "Profile complete" check mark shows at 100% (computed in the database). Photo can be changed any time from the avatar.
+
 ## 4. Own-content rule (locked)
 A person never sees or acts on their own content as if it were someone else's. This matters because one account
 can be both roles over time.

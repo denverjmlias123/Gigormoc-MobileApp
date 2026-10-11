@@ -14,7 +14,7 @@ Students, fresh graduates, part-timers, self-taught workers, small business owne
 - Supabase Auth, email + password. Sign-up collects name, email, password, date of birth, terms acceptance.
 - Each user has ONE active mode at a time: **Find Work** (freelancer) or **Hire Someone** (client). There is no "Explore Both". Switching is restricted (section 3A).
 - Platform admin = row in `platform_admins` (no client write access).
-- Onboarding: (1) **required**: choose Find Work or Hire Someone, with the note "You can switch later, but only under certain conditions." (2) pick categories and skills (skippable), (3) photo and short intro (skippable).
+- Onboarding: (1) **required**: choose Find Work or Hire Someone, with the note "You can switch later, but only under certain conditions." (2) Find Work: pick skills; Hire Someone: hiring details (client type, what you usually need) - skippable, (3) photo, area and short intro (skippable). Clients have NO skills (see `docs/PROFILE_AND_LOOP_V5_1.md`).
 
 | Action | Requirement (enforced in DB) |
 |---|---|

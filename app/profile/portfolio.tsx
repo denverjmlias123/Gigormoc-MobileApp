@@ -8,7 +8,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -24,7 +26,8 @@ export default function PortfolioScreen() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +50,33 @@ export default function PortfolioScreen() {
     loadPortfolio();
   }, [user]);
 
+  const handlePickPhotos = async () => {
+    if (!user || uploadingPhotos) return;
+    const remaining = 3 - uploadedUrls.length;
+    if (remaining <= 0) {
+      setError('You can attach up to 3 photos per portfolio item.');
+      return;
+    }
+    setError(null);
+    setUploadingPhotos(true);
+    try {
+      const urls = await profileService.pickAndUploadPortfolioImages(user.id, remaining);
+      if (urls.length > 0) {
+        setUploadedUrls((prev) => [...prev, ...urls].slice(0, 3));
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not upload portfolio photo.');
+    } finally {
+      setUploadingPhotos(false);
+    }
+  };
+
+  const handleRemoveUploadedPhoto = (urlToRemove: string) => {
+    setUploadedUrls((prev) => prev.filter((u) => u !== urlToRemove));
+  };
+
   const handleAddItem = async () => {
-    if (!user) return;
+    if (!user || submitting) return;
     setError(null);
 
     if (!title.trim()) {
@@ -58,18 +86,17 @@ export default function PortfolioScreen() {
 
     setSubmitting(true);
     try {
-      const filePaths = imageUrl.trim() ? [imageUrl.trim()] : [];
       const newItem = await profileService.addPortfolioItem({
         profileId: user.id,
         title: title.trim(),
         description: description.trim(),
-        filePaths,
+        filePaths: uploadedUrls,
       });
 
       setItems((prev) => [newItem, ...prev]);
       setTitle('');
       setDescription('');
-      setImageUrl('');
+      setUploadedUrls([]);
       setShowAddForm(false);
     } catch (err: any) {
       setError(err?.message || 'Could not add portfolio item.');
@@ -127,14 +154,24 @@ export default function PortfolioScreen() {
       </View>
 
       {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View
+          style={[
+            styles.errorBox,
+            { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger },
+          ]}
+        >
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
         </View>
       )}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {showAddForm && (
-          <View style={[styles.formCard, { borderColor: theme.colors.border }]}>
+          <View
+            style={[
+              styles.formCard,
+              { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+            ]}
+          >
             <Text style={[styles.formTitle, { color: theme.colors.text }]}>New Portfolio Item</Text>
 
             <View style={styles.inputGroup}>
@@ -158,7 +195,7 @@ export default function PortfolioScreen() {
                 ]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Explain the work done, technologies, or results..."
+                placeholder="Explain the work done, tools used, or results..."
                 placeholderTextColor={theme.colors.muted}
                 multiline
                 numberOfLines={3}
@@ -167,21 +204,53 @@ export default function PortfolioScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Image URL (optional)</Text>
-              <TextInput
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-                value={imageUrl}
-                onChangeText={setImageUrl}
-                placeholder="https://... or uploaded image URL"
-                placeholderTextColor={theme.colors.muted}
-                autoCapitalize="none"
-              />
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Photos (up to 3 images, JPEG/PNG/WebP, max 5 MB)
+              </Text>
+              {uploadedUrls.length > 0 ? (
+                <View style={styles.previewGrid}>
+                  {uploadedUrls.map((url) => (
+                    <View key={url} style={styles.previewWrap}>
+                      <Image source={{ uri: url }} style={styles.previewImg} />
+                      <TouchableOpacity
+                        style={[styles.removePhotoBadge, { backgroundColor: theme.colors.danger }]}
+                        onPress={() => handleRemoveUploadedPhoto(url)}
+                      >
+                        <Ionicons name="close" size={14} color="#ffffff" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {uploadedUrls.length < 3 ? (
+                <TouchableOpacity
+                  style={[styles.pickPhotoBtn, { borderColor: theme.colors.border }]}
+                  onPress={handlePickPhotos}
+                  disabled={uploadingPhotos}
+                >
+                  {uploadingPhotos ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="images-outline" size={18} color={theme.colors.primary} />
+                      <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 14 }}>
+                        Choose from photos/files ({uploadedUrls.length}/3)
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: theme.colors.primary }, submitting && { opacity: 0.7 }]}
+              style={[
+                styles.submitBtn,
+                { backgroundColor: theme.colors.primary },
+                (submitting || uploadingPhotos) && { opacity: 0.7 },
+              ]}
               onPress={handleAddItem}
-              disabled={submitting}
+              disabled={submitting || uploadingPhotos}
             >
               {submitting ? (
                 <ActivityIndicator color="#ffffff" />
@@ -197,7 +266,12 @@ export default function PortfolioScreen() {
             <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
         ) : items.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <View
+            style={[
+              styles.emptyCard,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
               No portfolio items yet
             </Text>
@@ -208,7 +282,13 @@ export default function PortfolioScreen() {
         ) : (
           <View style={styles.itemsList}>
             {items.map((item) => (
-              <View key={item.id} style={[styles.itemCard, { borderColor: theme.colors.border }]}>
+              <View
+                key={item.id}
+                style={[
+                  styles.itemCard,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+                ]}
+              >
                 <View style={styles.itemHeader}>
                   <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{item.title}</Text>
                   <TouchableOpacity
@@ -216,9 +296,11 @@ export default function PortfolioScreen() {
                     disabled={deletingId === item.id}
                   >
                     {deletingId === item.id ? (
-                      <ActivityIndicator size="small" color="#D92D3E" />
+                      <ActivityIndicator size="small" color={theme.colors.dangerText} />
                     ) : (
-                      <Text style={{ color: '#D92D3E', fontSize: 13, fontWeight: '600' }}>Delete</Text>
+                      <Text style={{ color: theme.colors.dangerText, fontSize: 13, fontWeight: '600' }}>
+                        Delete
+                      </Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -230,9 +312,7 @@ export default function PortfolioScreen() {
                 {item.file_paths && item.file_paths.length > 0 ? (
                   <View style={styles.imagesRow}>
                     {item.file_paths.map((f, idx) => (
-                      <Text key={idx} style={[styles.fileTag, { color: theme.colors.primary }]}>
-                        🔗 {f}
-                      </Text>
+                      <Image key={idx} source={{ uri: f }} style={styles.itemThumb} />
                     ))}
                   </View>
                 ) : null}
@@ -277,16 +357,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorBox: {
-    backgroundColor: '#FDE8EA',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
   },
   errorText: {
-    color: '#D92D3E',
     fontSize: 14,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: 40,
@@ -296,7 +374,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
-    backgroundColor: '#F4F7FC',
   },
   formTitle: {
     fontSize: 16,
@@ -309,7 +386,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
@@ -320,6 +397,42 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 70,
+  },
+  previewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 10,
+  },
+  previewWrap: {
+    position: 'relative',
+    width: 76,
+    height: 76,
+  },
+  previewImg: {
+    width: 76,
+    height: 76,
+    borderRadius: 10,
+  },
+  removePhotoBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickPhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   submitBtn: {
     paddingVertical: 12,
@@ -339,9 +452,7 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: 24,
     borderRadius: 12,
-    backgroundColor: '#F4F7FC',
     borderWidth: 1,
-    borderColor: '#DCE4F2',
     alignItems: 'center',
     marginTop: 20,
   },
@@ -380,9 +491,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   imagesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 6,
   },
-  fileTag: {
-    fontSize: 12,
+  itemThumb: {
+    width: 84,
+    height: 84,
+    borderRadius: 10,
   },
 });
