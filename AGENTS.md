@@ -1,6 +1,6 @@
 # AGENTS.md — Gigormoc project rules
 
-Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig), `docs/UX_REAL_LOGIC.md` (every UI control must be real logic), `docs/PROFILE_AND_LOOP_V5_1.md` (profile, client details, categories, skills, photos, email, shared loop; it wins over older docs) and `docs/MILESTONES.md` (build order).
+Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig), `docs/RESILIENCE_V5_4.md` (toasts + notifications, error handling, login/logout, anti-spam, idempotency), `docs/UX_REAL_LOGIC.md` (every UI control must be real logic), `docs/PROFILE_AND_LOOP_V5_1.md` (profile, client details, categories, skills, photos, email, shared loop; it wins over older docs) and `docs/MILESTONES.md` (build order).
 
 Gigormoc is a local freelance marketplace for Ormoc City, Philippines (18+ only). The developer is solo. Prefer a working, secure, simple product over extra features.
 
@@ -104,3 +104,9 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 
 ## v5.2 rule (see `docs/UX_REAL_LOGIC.md`)
 - UX is real logic. Every button, filter, badge, counter, banner and state is driven by database data or an RPC result; unwired UI is removed. After any write the screen re-reads the database. No fake loading, no hardcoded counts, no local-only state for database data. Prove each control with two real accounts.
+
+## v5.4 rules (see `docs/RESILIENCE_V5_4.md`)
+- Do not break working code: explore read-only first, baseline tests + git tag, small additive changes, NEW migrations only, regression test for every guard, re-run all tests after each step.
+- Every write goes through the shared `runOnce()/useAction()` wrapper (in-flight ref lock, disabled button, request_id). Every state-changing RPC is idempotent: row lock, state check, `already_done` result, optional `p_request_id` idempotency key, deduped notifications.
+- Every error goes through `AppError` + friendly messages. Login and logout have specific handling; logout always works offline and clears all user data, channels and caches.
+- Success is a toast for the actor (after the database confirms); the other person gets an in-app notification. No silent steps.

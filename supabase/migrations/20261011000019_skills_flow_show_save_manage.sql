@@ -60,7 +60,8 @@ REVOKE INSERT, UPDATE, DELETE ON public.profile_skills FROM anon, authenticated,
 -- - Rejects URLs, emails, phone numbers, and profanity
 -- - Case-insensitive dedupe against catalog and other users' skills (reuses existing row, never duplicates)
 -- - New custom skills are source = 'user', is_active = false (pending admin review), usable on owner's profile immediately
-DROP FUNCTION IF EXISTS public.add_profile_skills(uuid[], text[]);
+DROP FUNCTION IF EXISTS public.add_profile_skills CASCADE;
+DROP FUNCTION IF EXISTS public.add_profile_skills(uuid[], text[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.add_profile_skills(
   p_skill_ids uuid[] DEFAULT ARRAY[]::uuid[],
   p_custom_names text[] DEFAULT ARRAY[]::text[]

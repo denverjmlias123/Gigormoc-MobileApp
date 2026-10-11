@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Profile } from './auth';
+import { pickImagesUniversal, resolveImageFormat } from '../utils/imageUpload';
 
 let portfolioUploadSeq = 0;
 
@@ -129,15 +130,28 @@ export function validateImageFile(params: {
     };
   }
 
-  let ext = 'jpg';
-  if (fileName && fileName.includes('.')) {
-    ext = fileName.split('.').pop()!.toLowerCase();
-  } else if (mimeType && mimeType.includes('/')) {
-    ext = mimeType.split('/').pop()!.toLowerCase();
+  // Reject explicit non-image MIME types (e.g., application/pdf, video/mp4, text/plain)
+  if (
+    mimeType &&
+    mimeType.trim() !== '' &&
+    !mimeType.trim().toLowerCase().startsWith('image/')
+  ) {
+    return {
+      valid: false,
+      ext: 'bin',
+      mimeType: mimeType.trim().toLowerCase(),
+      error: 'Unsupported file format. Please choose a JPEG, PNG, or WebP image.',
+    };
   }
-  if (ext === 'jpeg') ext = 'jpg';
 
-  const normalizedMime = (mimeType || `image/${ext === 'jpg' ? 'jpeg' : ext}`).toLowerCase();
+  const resolved = resolveImageFormat({
+    mimeType,
+    fileName,
+    uri: fileName,
+  });
+
+  const ext = resolved.ext === 'jpeg' ? 'jpg' : resolved.ext;
+  const normalizedMime = resolved.mimeType === 'image/jpg' ? 'image/jpeg' : resolved.mimeType;
 
   if (!ALLOWED_IMAGE_EXTS.has(ext) || !ALLOWED_IMAGE_MIMES.has(normalizedMime)) {
     return {
@@ -151,7 +165,7 @@ export function validateImageFile(params: {
   return {
     valid: true,
     ext,
-    mimeType: normalizedMime === 'image/jpg' ? 'image/jpeg' : normalizedMime,
+    mimeType: normalizedMime,
   };
 }
 
@@ -550,54 +564,34 @@ export const profileService = {
   },
 
   async pickAndUploadAvatar(userId: string, source: 'library' | 'camera'): Promise<string | null> {
-    if (source === 'camera') {
-      if (Platform.OS !== 'web') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          throw new Error('Camera permission is required to take a profile photo.');
-        }
-      }
-    } else if (Platform.OS !== 'web') {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        throw new Error('Photo library permission is required to choose a profile photo.');
-      }
-    }
+    const picked = await pickImagesUniversal({
+      source,
+      allowsMultipleSelection: false,
+      cropSquare: true,
+      maxDimension: 1024,
+      quality: 0.85,
+    });
 
-    const pickerOptions: ImagePicker.ImagePickerOptions = {
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    };
-
-    const result =
-      source === 'camera'
-        ? await ImagePicker.launchCameraAsync(pickerOptions)
-        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
-
-    if (result.canceled || !result.assets || result.assets.length === 0) {
+    if (!picked || picked.length === 0) {
       return null;
     }
 
-    const asset = result.assets[0];
+    const file = picked[0];
     const check = validateImageFile({
-      mimeType: asset.mimeType,
-      fileName: asset.fileName || asset.uri,
-      fileSize: asset.fileSize,
+      mimeType: file.mimeType,
+      fileName: file.fileName,
+      fileSize: file.size,
     });
 
     if (!check.valid) {
       throw new Error(check.error);
     }
 
-    const response = await fetch(asset.uri);
-    const blob = await response.blob();
-    if (blob.size > MAX_IMAGE_BYTES) {
+    if (file.bytes.byteLength > MAX_IMAGE_BYTES) {
       throw new Error('Image is too large. Maximum allowed file size is 5 MB.');
     }
 
-    return await profileService.uploadAvatar(userId, blob, check.ext, check.mimeType);
+    return await profileService.uploadAvatar(userId, file.bytes, check.ext, check.mimeType);
   },
 
   async uploadPortfolioImage(
@@ -642,43 +636,41 @@ export const profileService = {
   },
 
   async pickAndUploadPortfolioImages(userId: string, maxSelection: number = 3): Promise<string[]> {
-    if (Platform.OS !== 'web') {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        throw new Error('Photo library permission is required to upload portfolio images.');
-      }
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+    const picked = await pickImagesUniversal({
+      source: 'library',
       allowsMultipleSelection: true,
       selectionLimit: maxSelection,
-      quality: 0.8,
+      cropSquare: false,
+      maxDimension: 1600,
+      quality: 0.85,
     });
 
-    if (result.canceled || !result.assets || result.assets.length === 0) {
+    if (!picked || picked.length === 0) {
       return [];
     }
 
     const uploadedUrls: string[] = [];
-    for (const asset of result.assets.slice(0, maxSelection)) {
+    for (const file of picked.slice(0, maxSelection)) {
       const check = validateImageFile({
-        mimeType: asset.mimeType,
-        fileName: asset.fileName || asset.uri,
-        fileSize: asset.fileSize,
+        mimeType: file.mimeType,
+        fileName: file.fileName,
+        fileSize: file.size,
       });
 
       if (!check.valid) {
         throw new Error(check.error);
       }
 
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      if (blob.size > MAX_IMAGE_BYTES) {
+      if (file.bytes.byteLength > MAX_IMAGE_BYTES) {
         throw new Error('One of the selected images exceeds the 5 MB limit.');
       }
 
-      const url = await profileService.uploadPortfolioImage(userId, blob, check.ext, check.mimeType);
+      const url = await profileService.uploadPortfolioImage(
+        userId,
+        file.bytes,
+        check.ext,
+        check.mimeType
+      );
       uploadedUrls.push(url);
     }
 

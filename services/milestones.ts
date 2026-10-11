@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { pickImagesUniversal } from '../utils/imageUpload';
 
 let submissionUploadSeq = 0;
 
@@ -111,7 +112,8 @@ export const milestonesService = {
     agreementId: string,
     milestoneId: string,
     fileName: string,
-    fileBlob: Blob | ArrayBuffer
+    fileBlob: Blob | ArrayBuffer | Uint8Array,
+    contentType?: string
   ): Promise<string> {
     submissionUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -119,7 +121,10 @@ export const milestonesService = {
 
     const { error } = await supabase.storage
       .from('submissions')
-      .upload(path, fileBlob, { upsert: false });
+      .upload(path, fileBlob, {
+        upsert: false,
+        ...(contentType ? { contentType } : {}),
+      });
 
     if (error) throw error;
     return path;
@@ -129,32 +134,31 @@ export const milestonesService = {
     agreementId: string,
     milestoneId: string
   ): Promise<string | null> {
-    if (Platform.OS !== 'web') {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        throw new Error('Media library permission is required to upload deliverable attachments.');
-      }
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
+    const picked = await pickImagesUniversal({
+      source: 'library',
+      allowsMultipleSelection: false,
+      cropSquare: false,
+      maxDimension: 1920,
       quality: 0.85,
     });
 
-    if (result.canceled || !result.assets || result.assets.length === 0) {
+    if (!picked || picked.length === 0) {
       return null;
     }
 
-    const asset = result.assets[0];
-    const response = await fetch(asset.uri);
-    const blob = await response.blob();
-    if (blob.size > 10 * 1024 * 1024) {
+    const file = picked[0];
+    if (file.bytes.byteLength > 10 * 1024 * 1024) {
       throw new Error('Attachment is too large. Maximum allowed file size is 10 MB.');
     }
 
-    const fileName = asset.fileName || `deliverable_${Date.now()}.jpg`;
-    return await milestonesService.uploadSubmissionFile(agreementId, milestoneId, fileName, blob);
+    const fileName = file.fileName || `deliverable_${Date.now()}.${file.ext}`;
+    return await milestonesService.uploadSubmissionFile(
+      agreementId,
+      milestoneId,
+      fileName,
+      file.bytes,
+      file.mimeType
+    );
   },
 
   async createSignedUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {

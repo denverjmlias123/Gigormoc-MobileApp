@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
@@ -22,6 +22,12 @@ export const Avatar: React.FC<AvatarProps> = ({
   editable = false,
 }) => {
   const theme = useAppTheme();
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [imageUri]);
+
   const initials = (name || '?')
     .trim()
     .split(/\s+/)
@@ -31,9 +37,11 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const content = (
     <View style={{ width: size, height: size, position: 'relative' }}>
-      {imageUri && imageUri.trim() !== '' ? (
+      {imageUri && imageUri.trim() !== '' && !imgError ? (
         <Image
+          key={imageUri}
           source={{ uri: imageUri }}
+          onError={() => setImgError(true)}
           style={{
             width: size,
             height: size,

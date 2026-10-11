@@ -2,6 +2,9 @@
 
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
+## v5.4 status
+Project is semi fully working (M0-M21, V2 passed). Next, in this order: **M22 (explore, read-only)**, **M23 (errors + login/logout)**, **M24 (anti-spam + idempotency)**, **M25 (success feedback + notifications)**, then V1 and V2 again. Spec: `docs/RESILIENCE_V5_4.md`.
+
 ## v5.2 status
 After M16-M20 run **M21 (UX real-logic audit and fix)**, then **V1**. Spec: `docs/UX_REAL_LOGIC.md`.
 
@@ -395,4 +398,43 @@ D. SECURITY SPOT CHECKS (prove with queries as an authenticated non-owner)
  13. Direct client writes denied on gigs.status, applications, agreements, milestones, payments, reviews, notifications, messages, profiles.active_mode, skills, categories. Self-apply, self-hire, self-review and self-report are rejected. Wrong-mode actions are rejected.
 
 OUTPUT: a table of every numbered item with PASS / FAIL / NOT VERIFIED and evidence, a prioritized bug list with file paths, and the manual Supabase steps still needed. Then STOP and wait for my approval before fixing (new migrations only; never edit applied ones).
+```
+
+
+## v5.4 prompts (do not break current code)
+
+### M22 — Explore first (read-only; run this before anything else)
+```
+Do NOT write or change any code. Read AGENTS.md and docs/RESILIENCE_V5_4.md fully. Then explore the whole repo and the live database and tell me exactly what to add. First record the baseline: run npx tsc --noEmit, npm test and supabase test db and paste raw output; tell me whether the repo is under git and suggest the baseline commit/tag command.
+Produce four lists with file:line evidence:
+1. FEEDBACK GAPS: every RPC and every screen that changes state but gives the actor no toast, or gives the other person no notification (check every RPC in the v5 list: publish_gig, cancel_gig, submit_application, respond_to_application, respond_to_counter, define_milestones, submit_milestone, review_milestone, report_payment, confirm_payment, dispute_payment, complete_agreement, cancel_agreement, submit_review, send_message, switch_mode, profile/skills/photo saves, reports). List which reminders (section 1) are missing.
+2. ERROR GAPS: places with raw error text, silent catch, alert(), missing loading/error states, missing offline handling, missing timeout, session-expiry handling, missing root error boundary. Read login, signup, forgot-password, logout and onAuthStateChange code line by line: what happens on wrong password, unconfirmed email, offline, expired session, double tap on login, double tap on logout, logout while offline, logout then login as another user (stale data? stale Realtime channels? stale caches?).
+3. DUPLICATE RISKS: for every state-changing RPC and button, can it run twice? Show how a double tap or two devices could produce a duplicate (double approve milestone, double submit/deliver, double payment report, double accept, double review, double message, double notification). Look at the real SQL: is there FOR UPDATE, a state check, a unique constraint, a dedupe key? Try it for real with parallel calls on two sessions of the same user and report what happened.
+4. RISK TO EXISTING CODE: which of the proposed changes touch shared code (Button, services, RPCs) and what regression tests protect them.
+Then give me a prioritized plan with the exact files and migrations for M23, M24 and M25, and STOP and wait for my approval.
+```
+
+### M23 — Error handling and login/logout
+```
+Start Milestone 23. Follow AGENTS.md and docs/RESILIENCE_V5_4.md sections 0 and 2. Baseline first (tests + git tag). Build only this milestone, additive and small.
+Add AppError + central handler (extend mapSqlErrorToFriendlyMessage), offline banner, request timeout with Retry, single-flight session refresh and one retry on 401, root error boundary, field-level form errors. Login (section 2A): specific safe messages, resend confirmation (rate limited), in-flight lock, single replace navigation. Logout (section 2B): in-flight lock, signOut local scope so it works offline, one shared cleanup routine (session, caches, Realtime channels, private image caches, drafts, badge counts) also used by mode switch, router.replace to Welcome, SIGNED_OUT handled once with "You were logged out", optional log out of all devices.
+Tests: each error kind maps to the right message, login double tap = one request, logout offline still logs out, logout then login as another user shows no previous data and no old channels.
+Show plan first. Then run tsc, npm test (must still include all earlier tests), supabase test db, paste raw output.
+```
+
+### M24 — Anti-spam clicks and two-device idempotency
+```
+Start Milestone 24. Follow AGENTS.md and docs/RESILIENCE_V5_4.md sections 0 and 3. Baseline first. Build only this milestone, additive, NEW migrations only (create or replace function that keeps existing behavior).
+Client: shared runOnce()/useAction() with an in-flight ref lock, Button ignores presses while loading and has a short cooldown, request_id per attempt reused on retry, navigate with replace after success, dedupe Realtime events by id, debounce refresh/search. Apply it to EVERY write button (approve/request revision, submit work, report/confirm payment, accept/counter/decline, apply, publish, cancel, review, send message, profile saves, uploads).
+Database: idempotency_keys table (internal, RLS on, pg_cron cleanup after 24h) and optional p_request_id on state-changing RPCs; state-machine guards with FOR UPDATE returning already_done instead of repeating or raising; unique constraints listed in section 3B (milestone submission number, open payment per agreement/milestone, one review per agreement+reviewer, etc.); notifications.dedupe_key with unique index and on conflict do nothing. App shows "Already done on your other device" and refreshes on already_done.
+Tests (section 3C): parallel calls from the same user and from two sessions give exactly one effect per RPC; 10 rapid presses call the service once; replay with same request_id returns the original result. Include existing duplicate rows check: report any existing duplicates in the database and propose a cleanup migration for approval.
+Show plan first. Then run tsc, npm test, supabase test db, paste raw output.
+```
+
+### M25 — Success feedback and notifications for every step
+```
+Start Milestone 25. Follow AGENTS.md and docs/RESILIENCE_V5_4.md section 1. Baseline first. Build only this, additive.
+Add a Toast component (success/error/info, accessible, auto-dismiss, one at a time) shown only after the database confirms a write, for every action in section 1 (publish gig, send application, accept/counter/decline, define milestones, submit work, approve/revision, report/confirm payment, complete, cancel, review, message, profile/skills/photo saves, mode switch, report filed). Fill every notification gap from the M22 list through notify() with dedupe keys, role wording from the strings file and deep links. Add the pg_cron reminders (milestone awaiting review 3/7 days, payment awaiting confirmation 2 days, review window closing, application deadline 24h, gig expired, agreement deadline 48h), each deduped.
+Tests: each RPC creates exactly one notification for the right recipient and none for the actor; reminders do not repeat; toast not shown on error.
+Show plan first. Then run tsc, npm test, supabase test db, paste raw output, then re-run V1 and V2.
 ```

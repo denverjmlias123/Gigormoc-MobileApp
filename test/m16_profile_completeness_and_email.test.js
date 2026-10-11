@@ -182,3 +182,21 @@ test('M16: Profile completeness badge never uses forbidden words verified or gua
   assert.strictEqual(/verified|guaranteed/i.test(completenessComp), false);
   assert.ok(stringsSource.includes("profileCompleteBadge: 'Profile complete'"));
 });
+
+test('M16: Universal cross-platform image upload supports PC/Laptop Web and Mobile (Android/iOS)', () => {
+  const imageUploadSource = fs.readFileSync(path.join(__dirname, '..', 'utils', 'imageUpload.ts'), 'utf8');
+  const profileSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'profile.ts'), 'utf8');
+  const milestonesSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'milestones.ts'), 'utf8');
+  const paymentsSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'payments.ts'), 'utf8');
+
+  // Verify Web DOM file picker, Canvas normalization, and base64 -> Uint8Array decoding exist
+  assert.ok(imageUploadSource.includes('pickImagesUniversal'), 'Must export pickImagesUniversal');
+  assert.ok(imageUploadSource.includes('decodeBase64ToUint8Array'), 'Must decode base64 to Uint8Array for native mobile');
+  assert.ok(imageUploadSource.includes('renderWebImageViaCanvas'), 'Must support Canvas normalization for PC/Laptop web');
+
+  // Verify services use pickImagesUniversal and Uint8Array bytes
+  assert.ok(profileSource.includes('pickImagesUniversal'), 'profileService must use pickImagesUniversal');
+  assert.ok(milestonesSource.includes('pickImagesUniversal'), 'milestonesService must use pickImagesUniversal');
+  assert.ok(paymentsSource.includes('pickImagesUniversal'), 'paymentsService must use pickImagesUniversal');
+});
+

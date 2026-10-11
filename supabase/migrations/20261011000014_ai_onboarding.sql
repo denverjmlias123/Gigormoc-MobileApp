@@ -76,15 +76,17 @@ REVOKE INSERT, UPDATE, DELETE ON public.areas FROM anon, authenticated, PUBLIC;
 -- 3. RPC: add_profile_skills(p_skill_ids uuid[], p_custom_names text[])
 -- Adds verified catalog skills and/or creates custom user skills (is_active = false)
 -- Links them into profile_skills for the authenticated caller
+DROP FUNCTION IF EXISTS public.add_profile_skills CASCADE;
+DROP FUNCTION IF EXISTS public.add_profile_skills(uuid[], text[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.add_profile_skills(
   p_skill_ids uuid[] DEFAULT ARRAY[]::uuid[],
   p_custom_names text[] DEFAULT ARRAY[]::text[]
 )
 RETURNS TABLE (
-  skill_id uuid,
-  skill_name text,
-  is_active boolean,
-  source text
+  out_skill_id uuid,
+  out_skill_name text,
+  out_is_active boolean,
+  out_source text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -221,10 +223,10 @@ BEGIN
   -- Return updated caller profile skills
   RETURN QUERY
   SELECT 
-    s.id AS skill_id,
-    s.name AS skill_name,
-    s.is_active,
-    s.source
+    s.id AS out_skill_id,
+    s.name AS out_skill_name,
+    s.is_active AS out_is_active,
+    s.source AS out_source
   FROM public.profile_skills ps
   JOIN public.skills s ON s.id = ps.skill_id
   WHERE ps.profile_id = v_user_id
@@ -234,6 +236,7 @@ $$;
 
 -- 4. RPC: complete_onboarding()
 -- Verifies mode chosen and marks onboarding_complete = true atomically
+DROP FUNCTION IF EXISTS public.complete_onboarding CASCADE;
 CREATE OR REPLACE FUNCTION public.complete_onboarding()
 RETURNS void
 LANGUAGE plpgsql

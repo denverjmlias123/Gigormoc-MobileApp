@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { pickImagesUniversal } from '../utils/imageUpload';
 
 let receiptUploadSeq = 0;
 
@@ -120,7 +121,8 @@ export const paymentsService = {
   async uploadReceiptFile(
     agreementId: string,
     fileName: string,
-    fileBlob: Blob | ArrayBuffer
+    fileBlob: Blob | ArrayBuffer | Uint8Array,
+    contentType?: string
   ): Promise<string> {
     receiptUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -128,39 +130,40 @@ export const paymentsService = {
 
     const { error } = await supabase.storage
       .from('receipts')
-      .upload(path, fileBlob, { upsert: false });
+      .upload(path, fileBlob, {
+        upsert: false,
+        ...(contentType ? { contentType } : {}),
+      });
 
     if (error) throw error;
     return path;
   },
 
   async pickAndUploadReceiptImage(agreementId: string): Promise<string | null> {
-    if (Platform.OS !== 'web') {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        throw new Error('Photo library permission is required to upload payment receipts.');
-      }
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
+    const picked = await pickImagesUniversal({
+      source: 'library',
+      allowsMultipleSelection: false,
+      cropSquare: false,
+      maxDimension: 1920,
       quality: 0.85,
     });
 
-    if (result.canceled || !result.assets || result.assets.length === 0) {
+    if (!picked || picked.length === 0) {
       return null;
     }
 
-    const asset = result.assets[0];
-    const response = await fetch(asset.uri);
-    const blob = await response.blob();
-    if (blob.size > 10 * 1024 * 1024) {
+    const file = picked[0];
+    if (file.bytes.byteLength > 10 * 1024 * 1024) {
       throw new Error('Receipt image is too large. Maximum allowed file size is 10 MB.');
     }
 
-    const fileName = asset.fileName || `receipt_${Date.now()}.jpg`;
-    return await paymentsService.uploadReceiptFile(agreementId, fileName, blob);
+    const fileName = file.fileName || `receipt_${Date.now()}.${file.ext}`;
+    return await paymentsService.uploadReceiptFile(
+      agreementId,
+      fileName,
+      file.bytes,
+      file.mimeType
+    );
   },
 
   async createSignedReceiptUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {

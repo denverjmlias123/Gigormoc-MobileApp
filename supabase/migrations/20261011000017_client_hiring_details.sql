@@ -53,7 +53,8 @@ DROP POLICY IF EXISTS "Users can manage own profile skills" ON public.profile_sk
 REVOKE INSERT, UPDATE, DELETE ON public.profile_skills FROM anon, authenticated, PUBLIC;
 
 -- 4. Update add_profile_skills to reject callers in 'hire' mode (Skills are strictly for Freelancer mode)
-DROP FUNCTION IF EXISTS public.add_profile_skills(uuid[], text[]);
+DROP FUNCTION IF EXISTS public.add_profile_skills CASCADE;
+DROP FUNCTION IF EXISTS public.add_profile_skills(uuid[], text[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.add_profile_skills(
   p_skill_ids uuid[] DEFAULT ARRAY[]::uuid[],
   p_custom_names text[] DEFAULT ARRAY[]::text[]
