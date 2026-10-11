@@ -294,9 +294,16 @@ The project includes a comprehensive automated test suite executed via the nativ
     - M23: Error handling, offline banner, root error boundary, login/logout hardening (`ba14a25`).
     - M24: Anti-spam clicks, button cooldowns, attempt request IDs, two-device idempotency, unique indexes, and row-level locking (`357fcc5`).
     - M25: Toast feedback for actor, counterparty notifications for every step, 7 pg_cron reminders, and deep-link routing.
+  - **v5.5 Preparation: Universal In-App ConfirmDialog & Transaction Flow Audit**:
+    - Identified that React Native Web's default `Alert.alert` is a no-op function (`class Alert { static alert() {} }`), which caused "Approve Milestone Deliverable", "Complete Agreement", and "Cancel Agreement" to silently fail on web/desktop/mobile browsers because callbacks were never executed.
+    - Implemented `components/ui/ConfirmDialog.tsx` with `showConfirmDialog`, `ConfirmDialog`, `ConfirmDialogProvider`, and `useConfirmDialog`. Mounted `ConfirmDialogProvider` in `app/_layout.tsx`.
+    - Rewired `lib/dialog.ts` to use `showConfirmDialog` and `showToast`, eliminating all browser `window.confirm`, `window.alert`, and `Alert.alert` across the app.
+    - Audited and updated all 10 transaction loop screens (`review.tsx`, `agreements/[id].tsx`, `submit.tsx`, `report.tsx`, `dispute.tsx`, `setup.tsx`, `applicants.tsx`, `gigs/[id].tsx`, `apply.tsx`, `post.tsx`, `edit.tsx`, `portfolio.tsx`, `reports/new.tsx`) to use in-app confirmations, direct toasts, and automatic navigation without blocking.
+    - Authored `test/m26_in_app_dialogs.test.js` verifying zero browser/Alert.alert dialogs across all `app/` screens.
   - Live deployment and verification of all migrations (`20261010000000_init.sql` through `20261011000023_notifications_and_reminders.sql`) with synchronized `supabase/FULL_SETUP_MIGRATIONS.sql`.
-  - **107/107 automated unit tests passing** (`npm test`), **zero TypeScript errors** (`npx tsc --noEmit`).
+  - **112/112 automated unit tests passing** (`npm test`), **zero TypeScript errors** (`npx tsc --noEmit`).
   - Zero forbidden patterns (`setTimeout`, `Math.random`, empty `onPress`, `TODO`, `FIXME`, `coming soon`) in `app/` and `services/`.
   - Zero prohibited trust/placeholder words (`verified`, `guaranteed`, `mock`, `fake`, `dummy`, `sample`) in `app/`, `services/`, and `constants/`.
-- **Ready for Execution**: **Live Ormoc City Pilot Launch (`docs/PILOT_GUIDE.md`)**.
+- **Ready for Execution**: **Milestone 26 (Explore + Login, Logout, Password, In-App Dialogs)**.
+
 
