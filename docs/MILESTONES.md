@@ -6,7 +6,7 @@ Give the AI ONE milestone at a time. Do not start the next until the previous on
 After M16-M20 run **M21 (UX real-logic audit and fix)**, then **V1**. Spec: `docs/UX_REAL_LOGIC.md`.
 
 ## v5.1 status
-v5 milestones M11-M15 are built. Next, in this order: **M16 (email + profile + photos)**, **M17 (client hiring details, skills fix)**, **M18 (categories not locked)**, **M19 (skills flow)**, **M20 (shared loop banner)**, then re-run **V1**. Spec: `docs/PROFILE_AND_LOOP_V5_1.md`.
+v5 milestones M11-M15 are built. Next, in this order: **M16 (email + profile + photos)**, **M17 (client hiring details, skills fix)**, **M18 (categories not locked)**, **M19 (skills flow)**, **M20 (shared loop banner)**, then re-run **V1**, and finish with **V2 (final live check)**. Spec: `docs/PROFILE_AND_LOOP_V5_1.md`.
 
 ## v5 status
 Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**, **M15 (complete real loop, final proof)**. If everything is already built, skip straight to **V1 (full verification)** at the bottom of this file. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
@@ -367,4 +367,32 @@ Part 1 (read-only): go screen by screen under app/ for BOTH modes. For every int
 Part 2: fix every failing item with thin screens and NEW migrations only (never edit applied ones): wire it, or remove it. Add missing loading/empty/error/success states, pending-disable, SQL-error-to-friendly-message mapping from the strings file, re-fetch after writes, cache and Realtime cleanup on logout and mode switch, safe back navigation.
 Part 3: prove with two real accounts (A in Hire, B in Find Work): for each row in the section 3 table record the table + row id that changed and what the other account saw after a fresh launch. Mark PASS / FAIL / NOT VERIFIED. Fix FAILs.
 Run npx tsc --noEmit, npm test, supabase test db and paste raw output, plus the repo search results (must be none) and manual Supabase steps.
+```
+
+### V2 — Final live check (read-only first; run against the real Supabase project and the running app)
+```
+Do NOT change code or data until I approve. Prove each item with real queries, real app runs and raw output. Never claim PASS without evidence; use NOT VERIFIED if you could not run it. Never print secrets or keys.
+
+A. DATABASE RELATIONS AND BACKEND
+ 1. List every table in public with its primary key, foreign keys (table.column -> table.column), unique constraints and RLS on/off. Flag any table without RLS, any expected relation missing, any orphan-prone column without a FK (check at least: profiles, profile_private, profile_skills, profile_hiring_interests, skills, categories, gigs, applications, agreements, milestones, submissions, payments, reviews, conversations, messages, conversation_reads, notifications, reports, audit_events).
+ 2. Run orphan queries (rows whose parent is missing) for every FK and paste counts (expected 0).
+ 3. List every RPC with SECURITY DEFINER, its search_path, and who can execute it (anon/public must be none). List Realtime publication tables, storage buckets and their policies, pg_cron jobs, and whether Edge Function ai-assist is deployed and its secret is set (do not print it).
+ 4. Run npx tsc --noEmit, npm test, supabase test db and paste raw output.
+
+B. ACCOUNT CREATION AND SKILLS
+ 5. Create a NEW real freelancer account in the running app. Try the same email again (and with different upper/lower case): it must be blocked with the "already registered" message and create no new profiles/profile_private rows.
+ 6. Onboarding step 2: use the AI suggestion, pick several suggested skills plus one typed skill, Save. Show the rows created in skills and profile_skills (ids, source, is_active), the "Your skills" tray content, and that the SAME skills appear in Profile > Manage skills and on the public profile after a full app relaunch. Show a restriction being enforced (duplicate or over-limit) and a skill removal.
+ 7. Create a NEW real client account: confirm there is NO skills screen, hiring details are saved (client type, interests) and shown on the profile; check the profile-complete mark/percentage for both accounts and that photo add/change/remove works from device storage in both modes.
+
+C. THE FULL JOB LOOP (Account A = client in Hire mode, Account B = freelancer in Find Work mode, two separate sessions)
+ 8. A posts a gig (pick a suggested category, then also test typing a new one that is similar to an existing one: it must propose the existing one). Show the gigs row, A's Dashboard / My gigs showing it as Open, and B's Browse showing it (A's own gig must not appear for A in Browse).
+ 9. B applies (price, days, message). Show applications + conversations rows, A's Applicants list and A's bell notification arriving live.
+ 10. A accepts. Show exactly ONE agreement (price copied, client_id <> freelancer_id), gig status in_progress, B's Jobs tab, notifications to both. Test double-tap accept and a counteroffer path.
+ 11. A defines milestones (sum must equal price), B submits work with a real file upload (check the private submissions bucket path and that a non-participant cannot read it), A requests one revision then approves, A reports payment, B confirms, agreement completes (completed_at set once), both leave reviews, ratings recomputed per role. Chat both ways at each stage.
+ 12. For every step record: the table/row id that changed, the notification created, and what the OTHER account saw after a fresh app relaunch. Show the Timeline stage and "Next step" banner match for both roles.
+
+D. SECURITY SPOT CHECKS (prove with queries as an authenticated non-owner)
+ 13. Direct client writes denied on gigs.status, applications, agreements, milestones, payments, reviews, notifications, messages, profiles.active_mode, skills, categories. Self-apply, self-hire, self-review and self-report are rejected. Wrong-mode actions are rejected.
+
+OUTPUT: a table of every numbered item with PASS / FAIL / NOT VERIFIED and evidence, a prioritized bug list with file paths, and the manual Supabase steps still needed. Then STOP and wait for my approval before fixing (new migrations only; never edit applied ones).
 ```
