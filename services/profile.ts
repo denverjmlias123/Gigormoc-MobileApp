@@ -177,10 +177,73 @@ export function buildAvatarStoragePath(userId: string, timestamp: number = Date.
   return `${userId}/avatar-${timestamp}.${cleanExt}`;
 }
 
+export function validateSkillName(rawName: string): {
+  valid: boolean;
+  normalized: string;
+  error?: string;
+} {
+  const normalized = (rawName || '').replace(/\s+/g, ' ').trim();
+  if (normalized.length < 2 || normalized.length > 40) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name must be between 2 and 40 characters.',
+    };
+  }
+  if (normalized.includes('@')) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name cannot contain an email address.',
+    };
+  }
+  if (/(https?:\/\/|www\.|\.[a-z]{2,4}\/|\.(com|net|org|ph|io)\b)/i.test(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name cannot contain a website or URL.',
+    };
+  }
+  if (normalized.replace(/[^0-9]/g, '').length >= 7) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name cannot contain a phone number.',
+    };
+  }
+  if (!/[A-Za-z]/.test(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name must include letters.',
+    };
+  }
+  if (!/^[A-Za-z0-9 &+\-./]+$/.test(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name may only contain letters, numbers, spaces, and & - + . /.',
+    };
+  }
+  if (
+    /\b(fuck|shit|bitch|asshole|puta|putangina|gago|tarantado|ulol|bobo|scam|scammer|porn|sex|shabu)\b/i.test(
+      normalized
+    )
+  ) {
+    return {
+      valid: false,
+      normalized,
+      error: 'Skill name contains inappropriate language.',
+    };
+  }
+  return { valid: true, normalized };
+}
+
 export const profileService = {
   validateImageFile,
   extractStorageObjectPath,
   buildAvatarStoragePath,
+  validateSkillName,
 
   async getCategories(): Promise<Category[]> {
     const { data, error } = await supabase
@@ -197,6 +260,7 @@ export const profileService = {
     let query = supabase
       .from('skills')
       .select('*')
+      .eq('is_active', true)
       .order('name');
 
     if (categoryId) {
@@ -303,7 +367,7 @@ export const profileService = {
         list.push(row.skills as Skill);
       }
     });
-    return list;
+    return list.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   async addUserSkill(_profileId: string, skillId: string): Promise<void> {

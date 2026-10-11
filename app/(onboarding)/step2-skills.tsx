@@ -17,6 +17,7 @@ import { aiService } from '../../services/ai';
 import { strings } from '../../constants/strings';
 
 const MAX_HIRING_INTERESTS = 8;
+const MAX_PROFILE_SKILLS = 15;
 
 export default function OnboardingStep2SkillsScreen() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function OnboardingStep2SkillsScreen() {
 
   // --- FREELANCER STATE (active_mode === 'find_work') ---
   const [catalogSkills, setCatalogSkills] = useState<Skill[]>([]);
+  const [savedSkills, setSavedSkills] = useState<Skill[]>([]);
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +40,8 @@ export default function OnboardingStep2SkillsScreen() {
 
   const [customInput, setCustomInput] = useState('');
   const [customSkills, setCustomSkills] = useState<string[]>([]);
+  const [skillsSaved, setSkillsSaved] = useState(false);
+  const [zeroSkillsWarning, setZeroSkillsWarning] = useState(false);
 
   // --- CLIENT STATE (active_mode === 'hire') ---
   const [clientType, setClientType] = useState<
@@ -67,9 +71,13 @@ export default function OnboardingStep2SkillsScreen() {
             setCatalogCategories(cats || []);
           }
         } else {
-          const data = await profileService.getSkills();
+          const [skillsData, mySavedSkills] = await Promise.all([
+            profileService.getSkills().catch(() => []),
+            profile?.id ? profileService.getUserSkills(profile.id).catch(() => []) : Promise.resolve([]),
+          ]);
           if (mounted) {
-            setCatalogSkills(data || []);
+            setCatalogSkills(skillsData || []);
+            setSavedSkills(mySavedSkills || []);
           }
         }
       } catch {
@@ -83,36 +91,217 @@ export default function OnboardingStep2SkillsScreen() {
     return () => {
       mounted = false;
     };
-  }, [isHire]);
+  }, [isHire, profile?.id]);
+
+  // Compute unified "Your skills (n)" tray items (saved + catalog + AI + typed, case-insensitively deduplicated)
+  const selectedSkillTray = React.useMemo(() => {
+    const items: Array<{
+      key: string;
+      name: string;
+      origin: 'saved' | 'catalog' | 'ai' | 'custom';
+      skillId?: string;
+      isPendingReview?: boolean;
+    }> = [];
+    const seenLower = new Set<string>();
+
+    for (const s of savedSkills) {
+      const lower = s.name.trim().toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        items.push({
+          key: `saved-${s.id}`,
+          name: s.name,
+          origin: 'saved',
+          skillId: s.id,
+          isPendingReview: s.source === 'user' && s.is_active === false,
+        });
+      }
+    }
+
+    for (const catId of selectedCatalogIds) {
+      const catSkill = catalogSkills.find((c) => c.id === catId);
+      if (catSkill) {
+        const lower = catSkill.name.trim().toLowerCase();
+        if (!seenLower.has(lower)) {
+          seenLower.add(lower);
+          items.push({
+            key: `cat-${catSkill.id}`,
+            name: catSkill.name,
+            origin: 'catalog',
+            skillId: catSkill.id,
+          });
+        }
+      }
+    }
+
+    for (const aiName of selectedAiSkills) {
+      const lower = aiName.trim().toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        items.push({
+          key: `ai-${lower}`,
+          name: aiName.trim(),
+          origin: 'ai',
+        });
+      }
+    }
+
+    for (const cName of customSkills) {
+      const lower = cName.trim().toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        items.push({
+          key: `custom-${lower}`,
+          name: cName.trim(),
+          origin: 'custom',
+        });
+      }
+    }
+
+    return items;
+  }, [savedSkills, selectedCatalogIds, catalogSkills, selectedAiSkills, customSkills]);
 
   // --- FREELANCER HANDLERS ---
   const toggleCatalogSkill = (id: string) => {
-    setSelectedCatalogIds((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    );
+    setSaveError(null);
+    setSkillsSaved(false);
+    setZeroSkillsWarning(false);
+
+    // If already saved in DB, remove via RPC
+    const alreadySaved = savedSkills.find((s) => s.id === id);
+    if (alreadySaved) {
+      handleRemoveTrayItem({
+        key: `saved-${id}`,
+        name: alreadySaved.name,
+        origin: 'saved',
+        skillId: id,
+      });
+      return;
+    }
+
+    if (selectedCatalogIds.includes(id)) {
+      setSelectedCatalogIds((prev) => prev.filter((s) => s !== id));
+      return;
+    }
+
+    if (selectedSkillTray.length >= MAX_PROFILE_SKILLS) {
+      setSaveError(`Maximum limit of ${MAX_PROFILE_SKILLS} skills per profile reached.`);
+      return;
+    }
+
+    setSelectedCatalogIds((prev) => [...prev, id]);
   };
 
   const toggleAiSkill = (skill: string) => {
-    setSelectedAiSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
-    );
+    setSaveError(null);
+    setSkillsSaved(false);
+    setZeroSkillsWarning(false);
+
+    const lower = skill.trim().toLowerCase();
+    const savedMatch = savedSkills.find((s) => s.name.trim().toLowerCase() === lower);
+    if (savedMatch) {
+      handleRemoveTrayItem({
+        key: `saved-${savedMatch.id}`,
+        name: savedMatch.name,
+        origin: 'saved',
+        skillId: savedMatch.id,
+      });
+      return;
+    }
+
+    const exists = selectedAiSkills.some((s) => s.trim().toLowerCase() === lower);
+    if (exists) {
+      setSelectedAiSkills((prev) => prev.filter((s) => s.trim().toLowerCase() !== lower));
+      return;
+    }
+
+    if (selectedSkillTray.length >= MAX_PROFILE_SKILLS) {
+      setSaveError(`Maximum limit of ${MAX_PROFILE_SKILLS} skills per profile reached.`);
+      return;
+    }
+
+    setSelectedAiSkills((prev) => [...prev, skill.trim()]);
   };
 
   const handleAddCustomSkill = () => {
-    const trimmed = customInput.trim();
-    if (!trimmed) return;
-    if (trimmed.length < 2 || trimmed.length > 40) {
-      Alert.alert('Invalid skill', 'Skill name must be between 2 and 40 characters.');
+    setSaveError(null);
+    setSkillsSaved(false);
+    setZeroSkillsWarning(false);
+
+    const validation = profileService.validateSkillName(customInput);
+    if (!validation.valid) {
+      setSaveError(validation.error || 'Invalid skill name.');
       return;
     }
-    if (!customSkills.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
-      setCustomSkills((prev) => [...prev, trimmed]);
+
+    const normalized = validation.normalized;
+    const lower = normalized.toLowerCase();
+
+    // Case-insensitive dedupe against already selected or catalog skills
+    if (selectedSkillTray.some((item) => item.name.trim().toLowerCase() === lower)) {
+      setCustomInput('');
+      return;
+    }
+
+    if (selectedSkillTray.length >= MAX_PROFILE_SKILLS) {
+      setSaveError(`Maximum limit of ${MAX_PROFILE_SKILLS} skills per profile reached.`);
+      return;
+    }
+
+    const catalogMatch = catalogSkills.find((c) => c.name.trim().toLowerCase() === lower);
+    if (catalogMatch) {
+      setSelectedCatalogIds((prev) => [...prev, catalogMatch.id]);
+    } else {
+      setCustomSkills((prev) => [...prev, normalized]);
     }
     setCustomInput('');
   };
 
   const removeCustomSkill = (skill: string) => {
-    setCustomSkills((prev) => prev.filter((s) => s !== skill));
+    setSkillsSaved(false);
+    setCustomSkills((prev) => prev.filter((s) => s.toLowerCase() !== skill.toLowerCase()));
+  };
+
+  const handleRemoveTrayItem = async (item: {
+    key: string;
+    name: string;
+    origin: 'saved' | 'catalog' | 'ai' | 'custom';
+    skillId?: string;
+  }) => {
+    setSaveError(null);
+    setSkillsSaved(false);
+
+    if (item.origin === 'saved' && item.skillId && profile?.id) {
+      setSaving(true);
+      try {
+        await profileService.removeUserSkill(profile.id, item.skillId);
+        const refreshed = await profileService.getUserSkills(profile.id);
+        setSavedSkills(refreshed);
+        const remainingTotal =
+          refreshed.length +
+          selectedCatalogIds.length +
+          selectedAiSkills.length +
+          customSkills.length;
+        setZeroSkillsWarning(remainingTotal === 0);
+      } catch (err: any) {
+        setSaveError(err?.message || 'Could not remove skill.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    if (item.origin === 'catalog' && item.skillId) {
+      setSelectedCatalogIds((prev) => prev.filter((id) => id !== item.skillId));
+    } else if (item.origin === 'ai') {
+      setSelectedAiSkills((prev) =>
+        prev.filter((s) => s.trim().toLowerCase() !== item.name.trim().toLowerCase())
+      );
+    } else if (item.origin === 'custom') {
+      setCustomSkills((prev) =>
+        prev.filter((s) => s.trim().toLowerCase() !== item.name.trim().toLowerCase())
+      );
+    }
   };
 
   const handleSuggestSkills = async () => {
@@ -123,14 +312,69 @@ export default function OnboardingStep2SkillsScreen() {
 
     setAiLoading(true);
     setAiError(null);
+    setSkillsSaved(false);
     try {
       const suggestions = await aiService.suggestSkills(workDescription);
       setAiSuggestions(suggestions);
-      setSelectedAiSkills(suggestions);
+
+      // Select suggested skills up to MAX_PROFILE_SKILLS without duplicating existing tray items
+      const existingLower = new Set(
+        selectedSkillTray.map((item) => item.name.trim().toLowerCase())
+      );
+      const nextAi = [...selectedAiSkills];
+      for (const sug of suggestions) {
+        if (existingLower.size >= MAX_PROFILE_SKILLS) break;
+        const clean = sug.trim();
+        const lower = clean.toLowerCase();
+        if (!existingLower.has(lower)) {
+          existingLower.add(lower);
+          nextAi.push(clean);
+        }
+      }
+      setSelectedAiSkills(nextAi);
     } catch (err: any) {
       setAiError(err?.message || 'Could not fetch suggestions. You can add skills manually below.');
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  /**
+   * Saves selected skills via add_profile_skills RPC, then re-fetches from the database
+   * via getUserSkills(profile.id) and displays "Saved".
+   */
+  const handleSaveSkills = async (): Promise<boolean> => {
+    if (!profile?.id) return false;
+    setSaveError(null);
+    setZeroSkillsWarning(false);
+
+    const customNamesToSave = Array.from(new Set([...selectedAiSkills, ...customSkills]));
+    if (selectedCatalogIds.length === 0 && customNamesToSave.length === 0) {
+      if (savedSkills.length > 0) {
+        setSkillsSaved(true);
+        return true;
+      }
+      setSaveError('Please select or add at least 1 skill to save, or tap Skip for now.');
+      return false;
+    }
+
+    setSaving(true);
+    try {
+      await profileService.addProfileSkills(selectedCatalogIds, customNamesToSave);
+      // Re-fetch authoritative saved skills from the database
+      const refreshedFromDb = await profileService.getUserSkills(profile.id);
+      setSavedSkills(refreshedFromDb);
+      setSelectedCatalogIds([]);
+      setSelectedAiSkills([]);
+      setCustomSkills([]);
+      setSkillsSaved(true);
+      await refreshProfile();
+      return true;
+    } catch (err: any) {
+      setSaveError(err?.message || 'Failed to save skills. Please retry or skip for now.');
+      return false;
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -286,7 +530,7 @@ export default function OnboardingStep2SkillsScreen() {
       return;
     }
 
-    // Freelancer mode: save skills
+    // Freelancer mode: save any unsaved skills via handleSaveSkills, then advance
     const customNamesToSave = Array.from(new Set([...selectedAiSkills, ...customSkills]));
 
     if (selectedCatalogIds.length === 0 && customNamesToSave.length === 0) {
@@ -294,14 +538,9 @@ export default function OnboardingStep2SkillsScreen() {
       return;
     }
 
-    setSaving(true);
-    try {
-      await profileService.addProfileSkills(selectedCatalogIds, customNamesToSave);
+    const ok = await handleSaveSkills();
+    if (ok) {
       router.push('/(onboarding)/step3-profile');
-    } catch (err: any) {
-      setSaveError(err?.message || 'Failed to save skills. Please retry or skip for now.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -637,6 +876,105 @@ export default function OnboardingStep2SkillsScreen() {
           </>
         ) : (
           <>
+            {/* Section 4 Rule 1 & 2: "Your skills (n)" Tray at the top of the screen */}
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
+              <View style={styles.trayHeaderRow}>
+                <Text style={[styles.cardTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+                  {strings.onboarding.yourSkillsTrayLabel} ({selectedSkillTray.length}/{MAX_PROFILE_SKILLS})
+                </Text>
+                {skillsSaved && (
+                  <View style={[styles.savedBadge, { backgroundColor: '#DCFCE7' }]}>
+                    <Text style={styles.savedBadgeText}>✓ {strings.onboarding.skillsSavedText}</Text>
+                  </View>
+                )}
+              </View>
+
+              {zeroSkillsWarning && (
+                <View style={styles.warningBanner}>
+                  <Text style={styles.warningText}>{strings.onboarding.zeroSkillsWarning}</Text>
+                </View>
+              )}
+
+              {selectedSkillTray.length === 0 ? (
+                <Text style={[styles.cardDesc, { color: theme.colors.muted, marginTop: 6, marginBottom: 0 }]}>
+                  {strings.onboarding.yourSkillsEmptyHint}
+                </Text>
+              ) : (
+                <>
+                  <View style={[styles.chipsWrap, { marginTop: 10, marginBottom: 12 }]}>
+                    {selectedSkillTray.map((item) => (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor:
+                              item.origin === 'saved'
+                                ? theme.colors.primary
+                                : theme.colors.primarySoft,
+                            borderColor: theme.colors.primary,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          },
+                        ]}
+                        onPress={() => handleRemoveTrayItem(item)}
+                        disabled={saving}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            {
+                              color: item.origin === 'saved' ? '#ffffff' : theme.colors.primary,
+                              fontWeight: '600',
+                              marginRight: 6,
+                            },
+                          ]}
+                        >
+                          {item.name}
+                        </Text>
+                        {item.isPendingReview && (
+                          <View style={styles.pendingPill}>
+                            <Text style={styles.pendingPillText}>
+                              {strings.onboarding.pendingReviewBadge}
+                            </Text>
+                          </View>
+                        )}
+                        <Text
+                          style={{
+                            color: item.origin === 'saved' ? '#ffffff' : theme.colors.primary,
+                            fontWeight: '700',
+                            marginLeft: 2,
+                          }}
+                        >
+                          ×
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.saveTrayBtn,
+                      { backgroundColor: theme.colors.primary },
+                      saving && { opacity: 0.7 },
+                    ]}
+                    onPress={handleSaveSkills}
+                    disabled={saving}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.saveTrayBtnText}>
+                      {saving ? strings.onboarding.savingSkillsText : strings.onboarding.saveSkillsBtn}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
             {/* AI Skill Suggestion Box (Freelancer only) */}
             <View
               style={[
@@ -701,7 +1039,10 @@ export default function OnboardingStep2SkillsScreen() {
                   </Text>
                   <View style={styles.chipsWrap}>
                     {aiSuggestions.map((skill) => {
-                      const selected = selectedAiSkills.includes(skill);
+                      const lower = skill.trim().toLowerCase();
+                      const selected =
+                        selectedAiSkills.some((s) => s.trim().toLowerCase() === lower) ||
+                        savedSkills.some((s) => s.name.trim().toLowerCase() === lower);
                       return (
                         <TouchableOpacity
                           key={skill}
@@ -744,7 +1085,9 @@ export default function OnboardingStep2SkillsScreen() {
                 </Text>
                 <View style={styles.chipsWrap}>
                   {catalogSkills.map((skill) => {
-                    const selected = selectedCatalogIds.includes(skill.id);
+                    const selected =
+                      selectedCatalogIds.includes(skill.id) ||
+                      savedSkills.some((s) => s.id === skill.id);
                     return (
                       <TouchableOpacity
                         key={skill.id}
@@ -759,6 +1102,7 @@ export default function OnboardingStep2SkillsScreen() {
                         onPress={() => toggleCatalogSkill(skill.id)}
                       >
                         <Text style={[styles.chipText, selected && { color: '#ffffff' }]}>
+                          {selected ? '✓ ' : ''}
                           {skill.name}
                         </Text>
                       </TouchableOpacity>
@@ -793,6 +1137,7 @@ export default function OnboardingStep2SkillsScreen() {
                   placeholderTextColor={theme.colors.muted}
                   value={customInput}
                   onChangeText={setCustomInput}
+                  maxLength={40}
                 />
                 <TouchableOpacity
                   style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
@@ -801,30 +1146,6 @@ export default function OnboardingStep2SkillsScreen() {
                   <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
                 </TouchableOpacity>
               </View>
-
-              {customSkills.length > 0 && (
-                <View style={[styles.chipsWrap, { marginTop: 12 }]}>
-                  {customSkills.map((cSkill) => (
-                    <View
-                      key={cSkill}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: theme.colors.primarySoft,
-                          borderColor: theme.colors.primary,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: theme.colors.primary, marginRight: 6 }}>{cSkill}</Text>
-                      <TouchableOpacity onPress={() => removeCustomSkill(cSkill)}>
-                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
             </View>
           </>
         )}
@@ -901,6 +1222,57 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 16,
+  },
+  trayHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  savedBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  savedBadgeText: {
+    color: '#15803D',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  warningBanner: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+  },
+  warningText: {
+    color: '#B45309',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  pendingPill: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginRight: 4,
+  },
+  pendingPillText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  saveTrayBtn: {
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveTrayBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   cardTitle: {
     fontSize: 16,
