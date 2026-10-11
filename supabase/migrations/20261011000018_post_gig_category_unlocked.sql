@@ -139,13 +139,13 @@ BEGIN
     RAISE EXCEPTION 'Category name must be between 3 and 40 characters.';
   END IF;
 
-  -- Reject URLs and emails before character check so error message is specific
-  IF v_norm ~* '(https?://|www\.|\.[a-z]{2,4}/|\.(com|net|org|ph|io)\y)' THEN
-    RAISE EXCEPTION 'Category name cannot contain a website or URL.';
-  END IF;
-
+  -- Reject emails and URLs before character check so error message is specific
   IF position('@' in v_norm) > 0 THEN
     RAISE EXCEPTION 'Category name cannot contain an email address.';
+  END IF;
+
+  IF v_norm ~* '(https?://|www\.|\.[a-z]{2,4}/|\.(com|net|org|ph|io)\y)' THEN
+    RAISE EXCEPTION 'Category name cannot contain a website or URL.';
   END IF;
 
   -- Reject phone numbers (7+ digits)
