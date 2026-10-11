@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -164,22 +163,7 @@ export default function EditProfileScreen() {
 
   const handleBackPress = () => {
     if (isDirty && !loading) {
-      if (Platform.OS === 'web') {
-        setShowDiscardConfirm(true);
-      } else {
-        Alert.alert(
-          strings.profile.unsavedChangesTitle,
-          strings.profile.unsavedChangesBody,
-          [
-            { text: strings.profile.keepEditingBtn, style: 'cancel' },
-            {
-              text: strings.profile.discardBtn,
-              style: 'destructive',
-              onPress: navigateBack,
-            },
-          ]
-        );
-      }
+      setShowDiscardConfirm(true);
       return;
     }
     navigateBack();

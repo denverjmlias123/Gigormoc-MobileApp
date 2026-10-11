@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -24,6 +23,7 @@ import { chatService } from '../../services/chat';
 import { formatPrice, getWorkTypeIcon } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { showToast } from '../../components/ui/Toast';
+import { confirmDialog } from '../../lib/dialog';
 import { Button } from '../../components/ui/Button';
 import {
   Timeline,
@@ -199,9 +199,9 @@ export default function GigDetailScreen() {
       return;
     }
     if (!isFreelancerMode) {
-      Alert.alert(
-        'Mode restriction',
-        'You are currently in Hire Someone mode. To apply for gigs, you must be in Find Work mode.'
+      showToast(
+        'You are currently in Hire Someone mode. To apply for gigs, you must switch to Find Work mode.',
+        'info'
       );
       return;
     }
@@ -236,35 +236,31 @@ export default function GigDetailScreen() {
         });
       }
     } catch (err: any) {
-      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+      showToast(err?.message || 'Could not open conversation.', 'error');
     }
   };
 
-  const handleCancelGig = () => {
-    Alert.alert(
-      'Cancel Gig',
-      'Are you sure you want to cancel this gig? Pending applicants will be notified.',
-      [
-        { text: 'Keep Gig', style: 'cancel' },
-        {
-          text: 'Cancel Gig',
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await gigsService.cancelGig(gig.id, 'Cancelled by client from gig details');
-              await loadGigAndLoop();
-              showToast(strings.toasts.gigCancelled);
-              Alert.alert('Gig Cancelled', 'The gig has been cancelled successfully.');
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to cancel gig.');
-            } finally {
-              setCancelling(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleCancelGig = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Cancel Gig',
+      message: 'Are you sure you want to cancel this gig? Pending applicants will be notified.',
+      confirmText: 'Cancel Gig',
+      cancelText: 'Keep Gig',
+      destructive: true,
+    });
+
+    if (!confirmed) return;
+
+    setCancelling(true);
+    try {
+      await gigsService.cancelGig(gig.id, 'Cancelled by client from gig details');
+      await loadGigAndLoop();
+      showToast(strings.toasts.gigCancelled);
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to cancel gig.', 'error');
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (

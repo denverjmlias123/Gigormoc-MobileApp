@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -81,15 +80,13 @@ export default function ReportPaymentScreen() {
     if (!id || inFlightRef.current || submitting || submitted) return;
     const amountNum = parseFloat(amountStr);
     if (isNaN(amountNum) || amountNum <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid positive payment amount.');
+      setError('Please enter a valid positive payment amount.');
+      showToast('Please enter a valid positive payment amount.', 'error');
       return;
     }
 
     if (selectedMethod !== 'cash' && !referenceNumber.trim()) {
-      Alert.alert(
-        'Reference Number Recommended',
-        'For electronic payments like GCash or Bank Transfer, entering a reference number helps the freelancer quickly confirm your transfer.'
-      );
+      showToast('Tip: Entering a reference number helps the freelancer confirm quickly.', 'info');
     }
 
     inFlightRef.current = true;
@@ -107,19 +104,11 @@ export default function ReportPaymentScreen() {
       });
       setSubmitted(true);
       showToast(strings.toasts.paymentReported);
-
-      Alert.alert(
-        'Payment Reported',
-        'Your payment record has been submitted. The freelancer will review and confirm receipt.',
-        [
-          {
-            text: 'OK',
-            onPress: navigateAfterSuccess,
-          },
-        ]
-      );
+      navigateAfterSuccess();
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to report payment.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Failed to report payment.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

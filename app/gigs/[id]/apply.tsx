@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -70,12 +69,11 @@ export default function ApplyGigScreen() {
       });
       setSubmitted(true);
       showToast(strings.toasts.applicationSent);
-
-      Alert.alert('Proposal Submitted!', 'Your application has been sent to the client.', [
-        { text: 'Go to Activity', onPress: () => router.replace('/(tabs)/activity') },
-      ]);
+      router.replace('/(tabs)/activity');
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit application.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Failed to submit application.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setLoading(false);

@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +15,7 @@ import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, PortfolioItem } from '../../services/profile';
 import { showToast } from '../../components/ui/Toast';
+import { confirmDialog } from '../../lib/dialog';
 import { strings } from '../../constants/strings';
 
 export default function PortfolioScreen() {
@@ -110,25 +110,25 @@ export default function PortfolioScreen() {
 
   const handleDeleteItem = async (id: string) => {
     if (!user) return;
-    Alert.alert('Remove Item', 'Are you sure you want to remove this item from your portfolio?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          setDeletingId(id);
-          try {
-            await profileService.deletePortfolioItem(id, user.id);
-            setItems((prev) => prev.filter((item) => item.id !== id));
-            showToast(strings.toasts.portfolioRemoved);
-          } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Could not delete item.');
-          } finally {
-            setDeletingId(null);
-          }
-        },
-      },
-    ]);
+    const confirmed = await confirmDialog({
+      title: 'Remove Item',
+      message: 'Are you sure you want to remove this item from your portfolio?',
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    try {
+      await profileService.deletePortfolioItem(id, user.id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      showToast(strings.toasts.portfolioRemoved);
+    } catch (err: any) {
+      showToast(err?.message || 'Could not delete item.', 'error');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -49,10 +48,8 @@ export default function NewReportScreen() {
   const handleSubmit = async () => {
     if (!targetId || !targetType || inFlightRef.current || submitting || submitted) return;
     if (details.trim().length < 10) {
-      Alert.alert(
-        'Details Required',
-        'Please describe the issue in detail (at least 10 characters) to help the moderation team investigate.'
-      );
+      setError('Please describe the issue in detail (at least 10 characters) to help the moderation team investigate.');
+      showToast('Please describe the issue in detail (at least 10 characters).', 'error');
       return;
     }
 
@@ -69,21 +66,11 @@ export default function NewReportScreen() {
       });
       setSubmitted(true);
       showToast(strings.toasts.reportSubmitted);
-
-      Alert.alert(
-        'Report Submitted',
-        'Thank you for reporting. Our moderation team reviews reports manually to protect the Ormoc community.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.replace('/(tabs)');
-            },
-          },
-        ]
-      );
+      router.replace('/(tabs)');
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit report.');
+      const msg = err?.message || 'Failed to submit report.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../theme';
@@ -52,10 +51,8 @@ export default function SubmitReviewScreen() {
   const handleSubmit = async () => {
     if (!id || inFlightRef.current || submitting || submitted) return;
     if (comment.trim().length < 10) {
-      Alert.alert(
-        'Comment Too Short',
-        'Please write at least 10 characters of honest feedback about your working experience.'
-      );
+      setError('Please write at least 10 characters of honest feedback about your working experience.');
+      showToast('Please write at least 10 characters of honest feedback.', 'error');
       return;
     }
 
@@ -70,19 +67,11 @@ export default function SubmitReviewScreen() {
       });
       setSubmitted(true);
       showToast(strings.toasts.reviewPosted);
-
-      Alert.alert(
-        'Review Submitted',
-        'Thank you! Your feedback has been published and will help Ormoc clients and freelancers.',
-        [
-          {
-            text: 'OK',
-            onPress: navigateAfterSuccess,
-          },
-        ]
-      );
+      navigateAfterSuccess();
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit review.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Failed to submit review.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

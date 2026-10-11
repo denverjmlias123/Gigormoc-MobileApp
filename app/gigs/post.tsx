@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -264,14 +263,7 @@ export default function PostGigScreen() {
       await gigsService.createDraftGig(params);
       setSubmitted(true);
       showToast(strings.toasts.gigDraftSaved);
-      Alert.alert('Draft Saved', 'Your gig draft has been saved successfully.', [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.replace('/(tabs)/gigs');
-          },
-        },
-      ]);
+      router.replace('/(tabs)/gigs');
     } catch (err: any) {
       setError(err?.message || 'Could not save draft.');
     } finally {
@@ -291,9 +283,7 @@ export default function PostGigScreen() {
       await gigsService.publishGig(draftId);
       setSubmitted(true);
       showToast(strings.toasts.gigPublished);
-      Alert.alert('Gig Published!', 'Your gig is now open for local applicants in Ormoc City.', [
-        { text: 'View Gigs', onPress: () => router.replace('/(tabs)/gigs') },
-      ]);
+      router.replace('/(tabs)/gigs');
     } catch (err: any) {
       setError(err?.message || 'Could not publish gig.');
     } finally {

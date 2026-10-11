@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../../theme';
@@ -55,10 +54,8 @@ export default function DisputePaymentScreen() {
   const handleSubmit = async () => {
     if (!paymentId || inFlightRef.current || submitting || submitted) return;
     if (reason.trim().length < 5) {
-      Alert.alert(
-        'Explanation Required',
-        'Please clearly describe why you are disputing this payment report (e.g. money not received in GCash, amount mismatch, etc.).'
-      );
+      setError('Please clearly describe why you are disputing this payment report (at least 5 characters).');
+      showToast('Please clearly describe why you are disputing this payment report.', 'error');
       return;
     }
 
@@ -69,18 +66,11 @@ export default function DisputePaymentScreen() {
       await paymentsService.disputePayment(paymentId, reason.trim());
       setSubmitted(true);
       showToast(strings.toasts.paymentDisputed);
-      Alert.alert(
-        'Dispute Recorded',
-        'Payment report has been flagged as disputed. The client has been notified to clarify.',
-        [
-          {
-            text: 'OK',
-            onPress: navigateAfterSuccess,
-          },
-        ]
-      );
+      navigateAfterSuccess();
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Could not record payment dispute.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Could not record payment dispute.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

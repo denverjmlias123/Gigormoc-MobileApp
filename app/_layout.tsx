@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { OfflineBanner } from '../components/ui/OfflineBanner';
 import { ToastProvider } from '../components/ui/Toast';
+import { ConfirmDialogProvider } from '../components/ui/ConfirmDialog';
 
 function RootNavigation() {
   const { user, profile, loading, signOut } = useAuth();
@@ -72,7 +73,9 @@ export default function RootLayout() {
       <AuthProvider>
         <ThemeProvider>
           <ToastProvider>
-            <RootNavigation />
+            <ConfirmDialogProvider>
+              <RootNavigation />
+            </ConfirmDialogProvider>
           </ToastProvider>
         </ThemeProvider>
       </AuthProvider>

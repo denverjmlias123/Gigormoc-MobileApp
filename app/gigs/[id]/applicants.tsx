@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput as RNTextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -17,6 +16,7 @@ import { formatPrice } from '../../../components/ui/GigCard';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { showToast } from '../../../components/ui/Toast';
+import { confirmDialog } from '../../../lib/dialog';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { NextStepBanner, computePreAgreementLoopState } from '../../../components/ui/Timeline';
 import { strings } from '../../../constants/strings';
@@ -62,44 +62,34 @@ export default function GigApplicantsScreen() {
         },
       });
     } catch (err: any) {
-      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+      showToast(err?.message || 'Could not open conversation.', 'error');
     }
   };
 
   const handleAccept = async (app: ApplicationItem) => {
-    Alert.alert(
-      'Accept Proposal',
-      `Accept ${app.freelancer?.display_name || 'this freelancer'}'s proposal for ${formatPrice(app.proposed_price)}? This will create an active agreement and close the gig to other applicants.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Accept & Create Agreement',
-          onPress: async () => {
-            setActionBusy(app.id);
-            try {
-              const agreementId = await applicationsService.respondToApplication(app.id, 'accept');
-              showToast(strings.toasts.applicationAccepted);
-              Alert.alert('Agreement Created!', 'The agreement is now active.', [
-                {
-                  text: 'View Agreement',
-                  onPress: () => {
-                    if (agreementId) {
-                      router.replace({ pathname: '/agreements/[id]', params: { id: agreementId } });
-                    } else {
-                      router.replace('/(tabs)/activity');
-                    }
-                  },
-                },
-              ]);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Could not accept proposal.');
-            } finally {
-              setActionBusy(null);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmDialog({
+      title: 'Accept Proposal',
+      message: `Accept ${app.freelancer?.display_name || 'this freelancer'}'s proposal for ${formatPrice(app.proposed_price)}? This will create an active agreement and close the gig to other applicants.`,
+      confirmText: 'Accept Proposal',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
+    setActionBusy(app.id);
+    try {
+      const agreementId = await applicationsService.respondToApplication(app.id, 'accept');
+      showToast(strings.toasts.applicationAccepted);
+      if (agreementId) {
+        router.replace({ pathname: '/agreements/[id]', params: { id: agreementId } });
+      } else {
+        router.replace('/(tabs)/activity');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Could not accept proposal.', 'error');
+    } finally {
+      setActionBusy(null);
+    }
   };
 
   const handleDecline = async (appId: string) => {
@@ -109,7 +99,7 @@ export default function GigApplicantsScreen() {
       showToast(strings.toasts.applicationDeclined);
       await loadApplicants();
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not decline proposal.');
+      showToast(err?.message || 'Could not decline proposal.', 'error');
     } finally {
       setActionBusy(null);
     }
@@ -118,7 +108,7 @@ export default function GigApplicantsScreen() {
   const handleSendCounter = async (appId: string) => {
     const priceNum = parseFloat(counterPriceStr);
     if (isNaN(priceNum) || priceNum <= 0) {
-      Alert.alert('Invalid Price', 'Please enter a valid counteroffer amount in PHP.');
+      showToast('Please enter a valid counteroffer amount in PHP.', 'error');
       return;
     }
 
@@ -130,9 +120,8 @@ export default function GigApplicantsScreen() {
       setCounterPriceStr('');
       showToast(strings.toasts.counterSent);
       await loadApplicants();
-      Alert.alert('Counteroffer Sent', 'The freelancer has been notified of your counter proposal.');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not submit counteroffer.');
+      showToast(err?.message || 'Could not submit counteroffer.', 'error');
     } finally {
       setActionBusy(null);
     }

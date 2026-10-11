@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Linking,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { useAppTheme } from '../../../../theme';
 import { milestonesService, SubmissionItem } from '../../../../../services/milestones';
 import { Button } from '../../../../../components/ui/Button';
 import { showToast } from '../../../../../components/ui/Toast';
+import { confirmDialog } from '../../../../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/strings';
 
 export default function ReviewMilestoneScreen() {
@@ -95,58 +95,55 @@ export default function ReviewMilestoneScreen() {
       if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
         await Linking.openURL(targetUrl);
       } else {
-        Alert.alert('Attachment Path', targetUrl);
+        showToast('Attachment Path: ' + targetUrl, 'info');
       }
     } catch {
-      Alert.alert('Cannot Open Link', 'Could not open this deliverable attachment.');
+      showToast('Could not open this deliverable attachment.', 'error');
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!milestoneId || inFlightRef.current || actionBusy || actionDone) return;
 
-    Alert.alert(
-      'Approve Milestone',
-      'Are you sure you want to approve this milestone deliverable? Once approved, the milestone is marked complete.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve Deliverable',
-          onPress: async () => {
-            if (inFlightRef.current || actionBusy || actionDone) return;
-            inFlightRef.current = true;
-            setActionBusy(true);
-            try {
-              await milestonesService.reviewMilestone(milestoneId, 'approve');
-              setActionDone(true);
-              showToast(strings.toasts.milestoneApproved);
-              Alert.alert('Milestone Approved', 'The milestone has been approved successfully.', [
-                { text: 'OK', onPress: navigateAfterSuccess },
-              ]);
-            } catch (err: any) {
-              Alert.alert(
-                'Approval Error',
-                mapSqlErrorToFriendlyMessage(err, 'Could not approve milestone.')
-              );
-            } finally {
-              inFlightRef.current = false;
-              setActionBusy(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmDialog({
+      title: 'Approve Milestone',
+      message:
+        'Are you sure you want to approve this milestone deliverable? Once approved, the milestone is marked complete.',
+      confirmText: 'Approve Deliverable',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
+    inFlightRef.current = true;
+    setActionBusy(true);
+    setError(null);
+    try {
+      await milestonesService.reviewMilestone(milestoneId, 'approve');
+      setActionDone(true);
+      showToast(strings.toasts.milestoneApproved);
+      navigateAfterSuccess();
+    } catch (err: any) {
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Could not approve milestone.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
+    } finally {
+      inFlightRef.current = false;
+      setActionBusy(false);
+    }
   };
 
   const handleRequestRevision = async () => {
     if (!milestoneId || inFlightRef.current || actionBusy || actionDone) return;
     if (revisionFeedback.trim().length < 5) {
-      Alert.alert('Feedback Required', 'Please provide clear feedback explaining what changes are required.');
+      setError('Please provide clear feedback explaining what changes are required (at least 5 characters).');
+      showToast('Please provide clear feedback explaining what changes are required.', 'error');
       return;
     }
 
     inFlightRef.current = true;
     setActionBusy(true);
+    setError(null);
     try {
       await milestonesService.reviewMilestone(
         milestoneId,
@@ -155,16 +152,11 @@ export default function ReviewMilestoneScreen() {
       );
       setActionDone(true);
       showToast(strings.toasts.revisionRequested);
-      Alert.alert(
-        'Revision Requested',
-        `Revision request submitted. (${revisionsLeft - 1} revision(s) remaining for this milestone).`,
-        [{ text: 'OK', onPress: navigateAfterSuccess }]
-      );
+      navigateAfterSuccess();
     } catch (err: any) {
-      Alert.alert(
-        'Revision Error',
-        mapSqlErrorToFriendlyMessage(err, 'Could not request revision.')
-      );
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Could not request revision.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setActionBusy(false);

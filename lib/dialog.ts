@@ -1,20 +1,20 @@
-import { Alert, Platform } from 'react-native';
+import { showToast } from '../components/ui/Toast';
+import { showConfirmDialog, ConfirmDialogOptions } from '../components/ui/ConfirmDialog';
 
-// React Native's Alert.alert does nothing on web, so buttons and messages never appear there.
-// Use these helpers instead of Alert.alert everywhere.
-
+/**
+ * Universal in-app notification helper.
+ * Uses in-app Toast across all platforms.
+ */
 export function notify(title: string, message?: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    window.alert(message ? `${title}\n\n${message}` : title);
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    Alert.alert(title, message, [{ text: 'OK', onPress: () => resolve() }], {
-      onDismiss: () => resolve(),
-    });
-  });
+  const fullText = message ? `${title}: ${message}` : title;
+  showToast(fullText, 'info');
+  return Promise.resolve();
 }
 
+/**
+ * Universal in-app confirmation modal.
+ * Works seamlessly on Web (PC/Laptop/Mobile) and Native (iOS/Android) via in-app Modal.
+ */
 export function confirmDialog(options: {
   title: string;
   message?: string;
@@ -22,19 +22,5 @@ export function confirmDialog(options: {
   cancelText?: string;
   destructive?: boolean;
 }): Promise<boolean> {
-  const { title, message, confirmText = 'Confirm', cancelText = 'Cancel', destructive } = options;
-  if (Platform.OS === 'web') {
-    return Promise.resolve(window.confirm(message ? `${title}\n\n${message}` : title));
-  }
-  return new Promise((resolve) => {
-    Alert.alert(
-      title,
-      message,
-      [
-        { text: cancelText, style: 'cancel', onPress: () => resolve(false) },
-        { text: confirmText, style: destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
+  return showConfirmDialog(options);
 }

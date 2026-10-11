@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -72,7 +71,7 @@ export default function SetupMilestonesScreen() {
   const handleAddMilestone = () => {
     if (submitted) return;
     if (milestones.length >= 5) {
-      Alert.alert('Limit Reached', 'An agreement can have at most 5 milestones.');
+      showToast('An agreement can have at most 5 milestones.', 'info');
       return;
     }
     setMilestones([
@@ -88,7 +87,7 @@ export default function SetupMilestonesScreen() {
   const handleRemoveMilestone = (index: number) => {
     if (submitted) return;
     if (milestones.length <= 1) {
-      Alert.alert('Cannot Remove', 'You must have at least 1 milestone.');
+      showToast('You must have at least 1 milestone.', 'info');
       return;
     }
     const updated = milestones.filter((_, idx) => idx !== index);
@@ -110,21 +109,22 @@ export default function SetupMilestonesScreen() {
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
       if (!m.title.trim() || m.title.trim().length < 3) {
-        Alert.alert('Invalid Title', `Milestone ${i + 1} title must be at least 3 characters.`);
+        setError(`Milestone ${i + 1} title must be at least 3 characters.`);
+        showToast(`Milestone ${i + 1} title must be at least 3 characters.`, 'error');
         return;
       }
       const amt = parseFloat(m.amountStr);
       if (isNaN(amt) || amt <= 0) {
-        Alert.alert('Invalid Amount', `Milestone ${i + 1} must have a valid positive amount.`);
+        setError(`Milestone ${i + 1} must have a valid positive amount.`);
+        showToast(`Milestone ${i + 1} must have a valid positive amount.`, 'error');
         return;
       }
     }
 
     if (!isSumValid) {
-      Alert.alert(
-        'Amounts Do Not Match',
-        `The sum of all milestones (${formatPrice(currentTotalCentavos)}) must exactly equal the agreed total price (${formatPrice(targetPriceCentavos)}).`
-      );
+      const msg = `The sum of all milestones (${formatPrice(currentTotalCentavos)}) must exactly equal the agreed total price (${formatPrice(targetPriceCentavos)}).`;
+      setError(msg);
+      showToast(msg, 'error');
       return;
     }
 
@@ -140,14 +140,11 @@ export default function SetupMilestonesScreen() {
       await milestonesService.defineMilestones(id, payload);
       setSubmitted(true);
       showToast(strings.toasts.milestonesSaved);
-      Alert.alert('Milestones Defined', 'Agreement milestones have been successfully set.', [
-        {
-          text: 'OK',
-          onPress: navigateAfterSuccess,
-        },
-      ]);
+      navigateAfterSuccess();
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to define milestones.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Failed to define milestones.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -85,7 +84,8 @@ export default function SubmitMilestoneScreen() {
   const handleSubmit = async () => {
     if (!milestoneId || inFlightRef.current || submitting || submitted) return;
     if (message.trim().length < 10) {
-      Alert.alert('Too Short', 'Please provide a clear description of your submitted work (at least 10 characters).');
+      setError('Please provide a clear description of your submitted work (at least 10 characters).');
+      showToast('Please provide a clear description of your submitted work (at least 10 characters).', 'error');
       return;
     }
 
@@ -96,18 +96,11 @@ export default function SubmitMilestoneScreen() {
       await milestonesService.submitMilestone(milestoneId, message.trim(), filePaths);
       setSubmitted(true);
       showToast(strings.toasts.workSubmitted);
-      Alert.alert(
-        'Work Submitted',
-        'Your milestone submission has been sent to the client for review.',
-        [
-          {
-            text: 'OK',
-            onPress: navigateAfterSuccess,
-          },
-        ]
-      );
+      navigateAfterSuccess();
     } catch (err: any) {
-      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit milestone work.'));
+      const friendlyMsg = mapSqlErrorToFriendlyMessage(err, 'Failed to submit milestone work.');
+      setError(friendlyMsg);
+      showToast(friendlyMsg, 'error');
     } finally {
       inFlightRef.current = false;
       setSubmitting(false);

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -28,6 +27,7 @@ import {
   computeAgreementLoopState,
 } from '../../components/ui/Timeline';
 import { showToast } from '../../components/ui/Toast';
+import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function AgreementDetailScreen() {
@@ -43,6 +43,7 @@ export default function AgreementDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,10 +62,10 @@ export default function AgreementDetailScreen() {
       if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
         await Linking.openURL(targetUrl);
       } else {
-        Alert.alert('Receipt Proof Path', targetUrl);
+        showToast('Receipt Proof Path: ' + targetUrl, 'info');
       }
     } catch {
-      Alert.alert('Cannot Open Receipt', 'Could not open this payment receipt attachment.');
+      showToast('Could not open this payment receipt attachment.', 'error');
     }
   };
 
@@ -116,12 +117,12 @@ export default function AgreementDetailScreen() {
         params: { conversationId: convId, partnerName },
       });
     } catch (err: any) {
-      Alert.alert('Chat Error', mapSqlErrorToFriendlyMessage(err, 'Could not open conversation.'));
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Could not open conversation.'), 'error');
     }
   };
 
-  const handleCancelAgreement = () => {
-    if (!id) return;
+  const handleCancelAgreement = async () => {
+    if (!id || cancelling) return;
 
     const hasWorkStarted = milestones.some(
       (m) => m.status === 'submitted' || m.status === 'approved' || m.status === 'revision_requested'
@@ -131,85 +132,89 @@ export default function AgreementDetailScreen() {
       ? 'Deliverables have already been submitted for this agreement. Initiating cancellation will flag this agreement as Disputed and create a report for moderator review.\n\nAre you sure you want to proceed?'
       : 'No deliverables have been submitted yet. Cancelling now will terminate the agreement freely and return the gig to cancelled status.\n\nAre you sure you want to cancel?';
 
-    Alert.alert('Cancel Agreement', promptMessage, [
-      { text: 'Keep Agreement', style: 'cancel' },
-      {
-        text: 'Confirm Cancellation',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const resultStatus = await reportsService.cancelAgreement(
-              id,
-              'Party requested cancellation via agreement detail screen'
-            );
-            await loadData();
-            if (resultStatus === 'cancelled') {
-              showToast(strings.toasts.agreementCancelled);
-              Alert.alert('Agreement Cancelled', 'The agreement has been cancelled.');
-            } else {
-              showToast(strings.toasts.cancellationDisputeOpened);
-              Alert.alert(
-                'Dispute Flagged',
-                'Because work had started, a dispute report was created for administrator review.'
-              );
-            }
-          } catch (err: any) {
-            Alert.alert(
-              'Cancellation Error',
-              mapSqlErrorToFriendlyMessage(err, 'Could not cancel agreement.')
-            );
-          }
-        },
-      },
-    ]);
+    const confirmed = await confirmDialog({
+      title: 'Cancel Agreement',
+      message: promptMessage,
+      confirmText: 'Confirm Cancellation',
+      cancelText: 'Keep Agreement',
+      destructive: true,
+    });
+
+    if (!confirmed) return;
+
+    setCancelling(true);
+    try {
+      const resultStatus = await reportsService.cancelAgreement(
+        id,
+        'Party requested cancellation via agreement detail screen'
+      );
+      await loadData();
+      if (resultStatus === 'cancelled') {
+        showToast(strings.toasts.agreementCancelled);
+      } else {
+        showToast(strings.toasts.cancellationDisputeOpened);
+      }
+    } catch (err: any) {
+      showToast(
+        mapSqlErrorToFriendlyMessage(err, 'Could not cancel agreement.'),
+        'error'
+      );
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const handleConfirmPayment = async (paymentId: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Confirm Payment',
+      message: 'Are you sure you want to confirm receipt of this payment? This action cannot be undone.',
+      confirmText: 'Confirm Received',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
     setConfirmingPaymentId(paymentId);
     try {
       await paymentsService.confirmPayment(paymentId);
       showToast(strings.toasts.paymentConfirmed);
       await loadData();
-      Alert.alert('Payment Confirmed', 'You have confirmed receiving this payment.');
     } catch (err: any) {
-      Alert.alert(
-        'Confirmation Error',
-        mapSqlErrorToFriendlyMessage(err, 'Could not confirm payment.')
+      showToast(
+        mapSqlErrorToFriendlyMessage(err, 'Could not confirm payment.'),
+        'error'
       );
     } finally {
       setConfirmingPaymentId(null);
     }
   };
 
-  const handleCompleteAgreement = () => {
-    if (!id) return;
+  const handleCompleteAgreement = async () => {
+    if (!id || completing) return;
 
-    Alert.alert(
-      'Complete Agreement',
-      'Are you sure you want to finalize and complete this agreement? This will record the project as completed for both parties.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete Agreement',
-          onPress: async () => {
-            setCompleting(true);
-            try {
-              await paymentsService.completeAgreement(id);
-              showToast(strings.toasts.agreementCompleted);
-              await loadData();
-              Alert.alert('Agreement Completed', 'This project is officially completed. Thank you!');
-            } catch (err: any) {
-              Alert.alert(
-                'Completion Error',
-                mapSqlErrorToFriendlyMessage(err, 'Could not complete agreement.')
-              );
-            } finally {
-              setCompleting(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmDialog({
+      title: 'Complete Agreement',
+      message:
+        'Are you sure you want to finalize and complete this agreement? This will record the project as completed for both parties.',
+      confirmText: 'Complete Agreement',
+      cancelText: 'Cancel',
+    });
+
+    if (!confirmed) return;
+
+    setCompleting(true);
+    try {
+      await paymentsService.completeAgreement(id);
+      showToast(strings.toasts.agreementCompleted);
+      await loadData();
+    } catch (err: any) {
+      showToast(
+        mapSqlErrorToFriendlyMessage(err, 'Could not complete agreement.'),
+        'error'
+      );
+    } finally {
+      setCompleting(false);
+    }
   };
 
   if (loading) {

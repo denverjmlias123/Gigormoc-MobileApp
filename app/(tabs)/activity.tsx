@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -173,7 +172,7 @@ export default function ActivityScreen() {
         params: { conversationId: convId, partnerName },
       });
     } catch (err: any) {
-      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+      showToast(err?.message || 'Could not open conversation.', 'error');
     }
   };
 
@@ -192,7 +191,7 @@ export default function ActivityScreen() {
         router.push({ pathname: '/agreements/[id]', params: { id: agreementId } });
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not respond to counteroffer.');
+      showToast(err?.message || 'Could not respond to counteroffer.', 'error');
     } finally {
       setCounterBusyId(null);
     }

@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -122,7 +121,7 @@ export default function ChatScreen() {
       await chatService.sendMessage(conversationId, textToSend);
       showToast(strings.toasts.messageSent);
     } catch (err: any) {
-      Alert.alert('Send Failed', err?.message || 'Failed to send message.');
+      showToast(err?.message || 'Failed to send message.', 'error');
       setInputText(textToSend); // restore on error
     } finally {
       sendingRef.current = false;
