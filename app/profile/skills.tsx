@@ -13,6 +13,7 @@ import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Skill } from '../../services/profile';
 import { aiService } from '../../services/ai';
+import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
 const MAX_PROFILE_SKILLS = 15;
@@ -121,6 +122,7 @@ export default function SkillsScreen() {
         setUserSkills(refreshed);
         setZeroSkillsWarning(false);
         setSkillsSaved(true);
+        showToast(strings.toasts.skillsSaved);
         await refreshProfile();
       }
     } catch (err: any) {
@@ -168,6 +170,7 @@ export default function SkillsScreen() {
       setCustomSkillInput('');
       setZeroSkillsWarning(false);
       setSkillsSaved(true);
+      showToast(strings.toasts.skillsSaved);
       await refreshProfile();
     } catch (err: any) {
       setError(err?.message || 'Could not add custom skill.');
@@ -222,6 +225,7 @@ export default function SkillsScreen() {
       setUserSkills(refreshed);
       setZeroSkillsWarning(false);
       setSkillsSaved(true);
+      showToast(strings.toasts.skillsSaved);
       await refreshProfile();
     } catch (err: any) {
       setError(err?.message || 'Could not add suggested skill.');

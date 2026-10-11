@@ -13,8 +13,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { applicationsService, ModeSwitchStatus } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
+import { showToast } from '../../components/ui/Toast';
 import { confirmDialog, notify } from '../../lib/dialog';
-import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function ModeSettingsScreen() {
   const router = useRouter();
@@ -76,6 +77,7 @@ export default function ModeSettingsScreen() {
       }
       await refreshProfile();
       await fetchStatus();
+      showToast(strings.toasts.modeSwitched);
       await notify('Mode Switched', `You are now in ${targetLabel} mode.`);
       router.replace('/(tabs)');
     } catch (err: any) {

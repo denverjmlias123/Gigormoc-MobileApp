@@ -87,7 +87,11 @@ export default function NotificationsScreen() {
 
     // 2. Milestone-specific stage deep links
     if (agreementId && milestoneId) {
-      if (item.type === 'milestone_submitted') {
+      if (
+        item.type === 'milestone_submitted' ||
+        item.type === 'milestone_review_reminder_3d' ||
+        item.type === 'milestone_review_reminder_7d'
+      ) {
         router.push({
           pathname: '/agreements/[id]/milestones/[milestoneId]/review',
           params: { id: agreementId, milestoneId },
@@ -109,20 +113,38 @@ export default function NotificationsScreen() {
       item.entity_type === 'agreement' ||
       item.entity_type === 'milestone' ||
       item.entity_type === 'payment' ||
-      item.entity_type === 'review'
+      item.entity_type === 'review' ||
+      item.type.startsWith('milestone_') ||
+      item.type.startsWith('payment_') ||
+      item.type.startsWith('agreement_') ||
+      item.type === 'review_window_closing_3d'
     ) {
       const targetAgrId = agreementId || item.entity_id;
       if (targetAgrId) {
+        if (item.type === 'review_window_closing_3d') {
+          router.push({
+            pathname: '/agreements/[id]/review',
+            params: { id: targetAgrId },
+          });
+          return;
+        }
         router.push({ pathname: '/agreements/[id]', params: { id: targetAgrId } });
         return;
       }
     }
 
     // 4. Application / Proposal stage deep links
-    if (item.entity_type === 'application') {
+    if (
+      item.entity_type === 'application' ||
+      item.type === 'proposal_withdrawn' ||
+      item.type === 'application_withdrawn'
+    ) {
       const gigId = item.data?.gig_id;
       if (
-        (item.type === 'application_received' || item.type === 'counter_declined') &&
+        (item.type === 'application_received' ||
+          item.type === 'counter_declined' ||
+          item.type === 'proposal_withdrawn' ||
+          item.type === 'application_withdrawn') &&
         gigId &&
         profile?.active_mode === 'hire'
       ) {
@@ -134,13 +156,30 @@ export default function NotificationsScreen() {
     }
 
     // 5. Gig detail deep link
-    if (item.entity_type === 'gig' && item.entity_id) {
-      router.push({ pathname: '/gigs/[id]', params: { id: item.entity_id } });
+    if (
+      (item.entity_type === 'gig' && item.entity_id) ||
+      item.type === 'gig_application_deadline_24h' ||
+      item.type === 'gig_expired'
+    ) {
+      const gigId = item.entity_id || item.data?.gig_id;
+      if (gigId) {
+        router.push({ pathname: '/gigs/[id]', params: { id: gigId } });
+        return;
+      }
+    }
+
+    // 6. Safety & Report notifications
+    if (item.entity_type === 'report' || item.type === 'report_resolved') {
+      router.push('/(tabs)');
       return;
     }
 
-    // 6. Profile completeness deep link
-    if (item.entity_type === 'profile' || item.type === 'profile_complete') {
+    // 7. Profile completeness / account status deep link
+    if (
+      item.entity_type === 'profile' ||
+      item.type === 'profile_complete' ||
+      item.type === 'account_status_changed'
+    ) {
       router.push('/(tabs)/profile');
     }
   };
@@ -161,22 +200,36 @@ export default function NotificationsScreen() {
       case 'application_received':
       case 'application_accepted':
       case 'application_countered':
+      case 'proposal_withdrawn':
+      case 'application_withdrawn':
         return 'document-text-outline';
       case 'agreement_created':
       case 'agreement_completed':
+      case 'agreement_deadline_48h':
         return 'shield-checkmark-outline';
       case 'milestones_defined':
+      case 'milestones_updated':
       case 'milestone_submitted':
       case 'milestone_approved':
       case 'milestone_revision_requested':
+      case 'milestone_review_reminder_3d':
+      case 'milestone_review_reminder_7d':
         return 'flag-outline';
       case 'payment_reported':
       case 'payment_confirmed':
       case 'payment_disputed':
+      case 'payment_confirm_reminder_2d':
         return 'cash-outline';
       case 'review_received':
+      case 'review_window_closing_3d':
         return 'star-outline';
+      case 'gig_application_deadline_24h':
+      case 'gig_expired':
+        return 'time-outline';
+      case 'report_resolved':
+        return 'checkmark-done-circle-outline';
       case 'profile_complete':
+      case 'account_status_changed':
         return 'checkmark-circle-outline';
       default:
         return 'notifications-outline';

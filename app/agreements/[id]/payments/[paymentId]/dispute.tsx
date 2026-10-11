@@ -13,7 +13,8 @@ import { useAppTheme } from '../../../../theme';
 import { paymentsService } from '../../../../../services/payments';
 import { formatPrice } from '../../../../../components/ui/GigCard';
 import { Button } from '../../../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
+import { showToast } from '../../../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/strings';
 
 export default function DisputePaymentScreen() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function DisputePaymentScreen() {
     try {
       await paymentsService.disputePayment(paymentId, reason.trim());
       setSubmitted(true);
+      showToast(strings.toasts.paymentDisputed);
       Alert.alert(
         'Dispute Recorded',
         'Payment report has been flagged as disputed. The client has been notified to clarify.',

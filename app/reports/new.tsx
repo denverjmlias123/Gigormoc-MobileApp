@@ -16,6 +16,8 @@ import {
   ReportReasonCategory,
 } from '../../services/reports';
 import { Button } from '../../components/ui/Button';
+import { showToast } from '../../components/ui/Toast';
+import { strings } from '../../constants/strings';
 
 const REASON_CATEGORIES: { label: string; value: ReportReasonCategory }[] = [
   { label: 'Spam or Scam', value: 'spam_scam' },
@@ -66,6 +68,7 @@ export default function NewReportScreen() {
         evidencePath: evidencePath.trim() || undefined,
       });
       setSubmitted(true);
+      showToast(strings.toasts.reportSubmitted);
 
       Alert.alert(
         'Report Submitted',

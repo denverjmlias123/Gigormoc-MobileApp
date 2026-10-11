@@ -19,6 +19,7 @@ import {
 } from '../../services/gigs';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
+import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
 type WorkType = 'remote' | 'face_to_face' | 'hybrid';
@@ -262,6 +263,7 @@ export default function PostGigScreen() {
       setLoading(true);
       await gigsService.createDraftGig(params);
       setSubmitted(true);
+      showToast(strings.toasts.gigDraftSaved);
       Alert.alert('Draft Saved', 'Your gig draft has been saved successfully.', [
         {
           text: 'OK',
@@ -288,6 +290,7 @@ export default function PostGigScreen() {
       const { id: draftId } = await gigsService.createDraftGig(params);
       await gigsService.publishGig(draftId);
       setSubmitted(true);
+      showToast(strings.toasts.gigPublished);
       Alert.alert('Gig Published!', 'Your gig is now open for local applicants in Ormoc City.', [
         { text: 'View Gigs', onPress: () => router.replace('/(tabs)/gigs') },
       ]);

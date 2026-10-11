@@ -16,7 +16,8 @@ import { useAuth } from '../../../hooks/useAuth';
 import { applicationsService } from '../../../services/applications';
 import { TextInput } from '../../../components/ui/TextInput';
 import { Button } from '../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../constants/strings';
+import { showToast } from '../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../constants/strings';
 
 export default function ApplyGigScreen() {
   const router = useRouter();
@@ -68,6 +69,7 @@ export default function ApplyGigScreen() {
         message: message.trim(),
       });
       setSubmitted(true);
+      showToast(strings.toasts.applicationSent);
 
       Alert.alert('Proposal Submitted!', 'Your application has been sent to the client.', [
         { text: 'Go to Activity', onPress: () => router.replace('/(tabs)/activity') },

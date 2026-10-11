@@ -12,7 +12,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../theme';
 import { reviewsService } from '../../../services/reviews';
 import { Button } from '../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../constants/strings';
+import { showToast } from '../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../constants/strings';
 
 export default function SubmitReviewScreen() {
   const router = useRouter();
@@ -68,6 +69,7 @@ export default function SubmitReviewScreen() {
         comment: comment.trim(),
       });
       setSubmitted(true);
+      showToast(strings.toasts.reviewPosted);
 
       Alert.alert(
         'Review Submitted',

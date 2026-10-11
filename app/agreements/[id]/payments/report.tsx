@@ -14,7 +14,8 @@ import { useAppTheme } from '../../../theme';
 import { paymentsService, PaymentMethod } from '../../../../services/payments';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../../constants/strings';
+import { showToast } from '../../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../../constants/strings';
 
 const PAYMENT_METHODS: { label: string; value: PaymentMethod }[] = [
   { label: 'GCash', value: 'gcash' },
@@ -105,6 +106,7 @@ export default function ReportPaymentScreen() {
         notes: notes.trim(),
       });
       setSubmitted(true);
+      showToast(strings.toasts.paymentReported);
 
       Alert.alert(
         'Payment Reported',

@@ -27,7 +27,8 @@ import {
   NextStepBanner,
   computeAgreementLoopState,
 } from '../../components/ui/Timeline';
-import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
+import { showToast } from '../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function AgreementDetailScreen() {
   const router = useRouter();
@@ -143,8 +144,10 @@ export default function AgreementDetailScreen() {
             );
             await loadData();
             if (resultStatus === 'cancelled') {
+              showToast(strings.toasts.agreementCancelled);
               Alert.alert('Agreement Cancelled', 'The agreement has been cancelled.');
             } else {
+              showToast(strings.toasts.cancellationDisputeOpened);
               Alert.alert(
                 'Dispute Flagged',
                 'Because work had started, a dispute report was created for administrator review.'
@@ -165,6 +168,7 @@ export default function AgreementDetailScreen() {
     setConfirmingPaymentId(paymentId);
     try {
       await paymentsService.confirmPayment(paymentId);
+      showToast(strings.toasts.paymentConfirmed);
       await loadData();
       Alert.alert('Payment Confirmed', 'You have confirmed receiving this payment.');
     } catch (err: any) {
@@ -191,6 +195,7 @@ export default function AgreementDetailScreen() {
             setCompleting(true);
             try {
               await paymentsService.completeAgreement(id);
+              showToast(strings.toasts.agreementCompleted);
               await loadData();
               Alert.alert('Agreement Completed', 'This project is officially completed. Thank you!');
             } catch (err: any) {

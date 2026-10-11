@@ -14,7 +14,8 @@ import { useAppTheme } from '../../../theme';
 import { milestonesService, DefineMilestoneParam } from '../../../../services/milestones';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../../constants/strings';
+import { showToast } from '../../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../../constants/strings';
 
 interface MilestoneDraft {
   title: string;
@@ -138,6 +139,7 @@ export default function SetupMilestonesScreen() {
 
       await milestonesService.defineMilestones(id, payload);
       setSubmitted(true);
+      showToast(strings.toasts.milestonesSaved);
       Alert.alert('Milestones Defined', 'Agreement milestones have been successfully set.', [
         {
           text: 'OK',

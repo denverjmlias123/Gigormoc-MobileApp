@@ -15,6 +15,8 @@ import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, PortfolioItem } from '../../services/profile';
+import { showToast } from '../../components/ui/Toast';
+import { strings } from '../../constants/strings';
 
 export default function PortfolioScreen() {
   const router = useRouter();
@@ -98,6 +100,7 @@ export default function PortfolioScreen() {
       setDescription('');
       setUploadedUrls([]);
       setShowAddForm(false);
+      showToast(strings.toasts.portfolioAdded);
     } catch (err: any) {
       setError(err?.message || 'Could not add portfolio item.');
     } finally {
@@ -117,6 +120,7 @@ export default function PortfolioScreen() {
           try {
             await profileService.deletePortfolioItem(id, user.id);
             setItems((prev) => prev.filter((item) => item.id !== id));
+            showToast(strings.toasts.portfolioRemoved);
           } catch (err: any) {
             Alert.alert('Error', err?.message || 'Could not delete item.');
           } finally {

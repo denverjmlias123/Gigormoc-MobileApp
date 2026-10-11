@@ -279,7 +279,9 @@ The project includes a comprehensive automated test suite executed via the nativ
 4. **Milestone 19 — Hardened Skills Flow (`test/m19_skills_flow.test.js` & `supabase/tests/m19_skills.test.sql`)**: Skill name validation, case-insensitive deduplication, 5/24h custom skill quota, 15/profile limit, and `Pending review` badge rendering.
 5. **Milestone 20 — Shared 10-Stage Relationship Loop (`test/m20_shared_loop_view.test.js`)**: 10-stage `Timeline` mapping, complementary `NextStepBanner` copy for both roles across every database status, and notification/chat deep-linking.
 6. **Milestone 21 — UX Real-Logic Audit (`test/m21_ux_real_logic.test.js`)**: Zero forbidden patterns (`setTimeout`, `Math.random`, empty `onPress`, `TODO`, `FIXME`, `coming soon`), zero prohibited trust words (`verified`, `guaranteed`, `mock`, `fake`, `dummy`, `sample`), guarded `router.back()`, Realtime channel cleanup, `mapSqlErrorToFriendlyMessage`, and private `submissions`/`receipts` signed URLs.
-7. **Core Marketplace, AI, Notifications, Messaging & Loop (`test/ai_onboarding.test.js`, `test/notifications.test.js`, `test/messaging_real.test.js`, `test/post_gig_real.test.js`, `test/real_loop.test.js`, `test/applications.test.js`, `test/auth.test.js`, `test/gigs.test.js`, `test/hardening.test.js`, `test/milestones.test.js`, `test/own_content.test.js`, `test/payments.test.js`, `test/profile.test.js`, `test/reports_messages.test.js`, `test/reviews.test.js`, `test/setup.test.js`)**: 18+ verification, centavos math, RLS privacy, 14-day review window, mode switch blockers, and full 10-stage job loop integrity.
+8. **Milestone 23 — Error Handling and Auth Hardening (`test/m23_error_and_auth_hardening.test.js`)**: `AppError` classification across 11 error kinds, request timeout with single retry on 401, single-flight session refresh, root `ErrorBoundary` and `OfflineBanner` mounting, login single-flight lock, offline-safe `signOut({ scope: 'local' })`, and shared session/channel cleanup.
+9. **Milestone 24 — Anti-Spam Clicks and Two-Device Idempotency (`test/m24_anti_spam_and_idempotency.test.js` & `supabase/tests/database/20_idempotency.test.sql`)**: `runOnce()` single-flight locking, button synchronous `inFlightRef` + 800ms post-success cooldown, request ID attempt reuse and rotation, `idempotency_keys` table with 24h `pg_cron` cleanup, `FOR UPDATE` row locks and `already_done` guards on all 15 state-changing RPCs, unique indexes on submissions, open payments, reviews, active applications, and `notifications.dedupe_key` with `ON CONFLICT DO NOTHING`.
+10. **Milestone 25 — Success Feedback and Notifications for Every Step (`test/m25_feedback_and_notifications.test.js` & `supabase/tests/database/21_notifications_and_reminders.test.sql`)**: Accessible `Toast` and `ToastProvider` auto-dismissing after 3.2s, post-confirmation toasts across all write screens (never on error), full counterparty notification coverage with self-suppression, 7 scheduled deduped reminders in `pg_cron` (`milestone_review_reminder_3d/7d`, `payment_confirm_reminder_2d`, `review_window_closing_3d`, `gig_application_deadline_24h`, `gig_expired`, `agreement_deadline_48h`), and complete deep-link routing in `app/notifications.tsx`.
 
 ---
 
@@ -287,9 +289,14 @@ The project includes a comprehensive automated test suite executed via the nativ
 
 - **Completed**:
   - Milestones 0 through 21 + Cross-Platform Universal Image Upload (`utils/imageUpload.ts`).
-  - Live deployment and verification of all migrations (`20261010000000_init.sql` through `20261011000021_fix_submissions_columns.sql`) on Supabase instance `ddnwqtzheroqcoopvrrb`.
-  - Passed all 4 parts of the **V2 Final Live Check** (Database Audit, Account Creation & Skills Flow, Full 10-Stage Job Loop, and Security Spot Checks) and **90/90 automated unit tests**.
-  - Generated full repository Knowledge Graph (`graphify-out/graph.html`, `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.json`).
-  - Database purged clean (0 test rows) and ready for live production / pilot onboarding.
+  - **v5.4 Resilience Milestones (M22, M23, M24, M25)**:
+    - M22: Exploration audit and baseline tag `baseline-before-v5.4` (`4afc4fe`).
+    - M23: Error handling, offline banner, root error boundary, login/logout hardening (`ba14a25`).
+    - M24: Anti-spam clicks, button cooldowns, attempt request IDs, two-device idempotency, unique indexes, and row-level locking (`357fcc5`).
+    - M25: Toast feedback for actor, counterparty notifications for every step, 7 pg_cron reminders, and deep-link routing.
+  - Live deployment and verification of all migrations (`20261010000000_init.sql` through `20261011000023_notifications_and_reminders.sql`) with synchronized `supabase/FULL_SETUP_MIGRATIONS.sql`.
+  - **107/107 automated unit tests passing** (`npm test`), **zero TypeScript errors** (`npx tsc --noEmit`).
+  - Zero forbidden patterns (`setTimeout`, `Math.random`, empty `onPress`, `TODO`, `FIXME`, `coming soon`) in `app/` and `services/`.
+  - Zero prohibited trust/placeholder words (`verified`, `guaranteed`, `mock`, `fake`, `dummy`, `sample`) in `app/`, `services/`, and `constants/`.
 - **Ready for Execution**: **Live Ormoc City Pilot Launch (`docs/PILOT_GUIDE.md`)**.
 

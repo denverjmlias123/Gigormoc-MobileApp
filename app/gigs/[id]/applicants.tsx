@@ -16,8 +16,10 @@ import { chatService } from '../../../services/chat';
 import { formatPrice } from '../../../components/ui/GigCard';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { showToast } from '../../../components/ui/Toast';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { NextStepBanner, computePreAgreementLoopState } from '../../../components/ui/Timeline';
+import { strings } from '../../../constants/strings';
 
 export default function GigApplicantsScreen() {
   const router = useRouter();
@@ -76,6 +78,7 @@ export default function GigApplicantsScreen() {
             setActionBusy(app.id);
             try {
               const agreementId = await applicationsService.respondToApplication(app.id, 'accept');
+              showToast(strings.toasts.applicationAccepted);
               Alert.alert('Agreement Created!', 'The agreement is now active.', [
                 {
                   text: 'View Agreement',
@@ -103,6 +106,7 @@ export default function GigApplicantsScreen() {
     setActionBusy(appId);
     try {
       await applicationsService.respondToApplication(appId, 'decline');
+      showToast(strings.toasts.applicationDeclined);
       await loadApplicants();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not decline proposal.');
@@ -124,6 +128,7 @@ export default function GigApplicantsScreen() {
       await applicationsService.respondToApplication(appId, 'counter', priceCentavos);
       setCounterAppId(null);
       setCounterPriceStr('');
+      showToast(strings.toasts.counterSent);
       await loadApplicants();
       Alert.alert('Counteroffer Sent', 'The freelancer has been notified of your counter proposal.');
     } catch (err: any) {

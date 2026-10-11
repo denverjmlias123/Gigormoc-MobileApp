@@ -17,6 +17,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { chatService, MessageItem, ConversationItem } from '../../services/chat';
 import { applicationsService } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
+import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
 export default function ChatScreen() {
@@ -119,6 +120,7 @@ export default function ChatScreen() {
 
     try {
       await chatService.sendMessage(conversationId, textToSend);
+      showToast(strings.toasts.messageSent);
     } catch (err: any) {
       Alert.alert('Send Failed', err?.message || 'Failed to send message.');
       setInputText(textToSend); // restore on error

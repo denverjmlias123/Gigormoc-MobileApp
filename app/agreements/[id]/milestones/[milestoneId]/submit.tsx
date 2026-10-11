@@ -13,7 +13,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../../theme';
 import { milestonesService } from '../../../../../services/milestones';
 import { Button } from '../../../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
+import { showToast } from '../../../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/strings';
 
 export default function SubmitMilestoneScreen() {
   const router = useRouter();
@@ -94,6 +95,7 @@ export default function SubmitMilestoneScreen() {
     try {
       await milestonesService.submitMilestone(milestoneId, message.trim(), filePaths);
       setSubmitted(true);
+      showToast(strings.toasts.workSubmitted);
       Alert.alert(
         'Work Submitted',
         'Your milestone submission has been sent to the client for review.',

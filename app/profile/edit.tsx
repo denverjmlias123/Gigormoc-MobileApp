@@ -27,6 +27,7 @@ import {
   ProfileCompleteness,
   CompletenessMissingItem,
 } from '../../services/profile';
+import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
 const MAX_HIRING_INTERESTS = 8;
@@ -251,6 +252,7 @@ export default function EditProfileScreen() {
         const comp = await profileService.getProfileCompleteness(user.id).catch(() => null);
         setCompleteness(comp);
         setSuccessMsg('Profile photo updated.');
+        showToast(strings.toasts.photoUpdated);
       }
     } catch (err: any) {
       setError(err?.message || 'Could not upload photo.');
@@ -269,6 +271,7 @@ export default function EditProfileScreen() {
       const comp = await profileService.getProfileCompleteness(user.id).catch(() => null);
       setCompleteness(comp);
       setSuccessMsg('Profile photo removed.');
+      showToast(strings.toasts.photoRemoved);
     } catch (err: any) {
       setError(err?.message || 'Could not remove photo.');
     } finally {
@@ -373,6 +376,7 @@ export default function EditProfileScreen() {
       await refreshProfile();
       await loadData();
       setSuccessMsg('Profile details saved.');
+      showToast(strings.toasts.profileSaved);
     } catch (err: any) {
       setError(err?.message || 'Failed to update profile.');
     } finally {

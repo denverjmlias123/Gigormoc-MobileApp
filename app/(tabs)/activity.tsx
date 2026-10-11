@@ -26,7 +26,8 @@ import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
+import { showToast } from '../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 import {
   Timeline,
   NextStepBanner,
@@ -183,6 +184,9 @@ export default function ActivityScreen() {
     setCounterBusyId(app.id);
     try {
       const agreementId = await applicationsService.respondToCounter(app.id, action);
+      showToast(
+        action === 'accept' ? strings.toasts.counterAccepted : strings.toasts.counterDeclined
+      );
       await loadData();
       if (action === 'accept' && agreementId) {
         router.push({ pathname: '/agreements/[id]', params: { id: agreementId } });

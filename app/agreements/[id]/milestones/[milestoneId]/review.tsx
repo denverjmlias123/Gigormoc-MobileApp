@@ -14,7 +14,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../../theme';
 import { milestonesService, SubmissionItem } from '../../../../../services/milestones';
 import { Button } from '../../../../../components/ui/Button';
-import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
+import { showToast } from '../../../../../components/ui/Toast';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/strings';
 
 export default function ReviewMilestoneScreen() {
   const router = useRouter();
@@ -118,6 +119,7 @@ export default function ReviewMilestoneScreen() {
             try {
               await milestonesService.reviewMilestone(milestoneId, 'approve');
               setActionDone(true);
+              showToast(strings.toasts.milestoneApproved);
               Alert.alert('Milestone Approved', 'The milestone has been approved successfully.', [
                 { text: 'OK', onPress: navigateAfterSuccess },
               ]);
@@ -152,6 +154,7 @@ export default function ReviewMilestoneScreen() {
         revisionFeedback.trim()
       );
       setActionDone(true);
+      showToast(strings.toasts.revisionRequested);
       Alert.alert(
         'Revision Requested',
         `Revision request submitted. (${revisionsLeft - 1} revision(s) remaining for this milestone).`,

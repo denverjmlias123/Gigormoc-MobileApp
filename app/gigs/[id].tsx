@@ -23,6 +23,7 @@ import { reviewsService } from '../../services/reviews';
 import { chatService } from '../../services/chat';
 import { formatPrice, getWorkTypeIcon } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
+import { showToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
 import {
   Timeline,
@@ -253,6 +254,7 @@ export default function GigDetailScreen() {
             try {
               await gigsService.cancelGig(gig.id, 'Cancelled by client from gig details');
               await loadGigAndLoop();
+              showToast(strings.toasts.gigCancelled);
               Alert.alert('Gig Cancelled', 'The gig has been cancelled successfully.');
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Failed to cancel gig.');
