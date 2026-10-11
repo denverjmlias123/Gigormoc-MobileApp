@@ -128,6 +128,39 @@ export const milestonesService = {
           ({ error } = await supabase.rpc('review_milestone', baseArgs));
         }
 
+        // If the stored procedure does not exist in PostgreSQL (PGRST202 or 42883),
+        // fallback directly to updating the milestones table so clients are not blocked.
+        if (error && (error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('review_milestone'))) {
+          if (action === 'approve') {
+            const { error: updateErr } = await supabase
+              .from('milestones')
+              .update({
+                status: 'approved',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', milestoneId);
+            if (updateErr) throw updateErr;
+            return;
+          } else {
+            const { data: mData } = await supabase
+              .from('milestones')
+              .select('revisions_used')
+              .eq('id', milestoneId)
+              .maybeSingle();
+            const nextRevisions = (((mData as any)?.revisions_used as number) || 0) + 1;
+            const { error: updateErr } = await supabase
+              .from('milestones')
+              .update({
+                status: 'in_progress',
+                revisions_used: nextRevisions,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', milestoneId);
+            if (updateErr) throw updateErr;
+            return;
+          }
+        }
+
         if (error) throw error;
       },
       { requestId }
