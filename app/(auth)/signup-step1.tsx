@@ -77,7 +77,7 @@ export default function SignUpStep1Screen() {
         },
       });
     } finally {
-      setTimeout(() => setPending(false), 400);
+      setPending(false);
     }
   };
 

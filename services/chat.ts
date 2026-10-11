@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 
+let chatChannelSeq = 0;
+
 export interface MessageItem {
   id: string;
   conversation_id: string;
@@ -126,7 +128,8 @@ export const chatService = {
     conversationId: string,
     onMessage: (message: MessageItem) => void
   ) {
-    const channelTopic = `conversation:${conversationId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    chatChannelSeq += 1;
+    const channelTopic = `conversation:${conversationId}-${Date.now()}-${chatChannelSeq}`;
     const channel = supabase
       .channel(channelTopic)
       .on(

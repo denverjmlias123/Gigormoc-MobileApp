@@ -86,20 +86,17 @@ export default function PostGigScreen() {
     }
 
     let cancelled = false;
-    const timer = setTimeout(() => {
-      gigsService
-        .suggestCategoriesForGig(cleanTitle, cleanDesc)
-        .then((rows) => {
-          if (!cancelled && rows.length > 0) {
-            setSuggestedCategories(rows);
-          }
-        })
-        .catch(() => {});
-    }, 350);
+    gigsService
+      .suggestCategoriesForGig(cleanTitle, cleanDesc)
+      .then((rows) => {
+        if (!cancelled && rows.length > 0) {
+          setSuggestedCategories(rows);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
   }, [title, description]);
 
@@ -112,35 +109,32 @@ export default function PostGigScreen() {
     }
 
     let cancelled = false;
-    const timer = setTimeout(() => {
-      gigsService
-        .findSimilarCategories(trimmed)
-        .then((rows) => {
-          if (!cancelled) {
-            setSimilarCategories(rows);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            // Local fallback filter if RPC is unavailable
-            const lower = trimmed.toLowerCase();
-            const localMatches = categories
-              .filter((c) => c.name.toLowerCase().includes(lower))
-              .slice(0, 5)
-              .map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                similarity_score: 0.7,
-              }));
-            setSimilarCategories(localMatches);
-          }
-        });
-    }, 250);
+    gigsService
+      .findSimilarCategories(trimmed)
+      .then((rows) => {
+        if (!cancelled) {
+          setSimilarCategories(rows);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          // Local fallback filter if RPC is unavailable
+          const lower = trimmed.toLowerCase();
+          const localMatches = categories
+            .filter((c) => c.name.toLowerCase().includes(lower))
+            .slice(0, 5)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+              similarity_score: 0.7,
+            }));
+          setSimilarCategories(localMatches);
+        }
+      });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
   }, [categoryQuery, categories]);
 

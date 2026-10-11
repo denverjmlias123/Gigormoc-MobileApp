@@ -184,5 +184,60 @@ export const strings = {
       reviewed: 'Reviewed',
     },
   },
+  errors: {
+    generic: 'Something went wrong. Please try again.',
+    network: 'Network connection error. Please check your internet connection and try again.',
+    unauthorized: 'Please log in to continue.',
+    forbidden: 'You do not have permission to perform this action.',
+    duplicateEntry: 'This record already exists.',
+    cooldownActive: 'Mode switch is currently on its 7-day cooldown.',
+    activeCommitmentsBlock: 'Please finish or resolve active gigs, proposals, or agreements before switching modes.',
+    invalidMilestoneSum: 'The sum of all milestone amounts must equal the agreed project price.',
+    maxRevisionsReached: 'Maximum of 2 revisions has already been used for this milestone.',
+    reviewWindowClosed: 'The 14-day review window for this agreement has closed.',
+  },
 };
+
+/**
+ * Maps raw Postgres / Supabase RPC or storage errors to friendly user-facing messages
+ * from constants/strings.ts while preserving explicit human-readable validation messages.
+ */
+export function mapSqlErrorToFriendlyMessage(
+  err: unknown,
+  fallback: string = strings.errors.generic
+): string {
+  if (!err) return fallback;
+  const rawMessage =
+    typeof err === 'string'
+      ? err
+      : typeof (err as any)?.message === 'string'
+      ? (err as any).message
+      : '';
+  const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+  const lower = rawMessage.toLowerCase();
+
+  if (lower.includes('failed to fetch') || lower.includes('network request failed')) {
+    return strings.errors.network;
+  }
+  if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {
+    return strings.errors.forbidden;
+  }
+  if (code === '23505' || lower.includes('duplicate key value')) {
+    return strings.errors.duplicateEntry;
+  }
+  if (lower.includes('cooldown')) {
+    return rawMessage || strings.errors.cooldownActive;
+  }
+  if (lower.includes('milestone') && lower.includes('sum')) {
+    return rawMessage || strings.errors.invalidMilestoneSum;
+  }
+  if (lower.includes('revision') && lower.includes('max')) {
+    return rawMessage || strings.errors.maxRevisionsReached;
+  }
+  if (lower.includes('14') && lower.includes('review')) {
+    return rawMessage || strings.errors.reviewWindowClosed;
+  }
+
+  return rawMessage.trim() || fallback;
+}
 

@@ -30,6 +30,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const clearAuth = async () => {
     try {
+      await supabase.removeAllChannels();
+    } catch {
+      // Ignore
+    }
+    try {
       await authService.signOut();
     } catch {
       // Ignore

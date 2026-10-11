@@ -1,4 +1,8 @@
+import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+
+let receiptUploadSeq = 0;
 
 export type PaymentMethod = 'gcash' | 'maya' | 'bank_transfer' | 'cash' | 'other';
 export type PaymentStatus = 'reported_sent' | 'confirmed_received' | 'disputed';
@@ -118,8 +122,9 @@ export const paymentsService = {
     fileName: string,
     fileBlob: Blob | ArrayBuffer
   ): Promise<string> {
+    receiptUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const path = `${agreementId}/receipts/${Date.now()}_${safeName}`;
+    const path = `${agreementId}/receipts/${Date.now()}_${receiptUploadSeq}_${safeName}`;
 
     const { error } = await supabase.storage
       .from('receipts')
@@ -129,7 +134,39 @@ export const paymentsService = {
     return path;
   },
 
+  async pickAndUploadReceiptImage(agreementId: string): Promise<string | null> {
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        throw new Error('Photo library permission is required to upload payment receipts.');
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    if (blob.size > 10 * 1024 * 1024) {
+      throw new Error('Receipt image is too large. Maximum allowed file size is 10 MB.');
+    }
+
+    const fileName = asset.fileName || `receipt_${Date.now()}.jpg`;
+    return await paymentsService.uploadReceiptFile(agreementId, fileName, blob);
+  },
+
   async createSignedReceiptUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
     const { data, error } = await supabase.storage
       .from('receipts')
       .createSignedUrl(filePath, expiresInSeconds);

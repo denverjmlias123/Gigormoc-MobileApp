@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -26,6 +27,7 @@ import {
   NextStepBanner,
   computeAgreementLoopState,
 } from '../../components/ui/Timeline';
+import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 
 export default function AgreementDetailScreen() {
   const router = useRouter();
@@ -42,6 +44,28 @@ export default function AgreementDetailScreen() {
   const [completing, setCompleting] = useState(false);
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
+  const handleOpenReceipt = async (receiptPath: string) => {
+    try {
+      const signedUrl = await paymentsService.createSignedReceiptUrl(receiptPath);
+      const targetUrl = signedUrl || receiptPath;
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        await Linking.openURL(targetUrl);
+      } else {
+        Alert.alert('Receipt Proof Path', targetUrl);
+      }
+    } catch {
+      Alert.alert('Cannot Open Receipt', 'Could not open this payment receipt attachment.');
+    }
+  };
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -62,7 +86,7 @@ export default function AgreementDetailScreen() {
         setReviews(revData);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load agreement details.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to load agreement details.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,7 +115,7 @@ export default function AgreementDetailScreen() {
         params: { conversationId: convId, partnerName },
       });
     } catch (err: any) {
-      Alert.alert('Chat Error', err?.message || 'Could not open conversation.');
+      Alert.alert('Chat Error', mapSqlErrorToFriendlyMessage(err, 'Could not open conversation.'));
     }
   };
 
@@ -127,7 +151,10 @@ export default function AgreementDetailScreen() {
               );
             }
           } catch (err: any) {
-            Alert.alert('Cancellation Error', err?.message || 'Could not cancel agreement.');
+            Alert.alert(
+              'Cancellation Error',
+              mapSqlErrorToFriendlyMessage(err, 'Could not cancel agreement.')
+            );
           }
         },
       },
@@ -141,7 +168,10 @@ export default function AgreementDetailScreen() {
       await loadData();
       Alert.alert('Payment Confirmed', 'You have confirmed receiving this payment.');
     } catch (err: any) {
-      Alert.alert('Confirmation Error', err?.message || 'Could not confirm payment.');
+      Alert.alert(
+        'Confirmation Error',
+        mapSqlErrorToFriendlyMessage(err, 'Could not confirm payment.')
+      );
     } finally {
       setConfirmingPaymentId(null);
     }
@@ -164,7 +194,10 @@ export default function AgreementDetailScreen() {
               await loadData();
               Alert.alert('Agreement Completed', 'This project is officially completed. Thank you!');
             } catch (err: any) {
-              Alert.alert('Completion Error', err?.message || 'Could not complete agreement.');
+              Alert.alert(
+                'Completion Error',
+                mapSqlErrorToFriendlyMessage(err, 'Could not complete agreement.')
+              );
             } finally {
               setCompleting(false);
             }
@@ -188,7 +221,7 @@ export default function AgreementDetailScreen() {
         <Text style={[styles.errorText, { color: theme.colors.danger }]}>
           {error || 'Agreement not found.'}
         </Text>
-        <Button title="Go Back" variant="secondary" onPress={() => router.back()} />
+        <Button title="Go Back" variant="secondary" onPress={safeNavigateBack} />
       </View>
     );
   }
@@ -324,7 +357,7 @@ export default function AgreementDetailScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -621,6 +654,17 @@ export default function AgreementDetailScreen() {
                       {isConfirmed && <Badge status="active" label="Confirmed by freelancer" />}
                       {isDisputed && <Badge status="disputed" label="Disputed" />}
                     </View>
+
+                    {p.receipt_path ? (
+                      <TouchableOpacity
+                        onPress={() => handleOpenReceipt(p.receipt_path!)}
+                        style={{ marginTop: 4 }}
+                      >
+                        <Text style={[styles.linkText, { color: theme.colors.primary }]}>
+                          🧾 View Payment Receipt ›
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
 
                     {p.notes ? (
                       <Text style={[styles.paymentNotes, { color: theme.colors.muted }]}>

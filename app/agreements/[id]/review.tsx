@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../theme';
 import { reviewsService } from '../../../services/reviews';
 import { Button } from '../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../constants/strings';
 
 export default function SubmitReviewScreen() {
   const router = useRouter();
@@ -26,6 +27,16 @@ export default function SubmitReviewScreen() {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   const handleSubmit = async () => {
     if (!id) return;
@@ -52,12 +63,12 @@ export default function SubmitReviewScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: safeNavigateBack,
           },
         ]
       );
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit review.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit review.'));
     } finally {
       setSubmitting(false);
     }
@@ -67,7 +78,7 @@ export default function SubmitReviewScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Leave a Review</Text>

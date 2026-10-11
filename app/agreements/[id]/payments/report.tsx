@@ -14,6 +14,7 @@ import { useAppTheme } from '../../../theme';
 import { paymentsService, PaymentMethod } from '../../../../services/payments';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../../constants/strings';
 
 const PAYMENT_METHODS: { label: string; value: PaymentMethod }[] = [
   { label: 'GCash', value: 'gcash' },
@@ -35,8 +36,35 @@ export default function ReportPaymentScreen() {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [receiptPath, setReceiptPath] = useState('');
   const [notes, setNotes] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
+
+  const handleUploadReceipt = async () => {
+    if (!id || uploadingReceipt) return;
+    setUploadingReceipt(true);
+    setError(null);
+    try {
+      const uploadedPath = await paymentsService.pickAndUploadReceiptImage(id);
+      if (uploadedPath) {
+        setReceiptPath(uploadedPath);
+      }
+    } catch (err: any) {
+      setError(mapSqlErrorToFriendlyMessage(err, 'Could not upload receipt image.'));
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!id) return;
@@ -72,12 +100,12 @@ export default function ReportPaymentScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: safeNavigateBack,
           },
         ]
       );
     } catch (err: any) {
-      setError(err?.message || 'Failed to report payment.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to report payment.'));
     } finally {
       setSubmitting(false);
     }
@@ -87,7 +115,7 @@ export default function ReportPaymentScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Report Payment</Text>
@@ -175,17 +203,24 @@ export default function ReportPaymentScreen() {
           />
         </View>
 
-        {/* Receipt / Proof Link */}
+        {/* Receipt / Proof Upload & Link */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Text style={[styles.label, { color: theme.colors.text }]}>
-            Receipt Screenshot / Proof Link (Optional)
+            Receipt Screenshot / Proof (Optional)
           </Text>
+          <Button
+            title={uploadingReceipt ? 'Uploading Receipt...' : '🧾 Upload Receipt Screenshot'}
+            variant="secondary"
+            onPress={handleUploadReceipt}
+            disabled={uploadingReceipt || submitting}
+            loading={uploadingReceipt}
+          />
           <TextInput
             style={[
               styles.textInput,
               { borderColor: theme.colors.border, color: theme.colors.text },
             ]}
-            placeholder="e.g. https://drive.google.com/receipt... or screenshot path"
+            placeholder="Uploaded storage path or external receipt URL"
             placeholderTextColor={theme.colors.muted}
             value={receiptPath}
             onChangeText={setReceiptPath}
@@ -216,7 +251,7 @@ export default function ReportPaymentScreen() {
             title={submitting ? 'Submitting Report...' : 'Record Payment Report'}
             variant="primary"
             onPress={handleSubmit}
-            disabled={!amountStr || submitting}
+            disabled={!amountStr || submitting || uploadingReceipt}
             loading={submitting}
           />
         </View>

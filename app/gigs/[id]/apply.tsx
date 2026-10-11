@@ -16,6 +16,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { applicationsService } from '../../../services/applications';
 import { TextInput } from '../../../components/ui/TextInput';
 import { Button } from '../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../constants/strings';
 
 export default function ApplyGigScreen() {
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function ApplyGigScreen() {
         { text: 'Go to Activity', onPress: () => router.replace('/(tabs)/activity') },
       ]);
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit application.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit application.'));
     } finally {
       setLoading(false);
     }
@@ -80,7 +81,18 @@ export default function ApplyGigScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else if (id) {
+              router.replace({ pathname: '/gigs/[id]', params: { id } });
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Apply for Gig</Text>

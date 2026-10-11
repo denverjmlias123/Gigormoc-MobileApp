@@ -148,7 +148,17 @@ export default function GigDetailScreen() {
         <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>
           {error || 'This gig does not exist.'}
         </Text>
-        <Button title="← Go Back" onPress={() => router.back()} variant="secondary" />
+        <Button
+          title="← Go Back"
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
+          variant="secondary"
+        />
       </View>
     );
   }

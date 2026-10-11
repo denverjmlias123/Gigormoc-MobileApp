@@ -14,6 +14,7 @@ import { useAppTheme } from '../../../theme';
 import { milestonesService, DefineMilestoneParam } from '../../../../services/milestones';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../../constants/strings';
 
 interface MilestoneDraft {
   title: string;
@@ -27,6 +28,16 @@ export default function SetupMilestonesScreen() {
   const { id, agreedPrice } = useLocalSearchParams<{ id: string; agreedPrice: string }>();
 
   const targetPriceCentavos = parseInt(agreedPrice || '0', 10);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   const [milestones, setMilestones] = useState<MilestoneDraft[]>([
     {
@@ -115,11 +126,11 @@ export default function SetupMilestonesScreen() {
       Alert.alert('Milestones Defined', 'Agreement milestones have been successfully set.', [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: safeNavigateBack,
         },
       ]);
     } catch (err: any) {
-      setError(err?.message || 'Failed to define milestones.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to define milestones.'));
     } finally {
       setSubmitting(false);
     }
@@ -129,7 +140,7 @@ export default function SetupMilestonesScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Define Milestones</Text>

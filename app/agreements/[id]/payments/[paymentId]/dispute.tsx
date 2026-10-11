@@ -13,6 +13,7 @@ import { useAppTheme } from '../../../../theme';
 import { paymentsService } from '../../../../../services/payments';
 import { formatPrice } from '../../../../../components/ui/GigCard';
 import { Button } from '../../../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
 
 export default function DisputePaymentScreen() {
   const router = useRouter();
@@ -29,6 +30,16 @@ export default function DisputePaymentScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const amountCentavos = parseInt(amount || '0', 10);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   const handleSubmit = async () => {
     if (!paymentId) return;
@@ -50,12 +61,12 @@ export default function DisputePaymentScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: safeNavigateBack,
           },
         ]
       );
     } catch (err: any) {
-      setError(err?.message || 'Could not record payment dispute.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Could not record payment dispute.'));
     } finally {
       setSubmitting(false);
     }
@@ -65,7 +76,7 @@ export default function DisputePaymentScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Dispute Payment</Text>

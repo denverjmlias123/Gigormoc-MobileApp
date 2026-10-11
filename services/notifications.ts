@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 
+let notifChannelSeq = 0;
+
 export interface NotificationItem {
   id: string;
   user_id: string;
@@ -50,7 +52,8 @@ export const notificationsService = {
   },
 
   subscribeToNotifications(userId: string, onNotification: (item: NotificationItem) => void) {
-    const channelTopic = `user-notifications:${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    notifChannelSeq += 1;
+    const channelTopic = `user-notifications:${userId}-${Date.now()}-${notifChannelSeq}`;
     const channel = supabase
       .channel(channelTopic)
       .on(

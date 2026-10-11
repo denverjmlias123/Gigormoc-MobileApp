@@ -10,9 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 import { applicationsService, ModeSwitchStatus } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
 import { confirmDialog, notify } from '../../lib/dialog';
+import { mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 
 export default function ModeSettingsScreen() {
   const router = useRouter();
@@ -31,7 +33,7 @@ export default function ModeSettingsScreen() {
       const data = await applicationsService.getModeSwitchStatus();
       setStatus(data);
     } catch (err: any) {
-      setError(err?.message || 'Failed to check mode status.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to check mode status.'));
     } finally {
       setLoading(false);
     }
@@ -66,12 +68,17 @@ export default function ModeSettingsScreen() {
     setSwitching(true);
     try {
       await applicationsService.switchMode(targetMode, true);
+      try {
+        await supabase.removeAllChannels();
+      } catch {
+        // Ignore channel cleanup errors
+      }
       await refreshProfile();
       await fetchStatus();
       await notify('Mode Switched', `You are now in ${targetLabel} mode.`);
       router.replace('/(tabs)');
     } catch (err: any) {
-      await notify('Switch Error', err?.message || 'Could not switch mode.');
+      await notify('Switch Error', mapSqlErrorToFriendlyMessage(err, 'Could not switch mode.'));
     } finally {
       setSwitching(false);
     }

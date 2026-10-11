@@ -148,7 +148,7 @@ export default function HomeScreen() {
                 Find your next gig in Ormoc
               </Text>
               <Pressable
-                style={styles.searchFake}
+                style={styles.searchShortcut}
                 onPress={() => router.push('/(tabs)/gigs')}
                 accessibilityRole="search"
                 accessibilityLabel="Search gigs"
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   heroCtaText: { fontSize: 16, fontWeight: '800' },
-  searchFake: {
+  searchShortcut: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

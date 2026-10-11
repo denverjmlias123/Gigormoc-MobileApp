@@ -8,11 +8,13 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../../theme';
 import { milestonesService, SubmissionItem } from '../../../../../services/milestones';
 import { Button } from '../../../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
 
 export default function ReviewMilestoneScreen() {
   const router = useRouter();
@@ -28,11 +30,22 @@ export default function ReviewMilestoneScreen() {
   const revisionsLeft = 2 - currentRevisions;
 
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   useEffect(() => {
     if (!milestoneId) return;
@@ -42,8 +55,20 @@ export default function ReviewMilestoneScreen() {
       try {
         const data = await milestonesService.getMilestoneSubmissions(milestoneId);
         setSubmissions(data);
+
+        // Resolve signed URLs for private 'submissions' bucket paths
+        const allPaths = Array.from(
+          new Set(data.flatMap((s) => s.file_paths || []).filter(Boolean))
+        );
+        const urlEntries = await Promise.all(
+          allPaths.map(async (p) => {
+            const url = await milestonesService.createSignedUrl(p).catch(() => null);
+            return [p, url || p] as const;
+          })
+        );
+        setSignedUrls(Object.fromEntries(urlEntries));
       } catch (err: any) {
-        setError(err?.message || 'Failed to load milestone submissions.');
+        setError(mapSqlErrorToFriendlyMessage(err, 'Failed to load milestone submissions.'));
       } finally {
         setLoading(false);
       }
@@ -51,6 +76,20 @@ export default function ReviewMilestoneScreen() {
 
     fetchSubmissions();
   }, [milestoneId]);
+
+  const handleOpenAttachment = async (filePath: string) => {
+    try {
+      const resolved = signedUrls[filePath] || (await milestonesService.createSignedUrl(filePath));
+      const targetUrl = resolved || filePath;
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        await Linking.openURL(targetUrl);
+      } else {
+        Alert.alert('Attachment Path', targetUrl);
+      }
+    } catch {
+      Alert.alert('Cannot Open Link', 'Could not open this deliverable attachment.');
+    }
+  };
 
   const handleApprove = () => {
     if (!milestoneId) return;
@@ -67,10 +106,13 @@ export default function ReviewMilestoneScreen() {
             try {
               await milestonesService.reviewMilestone(milestoneId, 'approve');
               Alert.alert('Milestone Approved', 'The milestone has been approved successfully.', [
-                { text: 'OK', onPress: () => router.back() },
+                { text: 'OK', onPress: safeNavigateBack },
               ]);
             } catch (err: any) {
-              Alert.alert('Approval Error', err?.message || 'Could not approve milestone.');
+              Alert.alert(
+                'Approval Error',
+                mapSqlErrorToFriendlyMessage(err, 'Could not approve milestone.')
+              );
             } finally {
               setActionBusy(false);
             }
@@ -97,10 +139,13 @@ export default function ReviewMilestoneScreen() {
       Alert.alert(
         'Revision Requested',
         `Revision request submitted. (${revisionsLeft - 1} revision(s) remaining for this milestone).`,
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: safeNavigateBack }]
       );
     } catch (err: any) {
-      Alert.alert('Revision Error', err?.message || 'Could not request revision.');
+      Alert.alert(
+        'Revision Error',
+        mapSqlErrorToFriendlyMessage(err, 'Could not request revision.')
+      );
     } finally {
       setActionBusy(false);
     }
@@ -110,7 +155,7 @@ export default function ReviewMilestoneScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Review Deliverable</Text>
@@ -174,14 +219,19 @@ export default function ReviewMilestoneScreen() {
                 {sub.file_paths && sub.file_paths.length > 0 && (
                   <View style={styles.filesSection}>
                     <Text style={[styles.fileSectionTitle, { color: theme.colors.muted }]}>
-                      Deliverables / Attachments:
+                      Deliverables / Attachments (Tap to open signed URL):
                     </Text>
                     {sub.file_paths.map((f, fIdx) => (
-                      <View key={fIdx} style={[styles.fileRow, { borderColor: theme.colors.border }]}>
+                      <TouchableOpacity
+                        key={fIdx}
+                        style={[styles.fileRow, { borderColor: theme.colors.border }]}
+                        onPress={() => handleOpenAttachment(f)}
+                        activeOpacity={0.75}
+                      >
                         <Text style={[styles.fileText, { color: theme.colors.primary }]} numberOfLines={1}>
                           📎 {f}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}

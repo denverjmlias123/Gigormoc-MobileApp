@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Profile } from './auth';
 
+let portfolioUploadSeq = 0;
+
 export interface Category {
   id: string;
   name: string;
@@ -621,7 +623,8 @@ export const profileService = {
       throw new Error(validation.error);
     }
 
-    const path = `${userId}/item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${validation.ext}`;
+    portfolioUploadSeq += 1;
+    const path = `${userId}/item-${Date.now()}-${portfolioUploadSeq}.${validation.ext}`;
     const { error: uploadError } = await supabase.storage
       .from('portfolio')
       .upload(path, fileData, {

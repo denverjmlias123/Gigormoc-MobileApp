@@ -1,4 +1,8 @@
+import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+
+let submissionUploadSeq = 0;
 
 export interface MilestoneItem {
   id: string;
@@ -109,8 +113,9 @@ export const milestonesService = {
     fileName: string,
     fileBlob: Blob | ArrayBuffer
   ): Promise<string> {
+    submissionUploadSeq += 1;
     const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const path = `${agreementId}/${milestoneId}/${Date.now()}_${safeName}`;
+    const path = `${agreementId}/${milestoneId}/${Date.now()}_${submissionUploadSeq}_${safeName}`;
 
     const { error } = await supabase.storage
       .from('submissions')
@@ -120,7 +125,42 @@ export const milestonesService = {
     return path;
   },
 
+  async pickAndUploadSubmissionFile(
+    agreementId: string,
+    milestoneId: string
+  ): Promise<string | null> {
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        throw new Error('Media library permission is required to upload deliverable attachments.');
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    if (blob.size > 10 * 1024 * 1024) {
+      throw new Error('Attachment is too large. Maximum allowed file size is 10 MB.');
+    }
+
+    const fileName = asset.fileName || `deliverable_${Date.now()}.jpg`;
+    return await milestonesService.uploadSubmissionFile(agreementId, milestoneId, fileName, blob);
+  },
+
   async createSignedUrl(filePath: string, expiresInSeconds: number = 3600): Promise<string | null> {
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
     const { data, error } = await supabase.storage
       .from('submissions')
       .createSignedUrl(filePath, expiresInSeconds);

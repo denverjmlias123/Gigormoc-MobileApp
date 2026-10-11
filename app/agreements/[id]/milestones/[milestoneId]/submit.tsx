@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../../theme';
 import { milestonesService } from '../../../../../services/milestones';
 import { Button } from '../../../../../components/ui/Button';
+import { mapSqlErrorToFriendlyMessage } from '../../../../../constants/strings';
 
 export default function SubmitMilestoneScreen() {
   const router = useRouter();
@@ -29,13 +30,40 @@ export default function SubmitMilestoneScreen() {
   const [message, setMessage] = useState('');
   const [fileUrlInput, setFileUrlInput] = useState('');
   const [filePaths, setFilePaths] = useState<string[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (id) {
+      router.replace({ pathname: '/agreements/[id]', params: { id } });
+    } else {
+      router.replace('/(tabs)/activity');
+    }
+  };
 
   const handleAddFile = () => {
     if (!fileUrlInput.trim()) return;
     setFilePaths([...filePaths, fileUrlInput.trim()]);
     setFileUrlInput('');
+  };
+
+  const handleUploadFromDevice = async () => {
+    if (!id || !milestoneId || uploadingFile) return;
+    setUploadingFile(true);
+    setError(null);
+    try {
+      const storagePath = await milestonesService.pickAndUploadSubmissionFile(id, milestoneId);
+      if (storagePath) {
+        setFilePaths((prev) => [...prev, storagePath]);
+      }
+    } catch (err: any) {
+      setError(mapSqlErrorToFriendlyMessage(err, 'Could not upload deliverable file.'));
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -59,12 +87,12 @@ export default function SubmitMilestoneScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: safeNavigateBack,
           },
         ]
       );
     } catch (err: any) {
-      setError(err?.message || 'Failed to submit milestone work.');
+      setError(mapSqlErrorToFriendlyMessage(err, 'Failed to submit milestone work.'));
     } finally {
       setSubmitting(false);
     }
@@ -74,7 +102,7 @@ export default function SubmitMilestoneScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
       <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Submit Work</Text>
@@ -120,12 +148,20 @@ export default function SubmitMilestoneScreen() {
           </Text>
         </View>
 
-        {/* File / Deliverable Links */}
+        {/* File / Deliverable Links & Private Bucket Upload */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Deliverable Links & Files</Text>
           <Text style={[styles.subLabel, { color: theme.colors.muted }]}>
-            Add shareable drive links, repository URLs, or storage paths for client review.
+            Upload a deliverable screenshot/file to secure private storage or add a shareable drive/repo link.
           </Text>
+
+          <Button
+            title={uploadingFile ? 'Uploading Attachment...' : '📎 Upload Deliverable File / Screenshot'}
+            variant="secondary"
+            onPress={handleUploadFromDevice}
+            disabled={uploadingFile || submitting}
+            loading={uploadingFile}
+          />
 
           <View style={styles.fileInputRow}>
             <TextInput
@@ -133,7 +169,7 @@ export default function SubmitMilestoneScreen() {
                 styles.fileInput,
                 { borderColor: theme.colors.border, color: theme.colors.text },
               ]}
-              placeholder="e.g. https://drive.google.com/... or deliverables.zip"
+              placeholder="Or paste link: https://drive.google.com/..."
               placeholderTextColor={theme.colors.muted}
               value={fileUrlInput}
               onChangeText={setFileUrlInput}
@@ -141,8 +177,9 @@ export default function SubmitMilestoneScreen() {
             <TouchableOpacity
               style={[styles.addFileBtn, { backgroundColor: theme.colors.primary }]}
               onPress={handleAddFile}
+              disabled={!fileUrlInput.trim()}
             >
-              <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add Link</Text>
             </TouchableOpacity>
           </View>
 
@@ -168,7 +205,7 @@ export default function SubmitMilestoneScreen() {
             title={submitting ? 'Submitting Deliverable...' : 'Submit Deliverable for Client Review'}
             variant="primary"
             onPress={handleSubmit}
-            disabled={message.trim().length < 10 || submitting}
+            disabled={message.trim().length < 10 || submitting || uploadingFile}
             loading={submitting}
           />
         </View>

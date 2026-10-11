@@ -125,14 +125,14 @@ export default function EditProfileScreen() {
   // Focus requested field if navigated from a missing completeness item
   useEffect(() => {
     if (!params.focus) return;
-    const timer = setTimeout(() => {
+    const frameId = requestAnimationFrame(() => {
       if (params.focus === 'display_name') nameInputRef.current?.focus();
       else if (params.focus === 'headline') headlineInputRef.current?.focus();
       else if (params.focus === 'bio') bioInputRef.current?.focus();
       else if (params.focus === 'area') areaInputRef.current?.focus();
       else if (params.focus === 'hiring_interests') customCategoryInputRef.current?.focus();
-    }, 250);
-    return () => clearTimeout(timer);
+    });
+    return () => cancelAnimationFrame(frameId);
   }, [params.focus]);
 
   const isDirty =
