@@ -2,6 +2,12 @@
 
 Give the AI ONE milestone at a time. Do not start the next until the previous one is verified.
 
+## v5.6 status
+Add **M31 (delete gig + notify applicants)**. Spec: `docs/GIG_DELETE_V5_6.md`. It can run any time after M24 (idempotency) is in place, and its notification must follow M25 wording.
+
+## v5.5 status (course requirements, deadline Oct 15-16)
+Run **M26 (explore + auth hardening)**, **M27 (lockout + sessions)**, **M28 (log trail)**, **M29 (admin dashboard + user CRUD)**, **M30 (database structure doc)**, then **V3 (checking-day verification)**. These can run before or alongside M22-M25; if time is short do v5.5 first (P0 list in `docs/COURSE_REQUIREMENTS_V5_5.md` section 9). Spec: `docs/COURSE_REQUIREMENTS_V5_5.md`.
+
 ## v5.4 status
 Project is semi fully working (M0-M21, V2 passed). Next, in this order: **M22 (explore, read-only)**, **M23 (errors + login/logout)**, **M24 (anti-spam + idempotency)**, **M25 (success feedback + notifications)**, then V1 and V2 again. Spec: `docs/RESILIENCE_V5_4.md`.
 
@@ -437,4 +443,64 @@ Start Milestone 25. Follow AGENTS.md and docs/RESILIENCE_V5_4.md section 1. Base
 Add a Toast component (success/error/info, accessible, auto-dismiss, one at a time) shown only after the database confirms a write, for every action in section 1 (publish gig, send application, accept/counter/decline, define milestones, submit work, approve/revision, report/confirm payment, complete, cancel, review, message, profile/skills/photo saves, mode switch, report filed). Fill every notification gap from the M22 list through notify() with dedupe keys, role wording from the strings file and deep links. Add the pg_cron reminders (milestone awaiting review 3/7 days, payment awaiting confirmation 2 days, review window closing, application deadline 24h, gig expired, agreement deadline 48h), each deduped.
 Tests: each RPC creates exactly one notification for the right recipient and none for the actor; reminders do not repeat; toast not shown on error.
 Show plan first. Then run tsc, npm test, supabase test db, paste raw output, then re-run V1 and V2.
+```
+
+
+## v5.5 prompts (course requirements; do not break current code)
+
+### M26 — Explore + login, logout, password, in-app dialogs
+```
+Start Milestone 26. Follow AGENTS.md and docs/COURSE_REQUIREMENTS_V5_5.md sections 1-3 and docs/RESILIENCE_V5_4.md section 0. FIRST do a read-only exploration and wait for my approval: record the baseline (tsc, npm test, supabase test db, git tag), then list for the traceability table in section 1 what already exists with file paths, and every use of alert, confirm, prompt, window.* dialogs or Alert.alert in app/, components/, services/, lib/, utils/ (including lib/dialog.ts). Show a plan of files and migrations.
+After approval implement additively: in-app ConfirmDialog and Toast everywhere (replace every browser/system dialog), logout confirmation "Are you sure you want to logout?" with Yes, log out / Cancel then the cleanup and router.replace to Login, login messages (empty fields, success toast, incorrect email or password, account not found with Sign up button via a flag SHOW_ACCOUNT_NOT_FOUND, locked, unconfirmed with resend, suspended, offline), password policy (min 8, upper, lower, number, special, no spaces, confirm password, live checklist and strength meter) in the UI and enforced on the server for signup, reset, change password; add a Change password screen.
+Tests: a repo test fails if any browser/system dialog API is used; password rule matrix; logout Cancel changes nothing; each login message appears. Run tsc, npm test (all earlier tests must pass), supabase test db, paste raw output.
+```
+
+### M27 — Lockout and sessions
+```
+Start Milestone 27. Follow AGENTS.md and docs/COURSE_REQUIREMENTS_V5_5.md sections 4 and 6. Baseline first. Additive, NEW migrations only.
+Database: login_attempts (RLS on, no client access) and user_sessions tables, RPCs start_session / heartbeat / end_session / list_my_sessions / end_other_sessions, admin RPC to unlock an account. Edge Function login-guard with actions check / failure / success (service role key only inside the function, never in the app): lock after 3 consecutive failures for 1 min, then 5, 15, 30, 60 min (cap), reset on success or after 24h; same behavior for unknown emails; a locked account cannot log in even with the correct password; double tap counts once. App: attempts-left hint, disabled button with live countdown that survives restart, idle timeout 30 min with "Your session expired due to inactivity", heartbeat throttled to 5 min, Active sessions screen (log out this device / other devices), suspended or deleted users signed out on next heartbeat.
+Tests per section 4 plus session lifecycle. Run tsc, npm test, supabase test db, paste raw output.
+```
+
+### M28 — Log trail (admin-only)
+```
+Start Milestone 28. Follow AGENTS.md and docs/COURSE_REQUIREMENTS_V5_5.md section 6A. Baseline first. Additive, NEW migrations only.
+First read-only: list which activities already write audit_events and which do not (every activity in section 6A). Then extend so every activity is logged by the database in the same transaction (use create or replace on the existing RPCs, keeping behavior), including failed logins (via login-guard), logins, logouts, session expiry, password changes, admin actions and viewing the log trail. Never store passwords, tokens or message text. Make the log append-only (trigger blocks update/delete), RLS denies direct client access, and add RPC get_log_trail(filters, page) that checks is_admin(). Screen app/admin/log-trail.tsx with search, filters (user, action, status, date range, entity), pagination, row detail and CSV export for admins; non-admins get "You don't have access" by URL or API.
+Tests: each activity creates exactly one row, failed login logged without actor, non-admin denied, update/delete blocked. Run tsc, npm test, supabase test db, paste raw output.
+```
+
+### M29 — Admin role, dashboard and User CRUD
+```
+Start Milestone 29. Follow AGENTS.md and docs/COURSE_REQUIREMENTS_V5_5.md section 5. Baseline first. Additive, NEW migrations only.
+Add platform_admins.role (admin | super_admin) and is_admin() / is_super_admin() functions (never user_metadata). Admin dashboard (all numbers from queries: total users, new users 7 days, active gigs, agreements in progress, completed, open reports, locked accounts, today's log events, latest activity) and links to existing admin tools. User Management: create user (Edge Function with service role, temporary password meeting the policy, must_change_password at first login), searchable filterable paginated list and detail, update (name, area, status active/suspended, reset lockout, send password reset, change admin role only by super_admin), soft delete (status deleted, anonymize personal fields, end sessions, block login, blocked while active agreements or payments awaiting confirmation, confirm by typing the email in the in-app dialog). Admin cannot suspend or delete themselves or the last super_admin. Every action is audited and toasts on success. Route guard for app/admin/*.
+Tests: non-admin denied on every admin RPC, last super_admin protected, soft delete keeps agreements and logs, deleted user cannot log in. Run tsc, npm test, supabase test db, paste raw output.
+```
+
+### M30 — Database structure document (IAS)
+```
+Start Milestone 30. Follow docs/COURSE_REQUIREMENTS_V5_5.md section 7. Read-only against the live database. Generate docs/DATABASE_STRUCTURE.md from the LIVE schema (queries on information_schema and pg_catalog, not from memory): every table with purpose, columns, types, constraints, primary and foreign keys, unique and check constraints, indexes, RLS policy summary, functions and buckets, plus a Mermaid erDiagram grouped by area with cardinalities, and a one-page script for demonstrating the relationships. Report any table without a primary key, any FK without an index, and any missing relationship, and propose fixes as new migrations for my approval. Do not change data.
+```
+
+### V3 — Checking-day verification (Oct 15-16)
+```
+Read-only first. Verify with real evidence (queries, app runs on two devices, raw output) and mark PASS / FAIL / NOT VERIFIED:
+1. Login: empty fields, wrong password (attempts left), unknown email, success toast then dashboard; show/hide password; loading indicator.
+2. Lockout: 3 wrong passwords lock for 1 min with countdown; correct password rejected during the lock; next lock is longer; success resets; survives app restart.
+3. Password policy and confirm password on signup, reset, change password and admin-created user (weak passwords rejected in UI and by a direct API call).
+4. Logout: confirmation dialog Yes / Cancel; cancel does nothing; yes ends the session and returns to Login; Back cannot return; works offline.
+5. No browser/system dialogs anywhere: click every button once on web and mobile; run the repo test.
+6. Sessions: login/logout rows, idle timeout, active sessions list, end other sessions.
+7. Log trail: perform one action of every type and show one log row each; non-admin cannot read it by UI, URL or API; rows cannot be edited or deleted.
+8. Admin: dashboard numbers match the database; User CRUD (create, read/search, update, suspend, soft delete) with in-app confirmations and audit rows; admin cannot delete self or last super_admin.
+9. Full transaction cycle on two devices (post gig -> apply -> accept -> milestones -> submit -> approve -> payment -> complete -> review), each step stored in its table and visible to the other role, with in-app toasts and notifications only.
+10. docs/DATABASE_STRUCTURE.md matches the live schema.
+Also run tsc, npm test, supabase test db and paste raw output. Then STOP and give me a prioritized fix list; fix only with new migrations after my approval.
+```
+
+
+### M31 — Delete a posted gig and notify applicants
+```
+Start Milestone 31. Follow AGENTS.md and docs/GIG_DELETE_V5_6.md and docs/RESILIENCE_V5_4.md section 0. FIRST read-only: show how cancel_gig, gigs RLS, applications, conversations and the Proposals/My gigs screens work today, and wait for my approval of the plan (files + one NEW migration). Baseline first (tsc, npm test, supabase test db, git tag).
+Implement additively: gigs.deleted_at/deleted_by/delete_reason, applications.status_reason + gig_title_snapshot, conversations.closed_at/closed_reason, RPC delete_gig(p_gig_id, p_reason, p_request_id) per section 2 (row lock, owner check, already_done, block when an agreement exists, decline pending applicants, one deduped gig_deleted notification each, close conversations with a system message, audit row), gig_unavailable error in submit_application and respond_to_*, hide deleted gigs from browse/search/counts/categories, applicant-readable closed proposal without opening gig RLS. App: Delete gig action with in-app ConfirmDialog variants (no applicants / N applicants / hired = disabled with reason), success toast with applicant count, "Gig deleted" badge in Proposals, read-only chat, friendly screen when opening a deleted gig, Apply screen handles gig_unavailable.
+Tests per section 5 including parallel calls. Run tsc, npm test (all earlier tests must pass), supabase test db and paste raw output. Then verify with two real accounts: applicant applies, client deletes, applicant gets the live notification and sees the closed proposal.
 ```

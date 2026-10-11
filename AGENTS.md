@@ -1,6 +1,6 @@
 # AGENTS.md — Gigormoc project rules
 
-Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig), `docs/RESILIENCE_V5_4.md` (toasts + notifications, error handling, login/logout, anti-spam, idempotency), `docs/UX_REAL_LOGIC.md` (every UI control must be real logic), `docs/PROFILE_AND_LOOP_V5_1.md` (profile, client details, categories, skills, photos, email, shared loop; it wins over older docs) and `docs/MILESTONES.md` (build order).
+Read this file first in every session. Then read `docs/GIGORMOC_SPEC.md` (full spec), `docs/DESIGN.md` (look and feel), `docs/ROLE_UX.md` (freelancer and client experiences), `docs/REAL_LOGIC_V5.md` (AI onboarding, notifications, messaging, Post gig), `docs/GIG_DELETE_V5_6.md` (deleting a gig: no applicants, pending applicants notified, hired = blocked), `docs/COURSE_REQUIREMENTS_V5_5.md` (course requirements: lockout, password policy, sessions, log trail, admin + user CRUD, in-app dialogs, DB structure doc), `docs/RESILIENCE_V5_4.md` (toasts + notifications, error handling, login/logout, anti-spam, idempotency), `docs/UX_REAL_LOGIC.md` (every UI control must be real logic), `docs/PROFILE_AND_LOOP_V5_1.md` (profile, client details, categories, skills, photos, email, shared loop; it wins over older docs) and `docs/MILESTONES.md` (build order).
 
 Gigormoc is a local freelance marketplace for Ormoc City, Philippines (18+ only). The developer is solo. Prefer a working, secure, simple product over extra features.
 
@@ -110,3 +110,14 @@ This project was started on an older version of this blueprint (Milestones 0-2 w
 - Every write goes through the shared `runOnce()/useAction()` wrapper (in-flight ref lock, disabled button, request_id). Every state-changing RPC is idempotent: row lock, state check, `already_done` result, optional `p_request_id` idempotency key, deduped notifications.
 - Every error goes through `AppError` + friendly messages. Login and logout have specific handling; logout always works offline and clears all user data, channels and caches.
 - Success is a toast for the actor (after the database confirms); the other person gets an in-app notification. No silent steps.
+
+## v5.5 rules (see `docs/COURSE_REQUIREMENTS_V5_5.md`)
+- Additive only: do not rewrite working code. Same safety steps as v5.4 (explore read-only, baseline, new migrations, regression tests).
+- No browser/system dialogs (`alert`, `confirm`, `prompt`, `window.*`, `Alert.alert` on web). Use the in-app `ConfirmDialog`, `Toast` and inline banners. A test enforces it.
+- Logout always asks "Are you sure you want to logout?" (Yes / Cancel) in-app.
+- Password: min 8, upper + lower + number + special, confirm password, enforced in UI and server. Lockout after 3 failures with escalating wait (1/5/15/30/60 min) kept in the database via the `login-guard` Edge Function (service role key only inside the function).
+- Admin = `platform_admins.role` (`admin` | `super_admin`), never a mode and never from `user_metadata`. Only admins can read the log trail (via `get_log_trail`); the log is append-only. Users are soft-deleted, never hard-deleted.
+- Demo/checking accounts are real accounts created through normal sign-up. Never hard-code or seed accounts.
+
+## v5.6 rule (see `docs/GIG_DELETE_V5_6.md`)
+- Gig deletion is a soft delete through `delete_gig` only. Allowed with no applicants, or with pending (`applied`/`countered`) applicants who are each notified once and see their proposal marked "Gig deleted"; blocked when a freelancer is hired or the gig is completed. Idempotent, row-locked, audited, in-app confirmation only.
