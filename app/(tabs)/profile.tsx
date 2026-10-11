@@ -275,7 +275,11 @@ export default function ProfileScreen() {
             <ListRow
               icon="create-outline"
               title="Edit profile"
-              subtitle="Name, photo, headline, bio, area, availability"
+              subtitle={
+                isHire
+                  ? 'Name, photo, bio, area, hiring details'
+                  : 'Name, photo, headline, bio, area, availability'
+              }
               onPress={goEdit}
             />
             {isHire ? (

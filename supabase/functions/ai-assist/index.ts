@@ -5,7 +5,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-const ALLOWED_TASKS = ['suggest_skills', 'draft_bio', 'polish_gig_description'] as const;
+const ALLOWED_TASKS = ['suggest_skills', 'suggest_categories', 'draft_bio', 'polish_gig_description'] as const;
 type TaskType = typeof ALLOWED_TASKS[number];
 
 // Bad words / phone / url sanitizers
@@ -150,6 +150,21 @@ Do not invent unrequested skills. Do not include phone numbers or prices. Return
 {"skills": ["Skill 1", "Skill 2"]}
 
 User work description: "${workDesc}"`;
+    } else if (task === 'suggest_categories') {
+      const helpDesc = sanitizeText(String(body.help_description || body.work_description || ''));
+      if (!helpDesc || helpDesc.length < 3) {
+        return new Response(JSON.stringify({ error: 'help_description is required (at least 3 characters).' }), {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
+
+      promptText = `You are a local freelance marketplace assistant in Ormoc City, Philippines.
+A client described the kind of work or help they usually hire for. Return a JSON object with a "categories" array containing between 3 and 6 concise, practical service category names (each 2 to 35 characters, e.g. "Home & Aircon Repair", "Tutoring & Lessons", "Errands & Delivery", "Graphic Design", "Cleaning & Household").
+Do not include phone numbers or prices. Return ONLY a valid JSON object matching this schema:
+{"categories": ["Category 1", "Category 2"]}
+
+Client description of what they need help with: "${helpDesc}"`;
     } else if (task === 'draft_bio') {
       const mode = String(body.mode || profile.active_mode || 'freelancer');
       const skills = Array.isArray(body.skills) ? body.skills.join(', ') : String(body.skills || '');
@@ -323,6 +338,23 @@ Current description: "${currentDesc}"`;
         .filter((s: string) => s.length >= 2 && s.length <= 40)
         .slice(0, 8);
       resultPayload = { skills: cleanedSkills };
+    } else if (task === 'suggest_categories') {
+      const rawArr = Array.isArray(parsed?.categories)
+        ? parsed.categories
+        : Array.isArray(parsed?.skills)
+        ? parsed.skills
+        : null;
+      if (!rawArr) {
+        return new Response(JSON.stringify({ error: 'AI response missing categories array.' }), {
+          status: 502,
+          headers: corsHeaders,
+        });
+      }
+      const cleanedCategories = rawArr
+        .map((c: any) => sanitizeText(String(c)))
+        .filter((c: string) => c.length >= 2 && c.length <= 40)
+        .slice(0, 6);
+      resultPayload = { categories: cleanedCategories };
     } else if (task === 'draft_bio') {
       if (!Array.isArray(parsed?.drafts)) {
         return new Response(JSON.stringify({ error: 'AI response missing drafts array.' }), {

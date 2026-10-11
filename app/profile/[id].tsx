@@ -86,7 +86,7 @@ export default function PublicProfileScreen() {
     );
   }
 
-  const { profile, skills, portfolioItems, completeness } = data;
+  const { profile, skills, portfolioItems, hiringInterests, gigsPostedCount, completeness } = data;
   const isHire = profile.active_mode === 'hire';
 
   const availabilityLabel = strings.profile.availabilityOptions.find(
@@ -130,9 +130,15 @@ export default function PublicProfileScreen() {
                 {completeness?.complete ? <ProfileCompleteBadge /> : null}
               </View>
 
-              {profile.headline ? (
+              {!isHire && profile.headline ? (
                 <Text style={[styles.headlineText, { color: theme.colors.text }]}>
                   {profile.headline}
+                </Text>
+              ) : null}
+
+              {isHire && profile.business_name ? (
+                <Text style={[styles.headlineText, { color: theme.colors.text }]}>
+                  {profile.business_name}
                 </Text>
               ) : null}
 
@@ -140,23 +146,45 @@ export default function PublicProfileScreen() {
                 <Text style={[styles.areaText, { color: theme.colors.muted }]}>📍 {profile.area}</Text>
               ) : null}
 
-              <View style={styles.metricsRow}>
-                <Text style={[styles.ratingText, { color: theme.colors.text }]}>
-                  Freelancer: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} (
-                  {profile.freelancer_rating_count || 0})
-                </Text>
-                <Text style={[styles.divider, { color: theme.colors.muted }]}>•</Text>
-                <Text style={[styles.completedText, { color: theme.colors.muted }]}>
-                  {profile.freelancer_completed_gigs || 0} gigs
-                </Text>
-              </View>
+              {isHire ? (
+                <>
+                  <View style={styles.metricsRow}>
+                    <Text style={[styles.ratingText, { color: theme.colors.text }]}>
+                      Client: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} (
+                      {profile.client_rating_count || 0})
+                    </Text>
+                    <Text style={[styles.divider, { color: theme.colors.muted }]}>•</Text>
+                    <Text style={[styles.completedText, { color: theme.colors.muted }]}>
+                      {gigsPostedCount || 0} gigs posted
+                    </Text>
+                  </View>
+                  <View style={styles.roleRatingsRow}>
+                    <Text style={[styles.roleRatingTag, { color: theme.colors.muted }]}>
+                      {profile.client_completed_gigs || 0} completed as client
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.metricsRow}>
+                    <Text style={[styles.ratingText, { color: theme.colors.text }]}>
+                      Freelancer: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} (
+                      {profile.freelancer_rating_count || 0})
+                    </Text>
+                    <Text style={[styles.divider, { color: theme.colors.muted }]}>•</Text>
+                    <Text style={[styles.completedText, { color: theme.colors.muted }]}>
+                      {profile.freelancer_completed_gigs || 0} gigs
+                    </Text>
+                  </View>
 
-              <View style={styles.roleRatingsRow}>
-                <Text style={[styles.roleRatingTag, { color: theme.colors.muted }]}>
-                  Client: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} (
-                  {profile.client_rating_count || 0}) • {profile.client_completed_gigs || 0} gigs
-                </Text>
-              </View>
+                  <View style={styles.roleRatingsRow}>
+                    <Text style={[styles.roleRatingTag, { color: theme.colors.muted }]}>
+                      Client: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} (
+                      {profile.client_rating_count || 0}) • {profile.client_completed_gigs || 0} gigs
+                    </Text>
+                  </View>
+                </>
+              )}
             </View>
           </View>
 
@@ -227,15 +255,53 @@ export default function PublicProfileScreen() {
               </Text>
             ) : null}
 
+            {isHire ? (
+              <Text style={[styles.detailItem, { color: theme.colors.muted }]}>
+                Gigs posted:{' '}
+                <Text style={{ color: theme.colors.text }}>{gigsPostedCount || 0}</Text>
+              </Text>
+            ) : null}
+
             {isHire && profile.about_hiring ? (
               <Text style={[styles.detailItem, { color: theme.colors.muted }]}>
-                Hiring focus: <Text style={{ color: theme.colors.text }}>{profile.about_hiring}</Text>
+                What we usually hire for:{' '}
+                <Text style={{ color: theme.colors.text }}>{profile.about_hiring}</Text>
               </Text>
             ) : null}
           </View>
         </View>
 
-        {/* Skills Section (shown for freelancers) */}
+        {/* Hiring Interests Section (shown for clients) */}
+        {isHire ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Hiring Interests
+            </Text>
+            {!hiringInterests || hiringInterests.length === 0 ? (
+              <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+                No hiring interests specified yet.
+              </Text>
+            ) : (
+              <View style={styles.skillsGrid}>
+                {hiringInterests.map((cat) => (
+                  <View
+                    key={cat.id}
+                    style={[
+                      styles.skillChip,
+                      { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+                    ]}
+                  >
+                    <Text style={[styles.skillChipText, { color: theme.colors.text }]}>
+                      {cat.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
+
+        {/* Skills Section (shown for freelancers only) */}
         {!isHire ? (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Skills</Text>

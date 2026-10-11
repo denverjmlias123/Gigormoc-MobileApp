@@ -1,5 +1,7 @@
 -- pgTAP tests for Milestone 16: Duplicate email safety net, profile completeness, update_profile_details, and avatar management
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap;
+SET LOCAL search_path = public, extensions, auth;
 SELECT plan(18);
 
 -- 1. Create two test users (Freelancer A and Client B)

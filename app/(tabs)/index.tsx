@@ -169,7 +169,9 @@ export default function HomeScreen() {
             >
               <Ionicons name="camera-outline" size={22} color={theme.colors.primary} />
               <Text style={[styles.bannerText, { color: theme.colors.text }]}>
-                Add a profile photo and skills so you can apply to gigs.
+                {isHire
+                  ? 'Add a profile photo and hiring details to complete your client profile.'
+                  : 'Add a profile photo and skills so you can apply to gigs.'}
               </Text>
               <Ionicons name="chevron-forward" size={18} color={theme.colors.primary} />
             </Pressable>

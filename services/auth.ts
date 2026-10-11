@@ -27,7 +27,7 @@ export interface Profile {
   availability: 'available_now' | 'part_time' | 'weekends' | 'not_taking_work' | null;
   experience_years: 'lt_1' | '1_3' | '3_5' | '5_plus' | null;
   starting_rate_note: string;
-  client_type: 'individual' | 'business' | 'organization' | null;
+  client_type: 'individual' | 'business' | 'organization' | 'other' | null;
   business_name: string;
   about_hiring: string;
   active_mode: 'find_work' | 'hire' | null;

@@ -23,10 +23,13 @@ import {
 import {
   profileService,
   Area,
+  Category,
   ProfileCompleteness,
   CompletenessMissingItem,
 } from '../../services/profile';
 import { strings } from '../../constants/strings';
+
+const MAX_HIRING_INTERESTS = 8;
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -63,10 +66,15 @@ export default function EditProfileScreen() {
 
   // Client extras
   const [clientType, setClientType] = useState<
-    'individual' | 'business' | 'organization' | ''
+    'individual' | 'business' | 'organization' | 'other' | ''
   >(profile?.client_type || '');
   const [businessName, setBusinessName] = useState(profile?.business_name || '');
   const [aboutHiring, setAboutHiring] = useState(profile?.about_hiring || '');
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [initialCategoryIds, setInitialCategoryIds] = useState<string[]>([]);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
 
   // Reference data & completeness
   const [areasList, setAreasList] = useState<Area[]>([]);
@@ -85,16 +93,23 @@ export default function EditProfileScreen() {
   const headlineInputRef = useRef<TextInput>(null);
   const bioInputRef = useRef<TextInput>(null);
   const areaInputRef = useRef<TextInput>(null);
+  const customCategoryInputRef = useRef<TextInput>(null);
 
   const loadData = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const [areasRes, compRes, privatePhone] = await Promise.all([
+      const [areasRes, catsRes, userInterests, compRes, privatePhone] = await Promise.all([
         profileService.getAreas().catch(() => []),
+        profileService.getCategories().catch(() => []),
+        profileService.getUserHiringInterests(user.id).catch(() => []),
         profileService.getProfileCompleteness(user.id).catch(() => null),
         profileService.getOwnPrivatePhone(user.id).catch(() => ''),
       ]);
       setAreasList(areasRes);
+      setCategoriesList(catsRes);
+      const interestIds = userInterests.map((c) => c.id);
+      setSelectedCategoryIds(interestIds);
+      setInitialCategoryIds(interestIds);
       setCompleteness(compRes);
       setPhone(privatePhone);
       setInitialPhone(privatePhone);
@@ -115,6 +130,7 @@ export default function EditProfileScreen() {
       else if (params.focus === 'headline') headlineInputRef.current?.focus();
       else if (params.focus === 'bio') bioInputRef.current?.focus();
       else if (params.focus === 'area') areaInputRef.current?.focus();
+      else if (params.focus === 'hiring_interests') customCategoryInputRef.current?.focus();
     }, 250);
     return () => clearTimeout(timer);
   }, [params.focus]);
@@ -133,7 +149,9 @@ export default function EditProfileScreen() {
     startingRateNote !== (profile?.starting_rate_note || '') ||
     clientType !== (profile?.client_type || '') ||
     businessName !== (profile?.business_name || '') ||
-    aboutHiring !== (profile?.about_hiring || '');
+    aboutHiring !== (profile?.about_hiring || '') ||
+    JSON.stringify(selectedCategoryIds) !== JSON.stringify(initialCategoryIds) ||
+    customCategories.length > 0;
 
   const navigateBack = () => {
     if (router.canGoBack()) {
@@ -176,6 +194,50 @@ export default function EditProfileScreen() {
     setWorkTypes((prev) =>
       prev.includes(wt) ? prev.filter((item) => item !== wt) : [...prev, wt]
     );
+  };
+
+  const totalSelectedInterests = selectedCategoryIds.length + customCategories.length;
+
+  const toggleHiringCategory = (id: string) => {
+    setError(null);
+    if (selectedCategoryIds.includes(id)) {
+      setSelectedCategoryIds((prev) => prev.filter((c) => c !== id));
+      return;
+    }
+    if (totalSelectedInterests >= MAX_HIRING_INTERESTS) {
+      setError(`You can select at most ${MAX_HIRING_INTERESTS} hiring interests.`);
+      return;
+    }
+    setSelectedCategoryIds((prev) => [...prev, id]);
+  };
+
+  const handleAddCustomCategory = () => {
+    const trimmed = customCategoryInput.trim();
+    if (!trimmed) return;
+    if (trimmed.length < 2 || trimmed.length > 50) {
+      setError('Category name must be between 2 and 50 characters.');
+      return;
+    }
+    if (totalSelectedInterests >= MAX_HIRING_INTERESTS) {
+      setError(`You can select at most ${MAX_HIRING_INTERESTS} hiring interests.`);
+      return;
+    }
+    const existingCat = categoriesList.find(
+      (c) => c.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existingCat) {
+      if (!selectedCategoryIds.includes(existingCat.id)) {
+        setSelectedCategoryIds((prev) => [...prev, existingCat.id]);
+      }
+    } else if (!customCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      setCustomCategories((prev) => [...prev, trimmed]);
+    }
+    setCustomCategoryInput('');
+    setError(null);
+  };
+
+  const removeCustomCategory = (name: string) => {
+    setCustomCategories((prev) => prev.filter((c) => c !== name));
   };
 
   const handlePickAvatar = async (source: 'library' | 'camera') => {
@@ -223,6 +285,7 @@ export default function EditProfileScreen() {
     else if (item.key === 'headline') headlineInputRef.current?.focus();
     else if (item.key === 'bio') bioInputRef.current?.focus();
     else if (item.key === 'area') areaInputRef.current?.focus();
+    else if (item.key === 'hiring_interests') customCategoryInputRef.current?.focus();
     else if (item.key === 'photo') handlePickAvatar('library');
   };
 
@@ -232,7 +295,7 @@ export default function EditProfileScreen() {
     if (trimmedName.length < 2 || trimmedName.length > 50) {
       errs.displayName = 'Display name must be between 2 and 50 characters.';
     }
-    if (headline.trim().length > 80) {
+    if (!isHire && headline.trim().length > 80) {
       errs.headline = 'Headline must be 80 characters or fewer.';
     }
     const trimmedBio = bio.trim();
@@ -248,14 +311,18 @@ export default function EditProfileScreen() {
     if (phone.trim().length > 0 && !/^[0-9+() -]{7,20}$/.test(phone.trim())) {
       errs.phone = 'Enter a valid phone number (7 to 20 digits) or leave blank.';
     }
-    if (startingRateNote.trim().length > 120) {
+    if (!isHire && startingRateNote.trim().length > 120) {
       errs.startingRateNote = 'Starting rate note must be 120 characters or fewer.';
     }
-    if (businessName.trim().length > 80) {
-      errs.businessName = 'Business name must be 80 characters or fewer.';
+    const trimmedBiz = businessName.trim();
+    if (isHire && trimmedBiz.length > 0 && (trimmedBiz.length < 2 || trimmedBiz.length > 60)) {
+      errs.businessName = 'Business or organization name must be between 2 and 60 characters.';
     }
-    if (aboutHiring.trim().length > 300) {
+    if (isHire && aboutHiring.trim().length > 300) {
       errs.aboutHiring = 'About hiring note must be 300 characters or fewer.';
+    }
+    if (isHire && totalSelectedInterests > MAX_HIRING_INTERESTS) {
+      errs.hiringInterests = `You can select at most ${MAX_HIRING_INTERESTS} hiring interests.`;
     }
 
     setFieldErrors(errs);
@@ -291,10 +358,20 @@ export default function EditProfileScreen() {
         aboutHiring: aboutHiring.trim(),
       });
 
+      if (isHire) {
+        await profileService.saveHiringDetails({
+          clientType: clientType || null,
+          businessName: businessName.trim(),
+          aboutHiring: aboutHiring.trim(),
+          categoryIds: selectedCategoryIds,
+          customCategoryNames: customCategories,
+        });
+      }
+
       setInitialPhone(phone.trim());
+      setCustomCategories([]);
       await refreshProfile();
-      const comp = await profileService.getProfileCompleteness(user.id).catch(() => null);
-      setCompleteness(comp);
+      await loadData();
       setSuccessMsg('Profile details saved.');
     } catch (err: any) {
       setError(err?.message || 'Failed to update profile.');
@@ -471,32 +548,34 @@ export default function EditProfileScreen() {
           ) : null}
         </View>
 
-        {/* Headline */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Headline (up to 80 characters)
-          </Text>
-          <TextInput
-            ref={headlineInputRef}
-            style={[
-              styles.input,
-              {
-                borderColor: fieldErrors.headline ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={headline}
-            onChangeText={setHeadline}
-            placeholder="e.g. Phone repair and tutoring in Cogon"
-            placeholderTextColor={theme.colors.muted}
-            maxLength={80}
-          />
-          {fieldErrors.headline ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.headline}
+        {/* Headline (Freelancer only) */}
+        {!isHire ? (
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              Headline (up to 80 characters)
             </Text>
-          ) : null}
-        </View>
+            <TextInput
+              ref={headlineInputRef}
+              style={[
+                styles.input,
+                {
+                  borderColor: fieldErrors.headline ? theme.colors.danger : theme.colors.border,
+                  color: theme.colors.text,
+                },
+              ]}
+              value={headline}
+              onChangeText={setHeadline}
+              placeholder="e.g. Phone repair and tutoring in Cogon"
+              placeholderTextColor={theme.colors.muted}
+              maxLength={80}
+            />
+            {fieldErrors.headline ? (
+              <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+                {fieldErrors.headline}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Bio */}
         <View style={styles.inputGroup}>
@@ -880,7 +959,7 @@ export default function EditProfileScreen() {
             {/* Business Name */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Business or Organization Name (Optional)
+                Business or Organization Name (Optional, 2–60 characters)
               </Text>
               <TextInput
                 style={[
@@ -896,11 +975,122 @@ export default function EditProfileScreen() {
                 onChangeText={setBusinessName}
                 placeholder="e.g. Ormoc Print Shop"
                 placeholderTextColor={theme.colors.muted}
-                maxLength={80}
+                maxLength={60}
               />
               {fieldErrors.businessName ? (
                 <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
                   {fieldErrors.businessName}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Hiring Interests (up to 8 categories) */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS})
+              </Text>
+              <Text style={[styles.helperText, { color: theme.colors.muted, marginBottom: 8 }]}>
+                Select up to {MAX_HIRING_INTERESTS} categories of work you usually hire for.
+              </Text>
+
+              {categoriesList.length > 0 ? (
+                <View style={styles.chipsWrap}>
+                  {categoriesList.map((cat) => {
+                    const selected = selectedCategoryIds.includes(cat.id);
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          styles.chip,
+                          {
+                            borderColor: selected ? theme.colors.primary : theme.colors.border,
+                            backgroundColor: selected
+                              ? theme.colors.primarySoft
+                              : theme.colors.surface,
+                          },
+                        ]}
+                        onPress={() => toggleHiringCategory(cat.id)}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? theme.colors.primary : theme.colors.text,
+                            fontWeight: selected ? '700' : '500',
+                            fontSize: 13,
+                          }}
+                        >
+                          {selected ? '✓ ' : ''}
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                <TextInput
+                  ref={customCategoryInputRef}
+                  style={[
+                    styles.input,
+                    {
+                      flex: 1,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
+                  value={customCategoryInput}
+                  onChangeText={setCustomCategoryInput}
+                  placeholder={strings.onboarding.addCustomCategoryPlaceholder}
+                  placeholderTextColor={theme.colors.muted}
+                  maxLength={50}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.photoBtn,
+                    { backgroundColor: theme.colors.primary, paddingHorizontal: 16 },
+                  ]}
+                  onPress={handleAddCustomCategory}
+                >
+                  <Text style={styles.photoBtnText}>Add</Text>
+                </TouchableOpacity>
+              </View>
+
+              {customCategories.length > 0 ? (
+                <View style={[styles.chipsWrap, { marginTop: 10 }]}>
+                  {customCategories.map((catName) => (
+                    <View
+                      key={catName}
+                      style={[
+                        styles.chip,
+                        {
+                          borderColor: theme.colors.primary,
+                          backgroundColor: theme.colors.primarySoft,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.primary,
+                          fontWeight: '700',
+                          fontSize: 13,
+                        }}
+                      >
+                        {catName}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeCustomCategory(catName)}>
+                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {fieldErrors.hiringInterests ? (
+                <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+                  {fieldErrors.hiringInterests}
                 </Text>
               ) : null}
             </View>

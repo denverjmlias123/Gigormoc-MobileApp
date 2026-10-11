@@ -4,6 +4,10 @@ export interface SuggestSkillsResponse {
   skills: string[];
 }
 
+export interface SuggestCategoriesResponse {
+  categories: string[];
+}
+
 export interface DraftBioResponse {
   drafts: string[];
 }
@@ -14,7 +18,7 @@ export interface PolishDescriptionResponse {
 
 export const aiService = {
   /**
-   * Request AI skill suggestions based on free-form work description.
+   * Request AI skill suggestions based on free-form work description (Freelancer).
    * Calls Edge Function 'ai-assist' with task 'suggest_skills'.
    */
   async suggestSkills(workDescription: string): Promise<string[]> {
@@ -47,6 +51,42 @@ export const aiService = {
     }
 
     return data?.skills || [];
+  },
+
+  /**
+   * Request AI category suggestions based on what a client usually needs help with.
+   * Calls Edge Function 'ai-assist' with task 'suggest_categories'.
+   */
+  async suggestCategories(helpDescription: string): Promise<string[]> {
+    const trimmed = helpDescription.trim();
+    if (!trimmed) {
+      throw new Error('Please describe the help you usually need.');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated.');
+    }
+
+    const { data, error } = await supabase.functions.invoke<SuggestCategoriesResponse>('ai-assist', {
+      body: {
+        task: 'suggest_categories',
+        help_description: trimmed,
+      },
+    });
+
+    if (error) {
+      let msg = error.message;
+      try {
+        if ((error as any).context?.json) {
+          const bodyJson = await (error as any).context.json();
+          if (bodyJson?.error) msg = bodyJson.error;
+        }
+      } catch {}
+      throw new Error(msg || 'Could not fetch category suggestions.');
+    }
+
+    return data?.categories || [];
   },
 
   /**

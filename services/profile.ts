@@ -77,15 +77,33 @@ export interface UpdateProfileDetailsParams {
   availability?: 'available_now' | 'part_time' | 'weekends' | 'not_taking_work' | '' | null;
   experienceYears?: 'lt_1' | '1_3' | '3_5' | '5_plus' | '' | null;
   startingRateNote?: string;
-  clientType?: 'individual' | 'business' | 'organization' | '' | null;
+  clientType?: 'individual' | 'business' | 'organization' | 'other' | '' | null;
   businessName?: string;
   aboutHiring?: string;
+}
+
+export interface SaveHiringDetailsParams {
+  clientType?: 'individual' | 'business' | 'organization' | 'other' | '' | null;
+  businessName?: string;
+  aboutHiring?: string;
+  categoryIds?: string[];
+  customCategoryNames?: string[];
+}
+
+export interface SaveHiringDetailsResult {
+  profile_id: string;
+  client_type: 'individual' | 'business' | 'organization' | 'other' | null;
+  business_name: string;
+  about_hiring: string;
+  hiring_interests: Category[];
 }
 
 export interface PublicProfileData {
   profile: Profile;
   skills: Skill[];
   portfolioItems: PortfolioItem[];
+  hiringInterests: Category[];
+  gigsPostedCount: number;
   completeness?: ProfileCompleteness | null;
 }
 
@@ -288,25 +306,66 @@ export const profileService = {
     return list;
   },
 
-  async addUserSkill(profileId: string, skillId: string): Promise<void> {
-    const { error } = await supabase
-      .from('profile_skills')
-      .insert({
-        profile_id: profileId,
-        skill_id: skillId,
-      });
+  async addUserSkill(_profileId: string, skillId: string): Promise<void> {
+    await profileService.addProfileSkills([skillId], []);
+  },
+
+  async removeUserSkill(_profileId: string, skillId: string): Promise<void> {
+    const { error } = await supabase.rpc('remove_profile_skill', {
+      p_skill_id: skillId,
+    });
 
     if (error) throw error;
   },
 
-  async removeUserSkill(profileId: string, skillId: string): Promise<void> {
-    const { error } = await supabase
-      .from('profile_skills')
-      .delete()
-      .eq('profile_id', profileId)
-      .eq('skill_id', skillId);
+  async getUserHiringInterests(profileId: string): Promise<Category[]> {
+    const { data, error } = await supabase
+      .from('profile_hiring_interests')
+      .select(`
+        category_id,
+        categories (
+          id,
+          name,
+          slug,
+          is_active,
+          created_at
+        )
+      `)
+      .eq('profile_id', profileId);
 
     if (error) throw error;
+
+    const list: Category[] = [];
+    (data || []).forEach((row: any) => {
+      if (row.categories) {
+        list.push(row.categories as Category);
+      }
+    });
+    return list;
+  },
+
+  async saveHiringDetails(params: SaveHiringDetailsParams): Promise<SaveHiringDetailsResult> {
+    const { data, error } = await supabase.rpc('save_hiring_details', {
+      p_client_type: params.clientType ?? null,
+      p_business_name: params.businessName ?? null,
+      p_about_hiring: params.aboutHiring ?? null,
+      p_category_ids: params.categoryIds ?? null,
+      p_custom_category_names: params.customCategoryNames ?? null,
+    });
+
+    if (error) throw error;
+    return data as SaveHiringDetailsResult;
+  },
+
+  async getClientPostedGigsCount(profileId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('gigs')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', profileId)
+      .neq('status', 'draft');
+
+    if (error) return 0;
+    return count || 0;
   },
 
   async getPortfolioItems(profileId: string): Promise<PortfolioItem[]> {
@@ -571,16 +630,23 @@ export const profileService = {
 
     if (profileError || !profileData) return null;
 
-    const [skills, portfolioItems, completeness] = await Promise.all([
-      profileService.getUserSkills(profileId).catch(() => []),
-      profileService.getPortfolioItems(profileId).catch(() => []),
-      profileService.getProfileCompleteness(profileId).catch(() => null),
-    ]);
+    const isHire = profileData.active_mode === 'hire';
+
+    const [skills, portfolioItems, hiringInterests, gigsPostedCount, completeness] =
+      await Promise.all([
+        isHire ? Promise.resolve([]) : profileService.getUserSkills(profileId).catch(() => []),
+        isHire ? Promise.resolve([]) : profileService.getPortfolioItems(profileId).catch(() => []),
+        profileService.getUserHiringInterests(profileId).catch(() => []),
+        profileService.getClientPostedGigsCount(profileId).catch(() => 0),
+        profileService.getProfileCompleteness(profileId).catch(() => null),
+      ]);
 
     return {
       profile: profileData as Profile,
       skills,
       portfolioItems,
+      hiringInterests,
+      gigsPostedCount,
       completeness,
     };
   },
