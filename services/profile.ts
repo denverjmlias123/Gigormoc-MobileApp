@@ -699,22 +699,23 @@ export const profileService = {
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select(
-        'id, display_name, headline, bio, avatar_path, area, preferred_contact, languages, work_types, availability, experience_years, starting_rate_note, client_type, business_name, about_hiring, active_mode, mode_changed_at, onboarding_complete, freelancer_rating_avg, freelancer_rating_count, client_rating_avg, client_rating_count, freelancer_completed_gigs, client_completed_gigs, rating_avg, rating_count, completed_gigs, status, created_at'
+        'id, display_name, headline, bio, avatar_path, area, preferred_contact, languages, work_types, availability, experience_years, starting_rate_note, client_type, business_name, about_hiring, active_mode, mode_changed_at, onboarding_complete, freelancer_rating_avg, freelancer_rating_count, client_rating_avg, client_rating_count, freelancer_completed_gigs, client_completed_gigs, status, created_at'
       )
       .eq('id', profileId)
       .maybeSingle();
 
-    if (profileError || !profileData) return null;
+    if (profileError) throw profileError;
+    if (!profileData) return null;
 
     const isHire = profileData.active_mode === 'hire';
 
     const [skills, portfolioItems, hiringInterests, gigsPostedCount, completeness] =
       await Promise.all([
-        isHire ? Promise.resolve([]) : profileService.getUserSkills(profileId).catch(() => []),
-        isHire ? Promise.resolve([]) : profileService.getPortfolioItems(profileId).catch(() => []),
-        profileService.getUserHiringInterests(profileId).catch(() => []),
-        profileService.getClientPostedGigsCount(profileId).catch(() => 0),
-        profileService.getProfileCompleteness(profileId).catch(() => null),
+        isHire ? Promise.resolve([]) : profileService.getUserSkills(profileId),
+        isHire ? Promise.resolve([]) : profileService.getPortfolioItems(profileId),
+        profileService.getUserHiringInterests(profileId),
+        profileService.getClientPostedGigsCount(profileId),
+        profileService.getProfileCompleteness(profileId),
       ]);
 
     return {

@@ -25,6 +25,7 @@ export default function PublicProfileScreen() {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -35,7 +36,7 @@ export default function PublicProfileScreen() {
       try {
         const [res, revList] = await Promise.all([
           profileService.getPublicProfile(id),
-          reviewsService.getUserReviews(id).catch(() => []),
+          reviewsService.getUserReviews(id),
         ]);
         if (mounted) {
           if (!res) {
@@ -56,7 +57,7 @@ export default function PublicProfileScreen() {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, loadAttempt]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -79,6 +80,11 @@ export default function PublicProfileScreen() {
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
         <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Unable to load profile</Text>
         <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'Profile not found.'}</Text>
+        {error ? (
+          <TouchableOpacity style={styles.backBtn} onPress={() => setLoadAttempt((attempt) => attempt + 1)}>
+            <Text style={{ color: theme.colors.primary, fontSize: 16 }}>{strings.common.retry}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
           <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Go back</Text>
         </TouchableOpacity>

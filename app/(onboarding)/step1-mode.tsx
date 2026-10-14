@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
+import { confirmDialog } from '../../lib/dialog';
+import { runConfirmedLogout } from '../../utils/confirmedLogout';
 
 type ModeChoice = 'find_work' | 'hire';
 
@@ -20,12 +22,23 @@ export default function OnboardingStep1ModeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const handleSignOut = async () => {
-    setLoading(true);
+    if (loading) return;
     try {
-      await signOut();
+      const confirmed = await runConfirmedLogout({
+      requestConfirmation: () => confirmDialog({
+          title: strings.auth.logoutConfirmTitle,
+          message: strings.auth.logoutConfirmMessage,
+          confirmText: strings.auth.logoutConfirmYes,
+          cancelText: strings.common.cancel,
+          destructive: true,
+        }),
+        signOut,
+        onConfirmed: () => setLoading(true),
+      });
+      if (!confirmed) return;
       router.replace('/(auth)/login');
     } catch {
-      router.replace('/(auth)/welcome');
+      router.replace('/(auth)/login');
     } finally {
       setLoading(false);
     }

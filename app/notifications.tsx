@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,15 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from './theme';
 import { useAuth } from '../hooks/useAuth';
 import { notificationsService, NotificationItem } from '../services/notifications';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
+import { showToast } from '../components/ui/Toast';
+import { strings } from '../constants/strings';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -39,24 +41,35 @@ export default function NotificationsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadNotifications();
-
-    if (user?.id) {
-      const unsubscribe = notificationsService.subscribeToNotifications(user.id, (newNotif) => {
-        setNotifications((prev) => [newNotif, ...prev]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadNotifications();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, (changedNotification, eventType) => {
+        setNotifications((prev) => {
+          if (eventType === 'INSERT') {
+            return [changedNotification, ...prev.filter((item) => item.id !== changedNotification.id)].slice(0, 50);
+          }
+          return prev.map((item) => item.id === changedNotification.id ? changedNotification : item);
+        });
       });
-      return unsubscribe;
-    }
-  }, [user?.id, loadNotifications]);
+    }, [user?.id, loadNotifications])
+  );
 
   const handleNotificationPress = async (item: NotificationItem) => {
     if (!item.read_at) {
-      // Optimistic mark read
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n))
-      );
-      notificationsService.markAsRead(item.id).catch(() => {});
+      try {
+        const marked = await notificationsService.markAsRead(item.id);
+        if (marked) {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n))
+          );
+        } else {
+          await loadNotifications();
+        }
+      } catch {
+        showToast(strings.errors.notificationReadFailed, 'error');
+      }
     }
 
     const agreementId =

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { Badge } from './Badge';
+import { strings } from '../../constants/strings';
 
 export interface GigSummary {
   id: string;
@@ -25,6 +26,8 @@ export interface GigSummary {
 interface GigCardProps {
   gig: GigSummary;
   onPress: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
 }
 
 export const formatPrice = (centavos: number): string => {
@@ -51,7 +54,7 @@ const workTypeMeta: Record<string, { label: string; icon: React.ComponentProps<t
   hybrid: { label: 'Hybrid', icon: 'swap-horizontal-outline' },
 };
 
-export const GigCard: React.FC<GigCardProps> = ({ gig, onPress }) => {
+export const GigCard: React.FC<GigCardProps> = ({ gig, onPress, onDelete, deleting = false }) => {
   const theme = useAppTheme();
   const c = theme.colors;
 
@@ -70,15 +73,9 @@ export const GigCard: React.FC<GigCardProps> = ({ gig, onPress }) => {
   const showStatus = theme.isClient || gig.status.toLowerCase() !== 'open';
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        theme.shadow.card,
-        {
-          backgroundColor: pressed ? c.surfaceAlt : c.surface,
-          borderRadius: theme.radii.card,
-        },
-      ]}
+    <View style={[styles.card, theme.shadow.card, { backgroundColor: c.surface, borderRadius: theme.radii.card }]}>
+      <Pressable
+      style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${gig.title}, ${priceDisplay}`}
@@ -125,12 +122,27 @@ export const GigCard: React.FC<GigCardProps> = ({ gig, onPress }) => {
           </View>
         ) : null}
       </View>
-    </Pressable>
+      </Pressable>
+      {onDelete ? (
+        <Pressable
+          onPress={onDelete}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${gig.title}`}
+          style={[styles.deleteButton, { borderTopColor: c.border }]}
+        >
+          <Ionicons name="trash-outline" size={16} color={c.danger} />
+          <Text style={[styles.deleteText, { color: c.danger }]}>{deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: { padding: 16, marginBottom: 12 },
+  deleteButton: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  deleteText: { fontSize: 13, fontWeight: '700' },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   categoryBadge: { paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { fontSize: 12, fontWeight: '700' },

@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { strings } from '../constants/strings';
+import * as passwordPolicy from '../utils/passwordPolicy';
+import * as Linking from 'expo-linking';
+import { sessionService } from './sessions';
 
 export interface SignUpParams {
   email: string;
@@ -39,10 +42,8 @@ export interface Profile {
   client_rating_count: number;
   freelancer_completed_gigs: number;
   client_completed_gigs: number;
-  rating_avg: number;
-  rating_count: number;
-  completed_gigs: number;
-  status: 'active' | 'suspended' | 'deactivated';
+  status: 'active' | 'suspended' | 'deactivated' | 'deleted';
+  must_change_password: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -105,8 +106,30 @@ let signUpInFlight = false;
 let signInInFlight: Promise<any> | null = null;
 let signOutInFlight: Promise<void> | null = null;
 let resetPasswordInFlight = false;
+let updatePasswordInFlight = false;
 let resendConfirmationInFlight = false;
 let lastResendConfirmationAt = 0;
+
+type LoginGuardResult = { locked?: boolean; seconds_left?: number; attempts_left?: number };
+
+async function callLoginGuard(action: 'check' | 'failure' | 'success', email: string): Promise<LoginGuardResult> {
+  const { data, error } = await supabase.functions.invoke('login-guard', { body: { action, email } });
+  if (error) throw error;
+  if (data?.error) {
+    const guardError: any = new Error(strings.errors.generic);
+    guardError.code = data.error;
+    throw guardError;
+  }
+  return data ?? {};
+}
+
+function createLockedError(result: LoginGuardResult): Error & Record<string, unknown> {
+  const error: any = new Error('Too many failed login attempts.');
+  error.code = 'ACCOUNT_LOCKED';
+  error.seconds_left = Math.max(0, Number(result.seconds_left) || 0);
+  error.attempts_left = 0;
+  return error;
+}
 
 export const RESEND_CONFIRMATION_COOLDOWN_SECONDS = 60;
 
@@ -114,6 +137,25 @@ export const authService = {
   normalizeEmail,
   validateEmailInput,
   isDuplicateEmailAuthResult,
+  validatePassword: passwordPolicy.validatePassword,
+  validatePasswordConfirmation: passwordPolicy.validatePasswordConfirmation,
+
+  async getLoginGuardState(email: string): Promise<LoginGuardResult> {
+    const normalizedEmail = normalizeEmail(email);
+    const validation = validateEmailInput(normalizedEmail);
+    if (!validation.valid) return { locked: false, attempts_left: 3, seconds_left: 0 };
+    return callLoginGuard('check', normalizedEmail);
+  },
+
+  assertPasswordPolicy(password: string, email = '', displayName = '') {
+    const result = passwordPolicy.validatePassword(password, email, displayName);
+    if (!result.valid) {
+      const policyErr: any = new Error(strings.auth.passwordInvalid);
+      policyErr.code = 'WEAK_PASSWORD';
+      policyErr.failedRules = result.failed;
+      throw policyErr;
+    }
+  },
 
   async signUp({ email, password, displayName, dob, termsVersion = 'v1.0' }: SignUpParams) {
     if (signUpInFlight) {
@@ -130,6 +172,8 @@ export const authService = {
       invalidErr.field = 'email';
       throw invalidErr;
     }
+
+    this.assertPasswordPolicy(password, normalizedEmail, displayName);
 
     signUpInFlight = true;
     try {
@@ -178,11 +222,10 @@ export const authService = {
 
     signInInFlight = (async () => {
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+        const gate = await callLoginGuard('check', normalizedEmail);
+        if (gate.locked) throw createLockedError(gate);
 
+        const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (error) {
           const lower = String(error.message || '').toLowerCase();
           if (lower.includes('email not confirmed') || (error as any).code === 'email_not_confirmed') {
@@ -192,13 +235,28 @@ export const authService = {
             throw unconfErr;
           }
           if (lower.includes('invalid login credentials') || (error as any).code === 'invalid_credentials') {
-            const credErr: any = new Error(strings.errors.wrongCredentials);
-            credErr.code = 'INVALID_CREDENTIALS';
-            throw credErr;
+            const failure: any = new Error(strings.errors.wrongCredentials);
+            failure.code = 'INVALID_CREDENTIALS';
+            try {
+              const result = await callLoginGuard('failure', normalizedEmail);
+              if (result.locked) throw createLockedError(result);
+              failure.attempts_left = result.attempts_left;
+            } catch (guardError: any) {
+              if (guardError?.code === 'ACCOUNT_LOCKED') throw guardError;
+              // Preserve the generic credential error when recording an attempt is unavailable.
+            }
+            throw failure;
           }
           throw error;
         }
 
+        try {
+          await callLoginGuard('success', normalizedEmail);
+          await sessionService.startSession();
+        } catch (sessionError) {
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+          throw sessionError;
+        }
         return data;
       } finally {
         signInInFlight = null;
@@ -214,6 +272,17 @@ export const authService = {
     }
 
     signOutInFlight = (async () => {
+      // Start audit writes before clearing the local token. They are best-effort so an offline
+      // device still exits immediately and clears its session and private cache.
+      void (async () => {
+        const currentSessionId = await sessionService.getCurrentSessionId();
+        if (!currentSessionId) return;
+        if (options?.scope === 'global') {
+          await sessionService.endOtherSessions(currentSessionId);
+        }
+        await sessionService.endCurrentSession(options?.scope === 'global' ? 'revoked' : 'logout', currentSessionId);
+      })().catch(() => undefined);
+
       try {
         // 1. Always clear local session first so logout works even when offline
         try {
@@ -253,7 +322,9 @@ export const authService = {
 
     resetPasswordInFlight = true;
     try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+      const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: Linking.createURL('reset-password'),
+      });
       if (error) {
         throw error;
       }
@@ -261,6 +332,38 @@ export const authService = {
     } finally {
       resetPasswordInFlight = false;
     }
+  },
+
+  async updatePassword({
+    password,
+    currentPassword,
+    nonce,
+    email = '',
+    displayName = '',
+  }: { password: string; currentPassword?: string; nonce?: string; email?: string; displayName?: string }) {
+    if (updatePasswordInFlight) {
+      const busyErr: any = new Error('Password update is already in progress.');
+      busyErr.code = 'PASSWORD_UPDATE_IN_PROGRESS';
+      throw busyErr;
+    }
+    this.assertPasswordPolicy(password, email, displayName);
+    updatePasswordInFlight = true;
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password,
+        ...(currentPassword ? { current_password: currentPassword } : {}),
+        ...(nonce ? { nonce } : {}),
+      });
+      if (error) throw error;
+      return data;
+    } finally {
+      updatePasswordInFlight = false;
+    }
+  },
+
+  async requestPasswordReauthentication() {
+    const { error } = await supabase.auth.reauthenticate();
+    if (error) throw error;
   },
 
   async resendConfirmationEmail(email: string) {

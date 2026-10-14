@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -21,6 +21,7 @@ import { milestonesService } from '../../services/milestones';
 import { paymentsService } from '../../services/payments';
 import { reviewsService } from '../../services/reviews';
 import { chatService } from '../../services/chat';
+import { notificationsService } from '../../services/notifications';
 import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -87,16 +88,13 @@ export default function ActivityScreen() {
 
         // Fetch applicant counts for each client gig from DB so the Next step banner is accurate
         const countsMap: Record<string, number> = {};
+        const openGigs = gigs.filter((gig) => gig.status === 'open');
         await Promise.all(
-          gigs.map(async (g) => {
-            try {
-              const apps = await applicationsService.getGigApplicants(g.id);
-              countsMap[g.id] = apps.filter(
-                (a) => a.status === 'applied' || a.status === 'countered'
-              ).length;
-            } catch {
-              countsMap[g.id] = 0;
-            }
+          openGigs.map(async (g) => {
+            const apps = await applicationsService.getGigApplicants(g.id);
+            countsMap[g.id] = apps.filter(
+              (a) => a.status === 'applied' || a.status === 'countered'
+            ).length;
           })
         );
         setGigApplicantCounts(countsMap);
@@ -110,40 +108,24 @@ export default function ActivityScreen() {
       const loopMap: Record<string, LoopStageState> = {};
       await Promise.all(
         agrs.map(async (agr) => {
-          try {
-            const [mls, pays, revs] = await Promise.all([
-              milestonesService.getAgreementMilestones(agr.id).catch(() => []),
-              paymentsService.getAgreementPayments(agr.id).catch(() => []),
-              reviewsService.getAgreementReviews(agr.id).catch(() => []),
-            ]);
-            const agrRole: 'client' | 'freelancer' =
-              user.id === agr.client_id ? 'client' : 'freelancer';
-            loopMap[agr.id] = computeAgreementLoopState({
-              viewerRole: agrRole,
-              agreementStatus: agr.status,
-              agreedPriceCentavos: agr.agreed_price,
-              clientName: agr.client?.display_name || 'Client',
-              freelancerName: agr.freelancer?.display_name || 'Freelancer',
-              milestones: mls,
-              payments: pays,
-              reviews: revs,
-              viewerUserId: user.id,
-            });
-          } catch {
-            const agrRole: 'client' | 'freelancer' =
-              user.id === agr.client_id ? 'client' : 'freelancer';
-            loopMap[agr.id] = computeAgreementLoopState({
-              viewerRole: agrRole,
-              agreementStatus: agr.status,
-              agreedPriceCentavos: agr.agreed_price,
-              clientName: agr.client?.display_name || 'Client',
-              freelancerName: agr.freelancer?.display_name || 'Freelancer',
-              milestones: [],
-              payments: [],
-              reviews: [],
-              viewerUserId: user.id,
-            });
-          }
+          const [mls, pays, revs] = await Promise.all([
+            milestonesService.getAgreementMilestones(agr.id),
+            paymentsService.getAgreementPayments(agr.id),
+            reviewsService.getAgreementReviews(agr.id),
+          ]);
+          const agrRole: 'client' | 'freelancer' =
+            user.id === agr.client_id ? 'client' : 'freelancer';
+          loopMap[agr.id] = computeAgreementLoopState({
+            viewerRole: agrRole,
+            agreementStatus: agr.status,
+            agreedPriceCentavos: agr.agreed_price,
+            clientName: agr.client?.display_name || 'Client',
+            freelancerName: agr.freelancer?.display_name || 'Freelancer',
+            milestones: mls,
+            payments: pays,
+            reviews: revs,
+            viewerUserId: user.id,
+          });
         })
       );
       setAgreementLoopMap(loopMap);
@@ -155,9 +137,15 @@ export default function ActivityScreen() {
     }
   }, [user, isFindWork, isHire]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadData();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, () => {
+        void loadData();
+      });
+    }, [loadData, user?.id])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -212,6 +200,7 @@ export default function ActivityScreen() {
     return (
       <View style={styles.list}>
         {myApplications.map((app) => {
+          const deleted = app.status_reason === 'gig_deleted';
           const preLoop = computePreAgreementLoopState({
             viewerRole: 'freelancer',
             gigStatus: 'open',
@@ -230,17 +219,17 @@ export default function ActivityScreen() {
             >
               <TouchableOpacity
                 onPress={() => {
-                  if (app.gig_id) {
+                  if (app.gig_id && !deleted) {
                     router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } });
                   }
                 }}
-                activeOpacity={0.7}
+                activeOpacity={deleted ? 1 : 0.7}
               >
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                    {app.gig?.title || 'Gig'}
+                    {app.gig?.title || app.gig_title_snapshot || 'Gig'}
                   </Text>
-                  <Badge status={app.status} />
+                  {deleted ? <Badge status="deleted" label={strings.gigs.deletedGigProposal} /> : <Badge status={app.status} />}
                 </View>
 
                 <View style={styles.cardRow}>
@@ -254,23 +243,26 @@ export default function ActivityScreen() {
               </TouchableOpacity>
 
               {/* Compact Shared Timeline & Next Step Banner */}
-              <Timeline
-                currentStage={preLoop.currentStage}
-                viewerRole="freelancer"
-                loopState={preLoop}
-                compact
-              />
-
-              <NextStepBanner
-                loopState={preLoop}
-                compact
-                onOpenChatPress={() =>
-                  handleOpenApplicationChat(app.id, app.gig?.title || 'Client')
-                }
-              />
+              {deleted ? (
+                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted, marginVertical: 10 }]}>{strings.gigs.deletedGigProposalDesc}</Text>
+              ) : (
+                <>
+                  <Timeline
+                    currentStage={preLoop.currentStage}
+                    viewerRole="freelancer"
+                    loopState={preLoop}
+                    compact
+                  />
+                  <NextStepBanner
+                    loopState={preLoop}
+                    compact
+                    onOpenChatPress={() => handleOpenApplicationChat(app.id, app.gig?.title || 'Client')}
+                  />
+                </>
+              )}
 
               {/* Counteroffer response actions if status === 'countered' */}
-              {app.status === 'countered' && app.counter_price && (
+              {!deleted && app.status === 'countered' && app.counter_price && (
                 <View style={styles.counterActionRow}>
                   <TouchableOpacity
                     style={[styles.counterAcceptBtn, { backgroundColor: theme.colors.primary }]}
@@ -307,20 +299,21 @@ export default function ActivityScreen() {
   };
 
   const renderClientPrimaryTab = () => {
-    if (myGigs.length === 0) {
+    const openGigs = myGigs.filter((gig) => gig.status === 'open');
+    if (openGigs.length === 0) {
       return (
         <EmptyState
-          title="No gigs posted yet"
-          description="Post your first gig to start receiving proposals from Ormoc freelancers."
-          actionTitle="Post a Gig"
-          onAction={() => router.push('/gigs/post')}
+          title={strings.gigs.noOpenClientGigsTitle}
+          description={strings.gigs.noOpenClientGigsDesc}
+          actionTitle={strings.gigs.viewMyGigs}
+          onAction={() => router.push('/(tabs)/gigs')}
         />
       );
     }
 
     return (
       <View style={styles.list}>
-        {myGigs.map((gig) => {
+        {openGigs.map((gig) => {
           const pendingApplicants = gigApplicantCounts[gig.id] || 0;
           const preLoop = computePreAgreementLoopState({
             viewerRole: 'client',

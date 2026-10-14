@@ -9,6 +9,8 @@ export interface ApplicationItem {
   estimated_days: number;
   message: string;
   status: 'applied' | 'accepted' | 'declined' | 'countered' | 'withdrawn';
+  status_reason?: string | null;
+  gig_title_snapshot?: string | null;
   counter_price?: number | null;
   created_at: string;
   updated_at: string;
@@ -166,6 +168,8 @@ export const applicationsService = {
         estimated_days,
         message,
         status,
+        status_reason,
+        gig_title_snapshot,
         counter_price,
         created_at,
         updated_at,
@@ -199,6 +203,8 @@ export const applicationsService = {
         estimated_days,
         message,
         status,
+        status_reason,
+        gig_title_snapshot,
         counter_price,
         created_at,
         updated_at,

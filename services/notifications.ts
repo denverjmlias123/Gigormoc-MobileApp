@@ -56,7 +56,10 @@ export const notificationsService = {
     });
   },
 
-  subscribeToNotifications(userId: string, onNotification: (item: NotificationItem) => void) {
+  subscribeToNotifications(
+    userId: string,
+    onNotification: (item: NotificationItem, eventType: 'INSERT' | 'UPDATE') => void
+  ) {
     notifChannelSeq += 1;
     const deduper = createRealtimeDeduper(500);
     const channelTopic = `user-notifications:${userId}-${Date.now()}-${notifChannelSeq}`;
@@ -65,15 +68,15 @@ export const notificationsService = {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
           const item = payload.new as NotificationItem | undefined;
-          if (item && deduper.shouldProcess(item.id)) {
-            onNotification(item);
+          if (item && (payload.eventType === 'UPDATE' || deduper.shouldProcess(item.id))) {
+            onNotification(item, payload.eventType as 'INSERT' | 'UPDATE');
           }
         }
       )

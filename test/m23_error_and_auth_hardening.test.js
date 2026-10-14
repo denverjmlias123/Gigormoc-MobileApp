@@ -132,13 +132,18 @@ describe('Milestone 23 — Error Handling and Login/Logout Hardening (v5.4 Secti
     // Login screen checks
     assert.ok(
       loginSrc.includes('handleResendConfirmation') &&
-        loginSrc.includes('Resend confirmation email'),
-      'login.tsx must show Resend confirmation email button when email is unconfirmed'
+        loginSrc.includes('strings.auth.loginResendConfirmation') &&
+        fs.readFileSync(path.join(ROOT, 'constants', 'strings.ts'), 'utf8').includes("loginResendConfirmation: 'Resend confirmation email'"),
+      'login.tsx must show the centralized Resend confirmation email string when email is unconfirmed'
     );
+    const rootNavigationSrc = fs.readFileSync(path.join(ROOT, 'app', '_layout.tsx'), 'utf8');
     assert.ok(
-      loginSrc.includes("router.replace('/(onboarding)/step1-mode')") &&
-        loginSrc.includes("router.replace('/(tabs)')"),
-      'login.tsx must navigate with a single router.replace directly to onboarding or tabs'
+      loginSrc.includes('authService.signIn') &&
+        !loginSrc.includes("router.replace('/(onboarding)/step1-mode')") &&
+        !loginSrc.includes("router.replace('/(tabs)')") &&
+        rootNavigationSrc.includes("router.replace('/(onboarding)/step1-mode')") &&
+        rootNavigationSrc.includes("router.replace('/(tabs)')"),
+      'post-login routing must be owned by RootNavigation and occur only once'
     );
     assert.ok(
       confirmSrc.includes('Resend Confirmation Email'),

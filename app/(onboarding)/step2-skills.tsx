@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   ScrollView,
   TextInput,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -15,6 +14,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { profileService, Skill, Category } from '../../services/profile';
 import { aiService } from '../../services/ai';
 import { strings } from '../../constants/strings';
+import { confirmDialog } from '../../lib/dialog';
+import { runConfirmedLogout } from '../../utils/confirmedLogout';
 
 const MAX_HIRING_INTERESTS = 8;
 const MAX_PROFILE_SKILLS = 15;
@@ -31,6 +32,8 @@ export default function OnboardingStep2SkillsScreen() {
   const [savedSkills, setSavedSkills] = useState<Skill[]>([]);
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
 
   const [workDescription, setWorkDescription] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
@@ -59,11 +62,34 @@ export default function OnboardingStep2SkillsScreen() {
   // Submitting state
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    try {
+      const confirmed = await runConfirmedLogout({
+        requestConfirmation: () => confirmDialog({
+          title: strings.auth.logoutConfirmTitle,
+          message: strings.auth.logoutConfirmMessage,
+          confirmText: strings.auth.logoutConfirmYes,
+          cancelText: strings.common.cancel,
+          destructive: true,
+        }),
+        signOut: () => signOut({ reason: 'user' }),
+        onConfirmed: () => setSigningOut(true),
+      });
+      if (!confirmed) return;
+      router.replace('/(auth)/login');
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     const fetchCatalog = async () => {
       setLoading(true);
+      setCatalogError(null);
       try {
         if (isHire) {
           const cats = await profileService.getCategories();
@@ -72,16 +98,16 @@ export default function OnboardingStep2SkillsScreen() {
           }
         } else {
           const [skillsData, mySavedSkills] = await Promise.all([
-            profileService.getSkills().catch(() => []),
-            profile?.id ? profileService.getUserSkills(profile.id).catch(() => []) : Promise.resolve([]),
+            profileService.getSkills(),
+            profile?.id ? profileService.getUserSkills(profile.id) : Promise.resolve([]),
           ]);
           if (mounted) {
             setCatalogSkills(skillsData || []);
             setSavedSkills(mySavedSkills || []);
           }
         }
-      } catch {
-        // Empty catalog is normal until admin adds rows
+      } catch (err: any) {
+        if (mounted) setCatalogError(err?.message || 'Could not load your skills and categories.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -91,7 +117,7 @@ export default function OnboardingStep2SkillsScreen() {
     return () => {
       mounted = false;
     };
-  }, [isHire, profile?.id]);
+  }, [isHire, profile?.id, catalogAttempt]);
 
   // Compute unified "Your skills (n)" tray items (saved + catalog + AI + typed, case-insensitively deduplicated)
   const selectedSkillTray = React.useMemo(() => {
@@ -555,7 +581,7 @@ export default function OnboardingStep2SkillsScreen() {
           <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>
             Onboarding 2 of 3
           </Text>
-          <TouchableOpacity onPress={() => signOut().then(() => router.replace('/(auth)/login'))}>
+          <TouchableOpacity onPress={handleSignOut} disabled={signingOut}>
             <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '600' }}>
               Log Out
             </Text>
@@ -570,6 +596,14 @@ export default function OnboardingStep2SkillsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {catalogError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{catalogError}</Text>
+            <TouchableOpacity onPress={() => setCatalogAttempt((attempt) => attempt + 1)} accessibilityRole="button">
+              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>{strings.common.retry}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {saveError && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>{saveError}</Text>

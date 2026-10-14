@@ -101,36 +101,6 @@ export const paymentsService = {
           ({ data, error } = await supabase.rpc('report_payment', baseArgs));
         }
 
-        // Direct fallback if RPC is not installed in database
-        if (error && (error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('report_payment'))) {
-          const { data: agr } = await supabase
-            .from('agreements')
-            .select('client_id, freelancer_id')
-            .eq('id', params.agreementId)
-            .maybeSingle();
-
-          const { data: inserted, error: insErr } = await supabase
-            .from('payments')
-            .insert({
-              agreement_id: params.agreementId,
-              milestone_id: params.milestoneId || null,
-              payer_id: (agr as any)?.client_id,
-              payee_id: (agr as any)?.freelancer_id,
-              amount: params.amount,
-              payment_method: params.paymentMethod,
-              reference_number: params.referenceNumber,
-              receipt_path: params.receiptPath || null,
-              notes: params.notes || '',
-              status: 'reported_sent',
-            })
-            .select('id')
-            .single();
-
-          if (!insErr && inserted?.id) {
-            return inserted.id;
-          }
-        }
-
         if (error) throw error;
         return data as string;
       },
@@ -149,19 +119,6 @@ export const paymentsService = {
         });
         if (error && error.code === 'PGRST202') {
           ({ error } = await supabase.rpc('confirm_payment', baseArgs));
-        }
-
-        // Direct fallback if RPC is not installed in database
-        if (error && (error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('confirm_payment'))) {
-          const { error: updErr } = await supabase
-            .from('payments')
-            .update({
-              status: 'confirmed_received',
-              confirmed_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', paymentId);
-          if (!updErr) return;
         }
 
         if (error) throw error;
@@ -203,19 +160,6 @@ export const paymentsService = {
         });
         if (error && error.code === 'PGRST202') {
           ({ error } = await supabase.rpc('complete_agreement', baseArgs));
-        }
-
-        // Direct fallback if RPC is not installed in database
-        if (error && (error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('complete_agreement'))) {
-          const { error: updErr } = await supabase
-            .from('agreements')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', agreementId);
-          if (!updErr) return;
         }
 
         if (error) throw error;

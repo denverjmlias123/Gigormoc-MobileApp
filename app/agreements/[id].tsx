@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   RefreshControl,
   Linking,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { applicationsService, AgreementItem } from '../../services/applications';
@@ -18,6 +18,7 @@ import { paymentsService, PaymentItem } from '../../services/payments';
 import { reviewsService, ReviewItem } from '../../services/reviews';
 import { chatService } from '../../services/chat';
 import { reportsService } from '../../services/reports';
+import { notificationsService } from '../../services/notifications';
 import { formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -95,9 +96,17 @@ export default function AgreementDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadData();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, (notification) => {
+        if (notification.entity_id === id || notification.data?.agreement_id === id) {
+          void loadData();
+        }
+      });
+    }, [id, loadData, user?.id])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

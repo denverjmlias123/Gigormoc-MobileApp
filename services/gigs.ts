@@ -59,6 +59,27 @@ export interface GetGigsFilter {
 }
 
 export const gigsService = {
+  subscribeToGigChanges(onChange: () => void, clientId?: string) {
+    const topic = `gig-changes:${clientId || 'visible'}:${Date.now()}`;
+    const change = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'gigs',
+          ...(clientId ? { filter: `client_id=eq.${clientId}` } : {}),
+        },
+        () => onChange()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(change);
+    };
+  },
+
   async getGigs(filter?: GetGigsFilter): Promise<GigSummary[]> {
     let query = supabase
       .from('gigs')
@@ -73,7 +94,7 @@ export const gigsService = {
         deadline,
         status,
         category:categories(name),
-        client:profiles(display_name, client_rating_avg, client_rating_count)
+        client:profiles!gigs_client_id_fkey(display_name, client_rating_avg, client_rating_count)
       `)
       .eq('status', 'open')
       .order('created_at', { ascending: false });
@@ -140,7 +161,7 @@ export const gigsService = {
         created_at,
         updated_at,
         category:categories(name),
-        client:profiles(
+        client:profiles!gigs_client_id_fkey(
           id,
           display_name,
           avatar_path,
@@ -301,14 +322,14 @@ export const gigsService = {
         };
       }
       // If AI returned 0 existing matches, also check DB fuzzy matches before relying solely on proposed_new_category
-      const dbSuggestions = await this.suggestCategoriesForGig(title, description).catch(() => []);
+      const dbSuggestions = await this.suggestCategoriesForGig(title, description);
       return {
         suggestions: dbSuggestions,
         proposed_new_category: aiRes.proposed_new_category || null,
         usedFallback: dbSuggestions.length > 0,
       };
     } catch {
-      const dbSuggestions = await this.suggestCategoriesForGig(title, description).catch(() => []);
+      const dbSuggestions = await this.suggestCategoriesForGig(title, description);
       return {
         suggestions: dbSuggestions,
         proposed_new_category: null,
@@ -378,6 +399,25 @@ export const gigsService = {
         }
 
         if (error) throw error;
+      },
+      { requestId }
+    );
+  },
+
+  async deleteGig(gigId: string, reason?: string, requestId?: string): Promise<number> {
+    return runOnce(
+      `delete_gig:${gigId}`,
+      async (reqId) => {
+        const args = { p_gig_id: gigId, p_reason: reason || null, p_request_id: reqId };
+        let { data, error } = await supabase.rpc('delete_gig', args);
+        if (error?.code === 'PGRST202') {
+          ({ data, error } = await supabase.rpc('delete_gig', {
+            p_gig_id: gigId,
+            p_reason: reason || null,
+          }));
+        }
+        if (error) throw error;
+        return Number((data as any)?.applicants_notified || 0);
       },
       { requestId }
     );

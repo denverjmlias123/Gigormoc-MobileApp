@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,11 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
+import { applicationsService } from '../../services/applications';
 import { profileService, Category } from '../../services/profile';
 import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -20,7 +21,9 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
-import { strings } from '../../constants/strings';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
+import { confirmDialog } from '../../lib/dialog';
+import { showToast } from '../../components/ui/Toast';
 
 type WorkTypeFilter = 'all' | 'remote' | 'face_to_face' | 'hybrid';
 type ClientSegment = 'my_gigs' | 'marketplace';
@@ -47,8 +50,9 @@ export default function GigsScreen() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingGigId, setDeletingGigId] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = async (searchOverride = searchQuery) => {
     setLoading(true);
     setError(null);
     try {
@@ -59,13 +63,11 @@ export default function GigsScreen() {
         }
       } else {
         const [categoriesData, gigsData] = await Promise.all([
-          gigsService
-            .getBrowseCategories()
-            .catch(() => profileService.getCategories().catch(() => [])),
+          gigsService.getBrowseCategories(),
           gigsService.getGigs({
             categoryId: selectedCategory || undefined,
             workType: workTypeFilter === 'all' ? undefined : workTypeFilter,
-            searchQuery: searchQuery.trim() || undefined,
+            searchQuery: searchOverride.trim() || undefined,
           }),
         ]);
         setCategories(categoriesData);
@@ -78,12 +80,46 @@ export default function GigsScreen() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [isClient, clientSegment, selectedCategory, workTypeFilter, user]);
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDataRef.current();
+      return gigsService.subscribeToGigChanges(
+        () => void loadDataRef.current(),
+        isClient && clientSegment === 'my_gigs' ? user?.id : undefined
+      );
+    }, [isClient, clientSegment, selectedCategory, workTypeFilter, user?.id])
+  );
 
   const handleSearchSubmit = () => {
     loadData();
+  };
+
+  const handleDeleteGig = async (gig: GigSummary) => {
+    try {
+      const applications = await applicationsService.getGigApplicants(gig.id);
+      const pending = applications.filter((app) => app.status === 'applied' || app.status === 'countered').length;
+      const confirmed = await confirmDialog({
+        title: strings.gigs.deleteGigTitle,
+        message: pending > 0
+          ? pending === 1 ? strings.gigs.deleteGigApplicantsOneMessage : strings.gigs.deleteGigApplicantsManyMessage.replace('{count}', String(pending))
+          : strings.gigs.deleteGigNoApplicantsMessage,
+        confirmText: strings.gigs.deleteGigConfirm,
+        cancelText: strings.gigs.keepGig,
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setDeletingGigId(gig.id);
+      const notified = await gigsService.deleteGig(gig.id, 'Deleted by client');
+      await loadData();
+      showToast(notified === 1 ? strings.toasts.gigDeletedOneApplicant : notified > 1 ? strings.toasts.gigDeletedApplicants.replace('{count}', String(notified)) : strings.toasts.gigDeleted);
+    } catch (err: any) {
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Could not delete this gig.'), 'error');
+    } finally {
+      setDeletingGigId(null);
+    }
   };
 
   const workFilters: { id: WorkTypeFilter; label: string; icon?: React.ComponentProps<typeof Ionicons>['name'] }[] = [
@@ -186,7 +222,7 @@ export default function GigsScreen() {
                 <Pressable
                   onPress={() => {
                     setSearchQuery('');
-                    loadData();
+                    void loadData('');
                   }}
                   hitSlop={8}
                   accessibilityRole="button"
@@ -274,6 +310,8 @@ export default function GigsScreen() {
                 key={gig.id}
                 gig={gig}
                 onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                onDelete={['open', 'draft', 'cancelled', 'expired'].includes(gig.status) ? () => handleDeleteGig(gig) : undefined}
+                deleting={deletingGigId === gig.id}
               />
             ))
           )

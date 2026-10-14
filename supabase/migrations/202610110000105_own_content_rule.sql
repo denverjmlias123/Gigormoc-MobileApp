@@ -1,4 +1,4 @@
--- Migration: 20261011000010_own_content_rule.sql
+-- Migration: 202610110000105_own_content_rule.sql
 -- Retrofit R4: Own-Content Rule Audit & Enforcement
 -- Strictly adheres to AGENTS.md, docs/GIGORMOC_SPEC.md section 3B, and docs/ROLE_UX.md section 4.
 

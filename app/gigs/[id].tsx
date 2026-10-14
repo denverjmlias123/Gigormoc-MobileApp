@@ -32,7 +32,7 @@ import {
   computeAgreementLoopState,
   computePreAgreementLoopState,
 } from '../../components/ui/Timeline';
-import { strings } from '../../constants/strings';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function GigDetailScreen() {
   const router = useRouter();
@@ -47,6 +47,8 @@ export default function GigDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadGigAndLoop = useCallback(async () => {
     if (!id) return;
@@ -55,7 +57,11 @@ export default function GigDetailScreen() {
     try {
       const data = await gigsService.getGig(id);
       if (!data) {
-        setError('Gig not found or has been removed.');
+        // Closed gigs are intentionally hidden from the public gigs query. Keep
+        // participant history reachable through the agreement row instead.
+        const myAgreements = user ? await applicationsService.getMyAgreements() : [];
+        const matchingAgr = myAgreements.find((agreement) => agreement.gig_id === id) || null;
+        setGigAgreement(matchingAgr);
         return;
       }
       setGig(data);
@@ -68,15 +74,15 @@ export default function GigDetailScreen() {
         : 'freelancer';
 
       // Check if an agreement exists for this gig where caller is a participant
-      const myAgreements = user ? await applicationsService.getMyAgreements().catch(() => []) : [];
+      const myAgreements = user ? await applicationsService.getMyAgreements() : [];
       const matchingAgr = myAgreements.find((a) => a.gig_id === data.id) || null;
       setGigAgreement(matchingAgr);
 
       if (matchingAgr && user) {
         const [mls, pays, revs] = await Promise.all([
-          milestonesService.getAgreementMilestones(matchingAgr.id).catch(() => []),
-          paymentsService.getAgreementPayments(matchingAgr.id).catch(() => []),
-          reviewsService.getAgreementReviews(matchingAgr.id).catch(() => []),
+          milestonesService.getAgreementMilestones(matchingAgr.id),
+          paymentsService.getAgreementPayments(matchingAgr.id),
+          reviewsService.getAgreementReviews(matchingAgr.id),
         ]);
         const agrViewerRole: 'client' | 'freelancer' =
           user.id === matchingAgr.client_id ? 'client' : 'freelancer';
@@ -97,7 +103,7 @@ export default function GigDetailScreen() {
       }
 
       if (isOwner) {
-        const apps = await applicationsService.getGigApplicants(data.id).catch(() => []);
+        const apps = await applicationsService.getGigApplicants(data.id);
         const pendingCount = apps.filter(
           (a) => a.status === 'applied' || a.status === 'countered'
         ).length;
@@ -110,7 +116,7 @@ export default function GigDetailScreen() {
           })
         );
       } else if (user) {
-        const myApps = await applicationsService.getMyApplications().catch(() => []);
+        const myApps = await applicationsService.getMyApplications();
         const foundApp = myApps.find((a) => a.gig_id === data.id) || null;
         setMyApplication(foundApp);
         setLoopState(
@@ -145,12 +151,28 @@ export default function GigDetailScreen() {
   if (error || !gig) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Gig not found</Text>
-        <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>
-          {error || 'This gig does not exist.'}
+        <Text style={[styles.errorTitle, { color: theme.colors.text }]}>
+          {error ? strings.common.errorTitle : strings.gigs.gigUnavailableTitle}
         </Text>
+        <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>
+          {error || strings.gigs.gigUnavailable}
+        </Text>
+        {gigAgreement ? (
+          <>
+            <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>
+              {strings.gigs.unavailableAgreementDesc}
+            </Text>
+            <Button
+              title={strings.gigs.openAgreement}
+              onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })}
+            />
+          </>
+        ) : null}
+        {error ? (
+          <Button title={strings.common.retry} onPress={loadGigAndLoop} variant="secondary" />
+        ) : null}
         <Button
-          title="← Go Back"
+          title={strings.common.back}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -195,9 +217,11 @@ export default function GigDetailScreen() {
       return;
     }
     if (isOwner) {
+      if (gig.status !== 'open') return;
       router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
       return;
     }
+    if (gig.status !== 'open') return;
     if (!isFreelancerMode) {
       showToast(
         'You are currently in Hire Someone mode. To apply for gigs, you must switch to Find Work mode.',
@@ -263,6 +287,52 @@ export default function GigDetailScreen() {
     }
   };
 
+  const handleDeleteGig = async () => {
+    try {
+      const apps = await applicationsService.getGigApplicants(gig.id);
+      const pending = apps.filter((app) => app.status === 'applied' || app.status === 'countered').length;
+      const confirmed = await confirmDialog({
+        title: strings.gigs.deleteGigTitle,
+        message: pending > 0
+          ? pending === 1 ? strings.gigs.deleteGigApplicantsOneMessage : strings.gigs.deleteGigApplicantsManyMessage.replace('{count}', String(pending))
+          : strings.gigs.deleteGigNoApplicantsMessage,
+        confirmText: strings.gigs.deleteGigConfirm,
+        cancelText: strings.gigs.keepGig,
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setDeleting(true);
+      const notified = await gigsService.deleteGig(gig.id, 'Deleted by client');
+      showToast(notified === 1 ? strings.toasts.gigDeletedOneApplicant : notified > 1 ? strings.toasts.gigDeletedApplicants.replace('{count}', String(notified)) : strings.toasts.gigDeleted);
+      router.replace('/(tabs)/gigs');
+    } catch (err: any) {
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Could not delete this gig.'), 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handlePublishDraft = async () => {
+    const confirmed = await confirmDialog({
+      title: strings.gigs.publishDraftTitle,
+      message: strings.gigs.publishDraftMessage,
+      confirmText: strings.gigs.publishDraftConfirm,
+      cancelText: strings.common.cancel,
+    });
+    if (!confirmed) return;
+
+    setPublishing(true);
+    try {
+      await gigsService.publishGig(gig.id);
+      await loadGigAndLoop();
+      showToast(strings.toasts.gigPublished, 'success');
+    } catch (err: any) {
+      showToast(err?.message || strings.gigs.publishDraftFailed, 'error');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Bar */}
@@ -296,14 +366,14 @@ export default function GigDetailScreen() {
               actionLabel={
                 gigAgreement
                   ? 'Open Agreement ›'
-                  : isOwner
+                  : isOwner && gig.status === 'open'
                   ? 'View Applicants ›'
                   : isFreelancerMode && gig.status === 'open' && !myApplication
                   ? strings.gigs.applyBtn
                   : undefined
               }
               onActionPress={
-                gigAgreement || isOwner || (isFreelancerMode && gig.status === 'open' && !myApplication)
+                gigAgreement || (isOwner && gig.status === 'open') || (isFreelancerMode && gig.status === 'open' && !myApplication)
                   ? handleApplyPress
                   : undefined
               }
@@ -317,6 +387,26 @@ export default function GigDetailScreen() {
             />
           </View>
         )}
+
+        {gig.status === 'completed' || gig.status === 'cancelled' || gig.status === 'expired' ? (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              {gig.status === 'completed'
+                ? strings.gigs.completedReadOnlyTitle
+                : strings.gigs.closedReadOnlyTitle}
+            </Text>
+            <Text style={[styles.bodyText, { color: theme.colors.muted }]}>
+              {gig.status === 'completed'
+                ? strings.gigs.completedReadOnlyDesc
+                : strings.gigs.closedReadOnlyDesc}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Main Info */}
         <View
@@ -421,26 +511,56 @@ export default function GigDetailScreen() {
         ]}
       >
         {gigAgreement ? (
-          <Button
-            title="View Active Agreement"
-            onPress={() =>
-              router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })
-            }
-            variant="primary"
-          />
-        ) : isOwner ? (
           <View style={{ width: '100%', gap: 8 }}>
-            <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
+            <Button
+              title={gig.status === 'completed' ? 'View Completed Agreement' : 'View Agreement'}
+              onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })}
+              variant="primary"
+            />
+            {isOwner && gig.status !== 'completed' ? <Button title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn} onPress={handleDeleteGig} variant="secondary" disabled={deleting || gigAgreement.status !== 'cancelled'} loading={deleting} /> : null}
+            {isOwner && gigAgreement.status !== 'cancelled' ? <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.alreadyHiredDeleteBlock}</Text> : null}
+          </View>
+        ) : isOwner && (gig.status === 'open' || gig.status === 'draft') ? (
+          <View style={{ width: '100%', gap: 8 }}>
+            {gig.status === 'draft' ? (
+              <Button
+                title={strings.gigs.publishBtn}
+                onPress={handlePublishDraft}
+                variant="primary"
+                loading={publishing}
+                disabled={publishing || cancelling || deleting}
+              />
+            ) : (
+              <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
+            )}
             {(gig.status === 'open' || gig.status === 'draft') && (
               <Button
                 title={strings.gigs.cancelGigBtn}
                 onPress={handleCancelGig}
                 variant="secondary"
                 loading={cancelling}
-                disabled={cancelling}
+                disabled={cancelling || deleting}
               />
             )}
+            <Button
+              title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
+              onPress={handleDeleteGig}
+              variant="secondary"
+              loading={deleting}
+              disabled={deleting || cancelling || publishing}
+            />
           </View>
+        ) : isOwner && gig.status !== 'completed' ? (
+          <View style={{ width: '100%', gap: 8 }}>
+          <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.closedReadOnlyDesc}</Text>
+            <Button title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn} onPress={handleDeleteGig} variant="secondary" loading={deleting} disabled={deleting} />
+          </View>
+        ) : isOwner ? (
+          <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+            {gig.status === 'completed'
+              ? strings.gigs.completedReadOnlyDesc
+              : strings.gigs.closedReadOnlyDesc}
+          </Text>
         ) : isFreelancerMode ? (
           <View style={{ width: '100%' }}>
             {myApplication ? (
@@ -465,26 +585,37 @@ export default function GigDetailScreen() {
                       : 'This gig is not open for applications.'}
                   </Text>
                 )}
-                <Button
-                  title={strings.gigs.applyBtn}
-                  onPress={handleApplyPress}
-                  variant="primary"
-                  disabled={gig.status !== 'open'}
-                />
+                {gig.status === 'open' ? (
+                  <Button
+                    title={strings.gigs.applyBtn}
+                    onPress={handleApplyPress}
+                    variant="primary"
+                  />
+                ) : null}
               </>
             )}
           </View>
         ) : (
           <View style={{ width: '100%' }}>
-            <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-              Switch to Find Work mode in your Profile settings to apply.
-            </Text>
-            <Button
-              title="Apply for this Gig"
-              onPress={handleApplyPress}
-              variant="secondary"
-              disabled={true}
-            />
+            {gig.status === 'open' ? (
+              <>
+                <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                  Switch to Find Work mode in your Profile settings to apply.
+                </Text>
+                <Button
+                  title="Apply for this Gig"
+                  onPress={handleApplyPress}
+                  variant="secondary"
+                  disabled={true}
+                />
+              </>
+            ) : (
+              <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                {gig.status === 'completed'
+                  ? strings.gigs.completedReadOnlyDesc
+                  : strings.gigs.closedReadOnlyDesc}
+              </Text>
+            )}
           </View>
         )}
       </View>

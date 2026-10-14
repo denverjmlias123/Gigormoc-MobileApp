@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -13,6 +12,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
+import { clearSignupDraft, setSignupDraft } from '../../lib/signupDraft';
+import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
+import { TextInput } from '../../components/ui/TextInput';
+import { Button } from '../../components/ui/Button';
 
 export default function SignUpStep1Screen() {
   const router = useRouter();
@@ -23,7 +26,6 @@ export default function SignUpStep1Screen() {
   const [email, setEmail] = useState(params.email || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export default function SignUpStep1Screen() {
     setIsDuplicateEmail(false);
 
     if (!displayName.trim() || displayName.trim().length < 2) {
-      setError('Please enter your display name (at least 2 characters).');
+      setError(strings.auth.signupDisplayNameRequired);
       return;
     }
 
@@ -53,29 +55,24 @@ export default function SignUpStep1Screen() {
       return;
     }
 
-    if (password.length < 6 || password.length > 72) {
-      setError('Password must be between 6 and 72 characters long.');
+    const passwordCheck = authService.validatePassword(password, normalizedEmail, displayName);
+    if (!passwordCheck.valid) {
+      setError(strings.auth.passwordInvalid);
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (!authService.validatePasswordConfirmation(password, confirmPassword)) {
+      setError(strings.auth.passwordMismatch);
       return;
     }
     if (!termsAccepted) {
-      setError('You must accept the Terms of Service and Privacy Notice.');
+      setError(strings.auth.signupTermsRequired);
       return;
     }
 
     setPending(true);
     try {
-      router.push({
-        pathname: '/(auth)/signup-step2',
-        params: {
-          displayName: displayName.trim(),
-          email: normalizedEmail,
-          password,
-        },
-      });
+      setSignupDraft({ displayName: displayName.trim(), email: normalizedEmail, password });
+      router.push('/(auth)/signup-step2');
     } finally {
       setPending(false);
     }
@@ -87,7 +84,7 @@ export default function SignUpStep1Screen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Step 1 of 2</Text>
+        <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>{strings.auth.signupStep1Indicator}</Text>
         <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step1Title}</Text>
 
         {error && (
@@ -133,21 +130,18 @@ export default function SignUpStep1Screen() {
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Display Name</Text>
           <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
+            label={strings.auth.signupDisplayNameLabel}
             value={displayName}
             onChangeText={setDisplayName}
-            placeholder="e.g. Maria Santos"
-            placeholderTextColor={theme.colors.muted}
+            placeholder={strings.auth.signupDisplayNamePlaceholder}
             autoCapitalize="words"
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Email Address</Text>
           <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
+            label={strings.auth.signupEmailLabel}
             value={email}
             onChangeText={(val) => {
               setEmail(val);
@@ -156,46 +150,35 @@ export default function SignUpStep1Screen() {
                 setError(null);
               }
             }}
-            placeholder="you@example.com"
-            placeholderTextColor={theme.colors.muted}
+            placeholder={strings.auth.signupEmailPlaceholder}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.passwordInput, { borderColor: theme.colors.border, color: theme.colors.text }]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Minimum 6 characters"
-              placeholderTextColor={theme.colors.muted}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.showButton}
-            >
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>
-                {showPassword ? 'Hide' : 'Show'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            label={strings.auth.signupPasswordLabel}
+            value={password}
+            onChangeText={setPassword}
+            placeholder={strings.auth.passwordLengthRule}
+            isPassword
+            autoCapitalize="none"
+            autoComplete="new-password"
+          />
+          <PasswordPolicyChecklist password={password} email={email} displayName={displayName} />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
           <TextInput
-            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
+            label={strings.auth.signupConfirmPasswordLabel}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            placeholder="Repeat password"
-            placeholderTextColor={theme.colors.muted}
-            secureTextEntry={!showPassword}
+            placeholder={strings.auth.signupConfirmPasswordPlaceholder}
+            isPassword
             autoCapitalize="none"
+            autoComplete="new-password"
           />
         </View>
 
@@ -203,6 +186,9 @@ export default function SignUpStep1Screen() {
           style={styles.checkboxContainer}
           onPress={() => setTermsAccepted(!termsAccepted)}
           activeOpacity={0.8}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: termsAccepted }}
+          accessibilityLabel={strings.auth.signupTermsLabel}
         >
           <View
             style={[
@@ -214,29 +200,27 @@ export default function SignUpStep1Screen() {
             {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={[styles.checkboxLabel, { color: theme.colors.text }]}>
-            I accept the Terms of Service, Privacy Notice, and confirm I am an Ormoc resident aged 18 or older.
+            {strings.auth.signupTermsLabel}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: theme.colors.primary },
-            pending && { opacity: 0.7 },
-          ]}
+        <Button
+          title={strings.auth.signupContinue}
           onPress={handleNext}
+          loading={pending}
           disabled={pending}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>Continue to Step 2</Text>
-        </TouchableOpacity>
+          style={styles.continueButton}
+        />
 
         <TouchableOpacity
           style={styles.linkButton}
-          onPress={() => router.push('/(auth)/login')}
+          onPress={() => {
+            clearSignupDraft();
+            router.push('/(auth)/login');
+          }}
         >
           <Text style={{ color: theme.colors.muted }}>
-            Already have an account? <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Log In</Text>
+            {strings.auth.signupAlreadyAccount} <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>{strings.auth.duplicateEmailLoginBtn}</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -312,22 +296,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingLeft: 14,
-    paddingRight: 60,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  showButton: {
-    position: 'absolute',
-    right: 14,
-    top: 14,
-  },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -353,17 +321,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  continueButton: { marginTop: 8 },
   linkButton: {
     alignItems: 'center',
     marginTop: 20,

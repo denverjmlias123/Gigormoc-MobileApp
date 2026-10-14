@@ -1,4 +1,5 @@
 import { strings, mapSqlErrorToFriendlyMessage } from '../constants/strings';
+import * as Crypto from 'expo-crypto';
 
 export type AppErrorKind =
   | 'offline'
@@ -25,11 +26,8 @@ export interface AppError {
   alreadyDone?: boolean;
 }
 
-let requestSequence = 0;
-
 export function createRequestId(): string {
-  requestSequence = (requestSequence + 1) % 1000000;
-  return `req_${Date.now().toString(36)}_${requestSequence.toString(36)}`;
+  return Crypto.randomUUID();
 }
 
 /**

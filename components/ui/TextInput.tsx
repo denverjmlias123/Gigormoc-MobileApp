@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput as RNTextInput, StyleSheet, Pressable, TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
+import { strings } from '../../constants/strings';
 
 interface Props extends TextInputProps {
   label: string;
@@ -60,7 +61,7 @@ export const TextInput: React.FC<Props> = ({
             style={styles.toggleBtn}
             onPress={() => setShowPassword(!showPassword)}
             accessibilityRole="button"
-            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            accessibilityLabel={showPassword ? strings.auth.passwordHide : strings.auth.passwordShow}
             hitSlop={8}
           >
             <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={theme.colors.muted} />

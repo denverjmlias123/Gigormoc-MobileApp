@@ -84,7 +84,8 @@ export async function performSharedCleanup(options: CleanupOptions = {}): Promis
         k.startsWith('gigormoc:draft:') ||
         k.startsWith('gigormoc:cache:') ||
         k.startsWith('gigormoc:private:') ||
-        k.startsWith('gigormoc:badge:');
+        k.startsWith('gigormoc:badge:') ||
+        k.startsWith('gigormoc:session:');
       const isAuthKey = k.startsWith('sb-') || k.includes('supabase');
       return isPrivateOrDraft || (clearAuthStorage && isAuthKey);
     });
@@ -111,7 +112,8 @@ export async function performSharedCleanup(options: CleanupOptions = {}): Promis
           key.startsWith('gigormoc:draft:') ||
           key.startsWith('gigormoc:cache:') ||
           key.startsWith('gigormoc:private:') ||
-          key.startsWith('gigormoc:badge:');
+          key.startsWith('gigormoc:badge:') ||
+          key.startsWith('gigormoc:session:');
         const isAuthKey = key.startsWith('sb-') || key.includes('supabase');
         if (isPrivateOrDraft || (clearAuthStorage && isAuthKey)) {
           window.localStorage.removeItem(key);

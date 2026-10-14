@@ -17,7 +17,7 @@ import { chatService, MessageItem, ConversationItem } from '../../services/chat'
 import { applicationsService } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
 import { showToast } from '../../components/ui/Toast';
-import { strings } from '../../constants/strings';
+import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -36,13 +36,16 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const flatListRef = useRef<FlatList>(null);
+  const readFailureNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!conversationId) return;
 
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeConversation: (() => void) | undefined;
 
     const loadChat = async () => {
       setLoading(true);
@@ -51,11 +54,15 @@ export default function ChatScreen() {
         const [convData, msgList, convSummaries, myAgreements] = await Promise.all([
           chatService.getConversation(conversationId),
           chatService.getMessages(conversationId),
-          chatService.getUserConversations().catch(() => []),
-          applicationsService.getMyAgreements().catch(() => []),
+          chatService.getUserConversations(),
+          applicationsService.getMyAgreements(),
         ]);
         setConversation(convData);
         setMessages(msgList);
+        unsubscribeConversation = chatService.subscribeToConversationChanges(conversationId, (change) => {
+          setConversation((current) => current ? { ...current, ...change } : current);
+          if (change.closed_at) showToast(strings.errors.deletedConversationReadOnly, 'info');
+        });
 
         const matchingSummary = convSummaries.find((s) => s.id === conversationId);
         const gigId = matchingSummary?.gig_id || null;
@@ -67,7 +74,18 @@ export default function ChatScreen() {
         }
 
         // Mark conversation read
-        chatService.markConversationRead(conversationId).catch(() => {});
+        const markConversationRead = async () => {
+          try {
+            await chatService.markConversationRead(conversationId);
+            readFailureNotifiedRef.current = false;
+          } catch {
+            if (!readFailureNotifiedRef.current) {
+              readFailureNotifiedRef.current = true;
+              showToast(strings.errors.conversationReadFailed, 'error');
+            }
+          }
+        };
+        void markConversationRead();
 
         // Subscribe to real-time incoming messages
         unsubscribe = chatService.subscribeToMessages(conversationId, (newMsg: MessageItem) => {
@@ -75,10 +93,10 @@ export default function ChatScreen() {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
-          chatService.markConversationRead(conversationId).catch(() => {});
+          void markConversationRead();
         });
       } catch (err: any) {
-        setError(err?.message || 'Could not load conversation.');
+        setError(mapSqlErrorToFriendlyMessage(err, 'Could not load conversation.'));
       } finally {
         setLoading(false);
       }
@@ -88,8 +106,9 @@ export default function ChatScreen() {
 
     return () => {
       if (unsubscribe) unsubscribe();
+      if (unsubscribeConversation) unsubscribeConversation();
     };
-  }, [conversationId]);
+  }, [conversationId, loadAttempt]);
 
   const handleGoToStage = () => {
     if (linkedAgreementId) {
@@ -121,7 +140,7 @@ export default function ChatScreen() {
       await chatService.sendMessage(conversationId, textToSend);
       showToast(strings.toasts.messageSent);
     } catch (err: any) {
-      showToast(err?.message || 'Failed to send message.', 'error');
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Failed to send message.'), 'error');
       setInputText(textToSend); // restore on error
     } finally {
       sendingRef.current = false;
@@ -177,6 +196,10 @@ export default function ChatScreen() {
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.colors.danger }]}>{error}</Text>
           <Button
+            title={strings.common.retry}
+            onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+          />
+          <Button
             title="Go Back"
             variant="secondary"
             onPress={() => {
@@ -202,7 +225,7 @@ export default function ChatScreen() {
               <View
                 style={[
                   styles.messageBubbleWrapper,
-                  isMe ? styles.myMessageWrapper : styles.theirMessageWrapper,
+                    item.is_system ? styles.systemMessageWrapper : isMe ? styles.myMessageWrapper : styles.theirMessageWrapper,
                 ]}
               >
                 {!isMe && item.sender?.display_name && (
@@ -258,7 +281,11 @@ export default function ChatScreen() {
       )}
 
       {/* Input Bar */}
-      <View style={[styles.inputBar, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+      {conversation?.closed_at ? (
+        <View style={[styles.inputBar, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.emptyText, { color: theme.colors.muted }]}>{strings.errors.deletedConversationReadOnly}</Text>
+        </View>
+      ) : <View style={[styles.inputBar, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
         <TextInput
           style={[
             styles.inputField,
@@ -288,7 +315,7 @@ export default function ChatScreen() {
             <Text style={styles.sendBtnText}>Send</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </View>}
     </KeyboardAvoidingView>
   );
 }
@@ -342,6 +369,7 @@ const styles = StyleSheet.create({
   theirMessageWrapper: {
     alignSelf: 'flex-start',
   },
+  systemMessageWrapper: { alignSelf: 'center', maxWidth: '90%' },
   senderLabel: {
     fontSize: 11,
     marginBottom: 2,

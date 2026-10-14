@@ -6,8 +6,8 @@ SELECT has_table('public', 'applications', 'public.applications table should exi
 SELECT has_table('public', 'agreements', 'public.agreements table should exist');
 
 -- Verify RLS is active on applications and agreements
-SELECT row_level_security_active('public.applications', 'RLS should be active on public.applications');
-SELECT row_level_security_active('public.agreements', 'RLS should be active on public.agreements');
+SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.applications'::regclass), 'RLS should be enabled on public.applications');
+SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.agreements'::regclass), 'RLS should be enabled on public.agreements');
 
 -- Verify unique constraints exist
 SELECT col_is_pk('public', 'agreements', 'id', 'agreements should have primary key on id');

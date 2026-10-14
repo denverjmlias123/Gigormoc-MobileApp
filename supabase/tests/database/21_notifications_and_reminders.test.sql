@@ -5,16 +5,24 @@
 -- 3. Security privileges: resolve_report denied to anon
 
 BEGIN;
-SELECT plan(6);
+SELECT plan(7);
 
 -- 1. Check scheduled reminders helper function exists
 SELECT has_function('public', 'run_scheduled_reminders', ARRAY[]::text[]);
 
 -- 2. Verify run_scheduled_reminders execution denied for authenticated and anon
+SET LOCAL ROLE authenticated;
 SELECT throws_ok(
     'SELECT public.run_scheduled_reminders()',
     'permission denied for function run_scheduled_reminders'
 );
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT throws_ok(
+    'SELECT public.run_scheduled_reminders()',
+    'permission denied for function run_scheduled_reminders'
+);
+RESET ROLE;
 
 -- 3. Check resolve_report helper function exists
 SELECT has_function('public', 'resolve_report', ARRAY['uuid', 'text', 'text']);

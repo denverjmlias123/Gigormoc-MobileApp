@@ -92,8 +92,12 @@ Spec already has `conversations` + `messages`. Make it real:
 - Block/report from chat uses the existing report flow. Own-content rule: no conversation with yourself.
 
 ## 5. AI assist (Supabase Edge Function only)
-- One Edge Function `ai-assist` (Deno). The AI provider key (Gemini or Anthropic) is a Supabase **secret**
-  (`supabase secrets set <PROVIDER>_API_KEY=...`). It is NEVER in the app, `EXPO_PUBLIC_*`, or the repo.
+- One Edge Function `ai-assist` (Deno) calls OpenRouter's chat-completions API with an ordered list of three model
+  IDs in `OPENROUTER_MODELS`. `OPENROUTER_API_KEY` is a Supabase **secret**. For hosted functions set both with
+  `supabase secrets set OPENROUTER_API_KEY=... OPENROUTER_MODELS=google/gemini-3-flash-preview,openai/gpt-4.1-mini,qwen/qwen3.5-9b`;
+  for local functions, put both in the ignored `supabase/functions/.env` file. Neither belongs in the app,
+  `EXPO_PUBLIC_*`, or the repo. OpenRouter tries the models in order on errors such as rate limits or downtime;
+  this improves availability but cannot guarantee success if all providers or the account credentials fail.
 - Auth: verify the caller's JWT, load `profiles.status = 'active'`, reject otherwise. Rate limit per user (e.g. 10
   calls/hour, 30/day) using `rate_limit_events`; return a clear 429 message.
 - Input: `task` in an allow-list (`suggest_skills`, `draft_bio`, `polish_gig_description`), plus bounded fields

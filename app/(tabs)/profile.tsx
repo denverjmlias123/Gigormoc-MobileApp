@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   ScrollView,
   Pressable,
   ActivityIndicator,
@@ -28,6 +27,8 @@ import {
 } from '../../services/profile';
 import { strings, mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 import { confirmDialog } from '../../lib/dialog';
+import { runConfirmedLogout } from '../../utils/confirmedLogout';
+import { adminService } from '../../services/admin';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadCompleteness = useCallback(async () => {
     if (!user?.id) return;
@@ -53,22 +55,28 @@ export default function ProfileScreen() {
     loadCompleteness();
   }, [loadCompleteness, profile]);
 
+  useEffect(() => {
+    let alive = true;
+    adminService.isAdmin().then((allowed) => { if (alive) setIsAdmin(allowed); }).catch(() => { if (alive) setIsAdmin(false); });
+    return () => { alive = false; };
+  }, [user?.id]);
+
   const handleSignOut = async (scope: 'local' | 'global' = 'local') => {
     if (loggingOut) return;
-    if (scope === 'global') {
-      const confirmed = await confirmDialog({
-        title: 'Log out of all devices?',
-        message: 'This will sign out your account on this device and revoke active sessions on other devices.',
-        confirmText: 'Log out everywhere',
-        destructive: true,
+    try {
+      const confirmed = await runConfirmedLogout({
+        requestConfirmation: () => confirmDialog({
+          title: strings.auth.logoutConfirmTitle,
+          message: scope === 'global' ? strings.auth.logoutAllConfirmMessage : strings.auth.logoutConfirmMessage,
+          confirmText: scope === 'global' ? strings.auth.logoutAllConfirmYes : strings.auth.logoutConfirmYes,
+          cancelText: strings.common.cancel,
+          destructive: true,
+        }),
+        signOut: () => signOut({ scope, reason: 'user' }),
+        onConfirmed: () => setLoggingOut(true),
       });
       if (!confirmed) return;
-    }
-
-    setLoggingOut(true);
-    try {
-      await signOut({ scope, reason: 'user' });
-      router.replace('/(auth)/welcome');
+      router.replace('/(auth)/login');
     } catch (err: any) {
       setPhotoError(mapSqlErrorToFriendlyMessage(err, 'Could not sign out.'));
     } finally {
@@ -298,16 +306,29 @@ export default function ProfileScreen() {
             {isHire ? (
               <>
                 {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
-                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} last />
+                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
               </>
             ) : (
               <>
                 <ListRow icon="construct-outline" title="Manage skills" onPress={goSkills} />
                 <ListRow icon="folder-open-outline" title="Portfolio" onPress={goPortfolio} />
                 {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
-                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} last />
+                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
               </>
             )}
+            <ListRow
+              icon="phone-portrait-outline"
+              title={strings.auth.sessionsTitle}
+              subtitle={strings.auth.sessionsSubtitle}
+              onPress={() => router.push('/settings/sessions')}
+            />
+            <ListRow
+              icon="lock-closed-outline"
+              title={strings.auth.securitySettings}
+              subtitle={strings.auth.changePassword}
+              onPress={() => router.push('/settings/password')}
+            />
+            {isAdmin ? <ListRow icon="shield-checkmark-outline" title={strings.admin.dashboard} onPress={() => router.push('/admin/dashboard')} last /> : null}
           </Card>
 
           <Button

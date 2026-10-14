@@ -36,7 +36,9 @@
       "EXPO_PUBLIC_SUPABASE_ANON_KEY": "YOUR-ANON-KEY"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ]
   }
 }

@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 import { toAppError } from '../../lib/errors';
+import { strings } from '../../constants/strings';
+import { Button } from '../../components/ui/Button';
+import { TextInput } from '../../components/ui/TextInput';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -29,9 +22,14 @@ export default function ForgotPasswordScreen() {
     if (loading) return;
     setError(null);
     const normalizedEmail = authService.normalizeEmail(email);
+    if (!normalizedEmail) {
+      setError(strings.auth.loginEmailRequired);
+      return;
+    }
+
     const check = authService.validateEmailInput(normalizedEmail);
     if (!check.valid) {
-      setError(check.message || 'Please enter a valid email address.');
+      setError(check.message || strings.auth.invalidEmailFormat);
       return;
     }
 
@@ -40,83 +38,81 @@ export default function ForgotPasswordScreen() {
       await authService.resetPassword(normalizedEmail);
       setSent(true);
     } catch (err: any) {
-      setError(toAppError(err, 'Could not send reset email. Please try again.').message);
+      setError(toAppError(err, strings.auth.passwordResetSendFailed).message);
     } finally {
       setLoading(false);
     }
   };
+
+  const normalizedEmail = authService.normalizeEmail(email);
+  const emailError = error && (!normalizedEmail || !authService.validateEmailInput(normalizedEmail).valid)
+    ? error
+    : null;
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: theme.colors.text }]}>Reset Password</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-          Enter the email associated with your account and we will send password reset instructions.
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.auth.forgotPasswordTitle}</Text>
+        <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>
+          {strings.auth.passwordResetDescription}
         </Text>
 
-        {error && (
-          <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}>
-            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+        {error && !emailError ? (
+          <View
+            accessibilityRole="alert"
+            style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
+          >
+            <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
           </View>
-        )}
+        ) : null}
 
         {sent ? (
-          <View style={[styles.successBox, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}>
-            <Text style={[styles.successTitle, { color: theme.colors.successText }]}>Check your email</Text>
-            <Text style={[styles.successText, { color: theme.colors.successText }]}>
-              A password reset link has been dispatched to {email.trim()}.
+          <View
+            accessibilityRole="summary"
+            style={[styles.message, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}
+          >
+            <Text style={[theme.type.body, styles.messageTitle, { color: theme.colors.successText }]}>
+              {strings.auth.passwordResetSentTitle}
             </Text>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: theme.colors.primary, marginTop: 16 }]}
+            <Text style={[theme.type.body, { color: theme.colors.successText }]}>{strings.auth.passwordResetSent}</Text>
+            <Button
+              title={strings.auth.passwordResetReturnToLogin}
+              variant="secondary"
               onPress={() => router.replace('/(auth)/login')}
-            >
-              <Text style={styles.buttonText}>Return to Log In</Text>
-            </TouchableOpacity>
+              style={styles.returnButton}
+            />
           </View>
         ) : (
           <>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Email Address</Text>
-              <TextInput
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={theme.colors.muted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: theme.colors.primary }, loading && { opacity: 0.7 }]}
-              onPress={handleReset}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.buttonText}>Send Reset Link</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/(auth)/login');
-                }
+            <TextInput
+              label={strings.auth.passwordResetEmailLabel}
+              value={email}
+              onChangeText={(value) => {
+                setEmail(value);
+                if (error) setError(null);
               }}
+              placeholder={strings.auth.passwordResetEmailPlaceholder}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              error={emailError}
+            />
+            <Button
+              title={strings.auth.passwordResetSend}
+              onPress={handleReset}
+              loading={loading}
               disabled={loading}
-            >
-              <Text style={{ color: theme.colors.muted, textAlign: 'center' }}>← Back to Log In</Text>
-            </TouchableOpacity>
+            />
+            <Button
+              title={strings.auth.passwordResetReturnToLogin}
+              variant="ghost"
+              onPress={() => router.replace('/(auth)/login')}
+              disabled={loading}
+              style={styles.returnButton}
+            />
           </>
         )}
       </ScrollView>
@@ -125,80 +121,10 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
-  },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
-  },
-  successBox: {
-    backgroundColor: '#DDF5EA',
-    padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#12805C',
-  },
-  successTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#12805C',
-    marginBottom: 4,
-  },
-  successText: {
-    fontSize: 14,
-    color: '#0B5C41',
-    lineHeight: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  backButton: {
-    marginTop: 24,
-    padding: 8,
-  },
+  container: { flex: 1 },
+  content: { flexGrow: 1, padding: 24, paddingTop: 48, justifyContent: 'center' },
+  subtitle: { marginTop: 8, marginBottom: 24 },
+  message: { borderLeftWidth: 4, borderRadius: 12, padding: 14, marginBottom: 16, gap: 6 },
+  messageTitle: { fontWeight: '700' },
+  returnButton: { marginTop: 12 },
 });

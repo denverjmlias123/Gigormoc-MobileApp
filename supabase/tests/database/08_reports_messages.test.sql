@@ -13,7 +13,7 @@ SELECT has_column('public', 'messages', 'content', 'messages has content');
 SELECT has_column('public', 'reports', 'reason_category', 'reports has reason_category');
 
 -- 2. Verify functions exist
-SELECT has_function('public', 'get_or_create_conversation', ARRAY['uuid'], 'Function get_or_create_conversation exists');
+SELECT has_function('public', 'get_or_create_conversation', ARRAY['uuid', 'uuid'], 'Function get_or_create_conversation exists');
 SELECT has_function('public', 'send_message', ARRAY['uuid', 'text'], 'Function send_message exists');
 SELECT has_function('public', 'cancel_agreement', ARRAY['uuid', 'text'], 'Function cancel_agreement exists');
 

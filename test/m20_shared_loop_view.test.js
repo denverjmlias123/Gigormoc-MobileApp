@@ -137,3 +137,36 @@ test('Milestone 20: Notifications and Chat deep-link into the right loop stage',
     'Chat screen must allow jumping directly to the current loop stage (Agreement, Applicants, or Gig Detail)'
   );
 });
+
+test('Milestone 20: Relationship writes never fall back to direct protected-table mutations', () => {
+  for (const [file, table] of [
+    ['milestones', 'milestones'],
+    ['payments', 'payments'],
+    ['payments', 'agreements'],
+    ['reviews', 'reviews'],
+  ]) {
+    const code = fs.readFileSync(path.join(ROOT, 'services', `${file}.ts`), 'utf8');
+    assert.doesNotMatch(
+      code,
+      new RegExp(`from\\(['\"]${table}['\"]\\)[\\s\\S]{0,140}\\.(insert|update|delete)\\(`),
+      `${file}.ts must route ${table} state changes through protected RPCs`
+    );
+  }
+});
+
+test('Milestone 20: Relationship screens surface failed data loads instead of showing fabricated empty results', () => {
+  for (const file of [
+    path.join(ROOT, 'app', '(tabs)', 'activity.tsx'),
+    path.join(ROOT, 'app', 'gigs', '[id].tsx'),
+    path.join(ROOT, 'app', 'chat', '[conversationId].tsx'),
+    path.join(ROOT, 'app', 'profile', '[id].tsx'),
+  ]) {
+    const code = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(code, /\.catch\(\(\)\s*=>\s*\[\]\)/);
+  }
+
+  const chatScreen = fs.readFileSync(path.join(ROOT, 'app', 'chat', '[conversationId].tsx'), 'utf8');
+  assert.ok(chatScreen.includes('title={strings.common.retry}'), 'Chat load errors should offer retry');
+  const publicProfile = fs.readFileSync(path.join(ROOT, 'app', 'profile', '[id].tsx'), 'utf8');
+  assert.ok(publicProfile.includes('setLoadAttempt'), 'Public profile load errors should offer retry');
+});

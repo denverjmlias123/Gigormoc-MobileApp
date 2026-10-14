@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { user, profile } = useAuth();
+  const userId = user?.id;
 
   const isFindWork = profile?.active_mode === 'find_work';
   const isHire = profile?.active_mode === 'hire';
@@ -28,39 +29,59 @@ export default function HomeScreen() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [notificationLoadError, setNotificationLoadError] = useState<string | null>(null);
 
-  const loadHomeData = async () => {
+  const loadHomeData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    setNotificationLoadError(null);
     try {
-      if (isHire && user) {
-        const gigs = await gigsService.getMyGigs(user.id);
+      if (isHire && userId) {
+        const gigs = await gigsService.getMyGigs(userId);
         setMyGigs(gigs);
       } else {
         const gigs = await gigsService.getGigs();
         setAvailableGigs(gigs);
-      }
-      if (user?.id) {
-        const count = await notificationsService.getUnreadCount();
-        setUnreadNotifications(count);
       }
     } catch (err: any) {
       setLoadError(mapSqlErrorToFriendlyMessage(err, 'Could not load gigs. Please check your connection and try again.'));
     } finally {
       setLoading(false);
     }
+
+    // Keep notification failures separate: they must not make the gigs query
+    // look like it failed or hide gigs that were loaded successfully.
+      if (userId) {
+      try {
+        const count = await notificationsService.getUnreadCount();
+        setUnreadNotifications(count);
+      } catch (err: any) {
+        setNotificationLoadError(mapSqlErrorToFriendlyMessage(err, strings.errors.notificationCountLoadFailed));
+      }
+    }
+  }, [isHire, userId]);
+
+  const retryNotificationCount = async () => {
+    if (!user?.id) return;
+    setNotificationLoadError(null);
+    try {
+      setUnreadNotifications(await notificationsService.getUnreadCount());
+    } catch (err: any) {
+      setNotificationLoadError(mapSqlErrorToFriendlyMessage(err, strings.errors.notificationCountLoadFailed));
+    }
   };
 
-  useEffect(() => {
-    loadHomeData();
-
-    if (user?.id) {
-      const unsub = notificationsService.subscribeToNotifications(user.id, () => {
-        setUnreadNotifications((prev) => prev + 1);
+  useFocusEffect(
+    useCallback(() => {
+      void loadHomeData();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, () => {
+        // The database count is authoritative; notification updates can mark
+        // items read on another screen or device as well as insert new rows.
+        void loadHomeData();
       });
-      return unsub;
-    }
-  }, [profile?.active_mode, user]);
+    }, [loadHomeData, user?.id])
+  );
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon';
   const openCount = myGigs.filter((g) => g.status?.toLowerCase() === 'open').length;
@@ -164,6 +185,9 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.body}>
+          {notificationLoadError && (
+            <ErrorState message={notificationLoadError} onRetry={retryNotificationCount} />
+          )}
           {!profile?.avatar_path && (
             <Pressable
               style={[styles.banner, { backgroundColor: theme.colors.primarySoft }]}

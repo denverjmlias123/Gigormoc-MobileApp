@@ -94,37 +94,6 @@ export const reviewsService = {
           ({ data, error } = await supabase.rpc('submit_review', baseArgs));
         }
 
-        // Direct fallback if RPC is not installed in database
-        if (error && (error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('submit_review'))) {
-          const { data: agr } = await supabase
-            .from('agreements')
-            .select('client_id, freelancer_id')
-            .eq('id', params.agreementId)
-            .maybeSingle();
-
-          const { data: { user } } = await supabase.auth.getUser();
-          const isClient = user?.id === (agr as any)?.client_id;
-          const revieweeId = isClient ? (agr as any)?.freelancer_id : (agr as any)?.client_id;
-          const role = isClient ? 'client' : 'freelancer';
-
-          const { data: inserted, error: insErr } = await supabase
-            .from('reviews')
-            .insert({
-              agreement_id: params.agreementId,
-              reviewer_id: user?.id,
-              reviewee_id: revieweeId,
-              role,
-              rating: params.rating,
-              comment: params.comment,
-            })
-            .select('id')
-            .single();
-
-          if (!insErr && inserted?.id) {
-            return inserted.id;
-          }
-        }
-
         if (error) throw error;
         return data as string;
       },

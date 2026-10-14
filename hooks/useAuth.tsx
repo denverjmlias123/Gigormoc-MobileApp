@@ -4,6 +4,7 @@ import { supabase, registerSessionExpiredHandler } from '../lib/supabase';
 import { performSharedCleanup } from '../lib/sessionCleanup';
 import { authService, Profile } from '../services/auth';
 import { strings } from '../constants/strings';
+import { sessionService } from '../services/sessions';
 
 export interface SignOutOptions {
   scope?: 'local' | 'global';
@@ -114,11 +115,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // 2. Fetch profile from database before setting session/user so there is no flash of stale data
       const p = await authService.getCurrentProfile(userData.user.id);
-      if (!p || p.status === 'suspended' || p.status === 'deactivated') {
+      if (!p || p.status === 'suspended' || p.status === 'deactivated' || p.status === 'deleted') {
         await clearAuth({ reason: 'user' });
-        if (p && (p.status === 'suspended' || p.status === 'deactivated')) {
+        if (p && (p.status === 'suspended' || p.status === 'deactivated' || p.status === 'deleted')) {
           setAuthNotice(strings.errors.accountSuspended);
         }
+        setLoading(false);
+        return;
+      }
+
+      const sessionActive = await sessionService.ensureCurrentSession();
+      if (!sessionActive) {
+        await clearAuth({ reason: 'session_expired' });
         setLoading(false);
         return;
       }

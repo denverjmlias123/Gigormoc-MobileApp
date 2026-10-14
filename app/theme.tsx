@@ -63,6 +63,7 @@ const base = {
   danger: '#D92D3E',
   dangerSoft: '#FDE8EA',
   dangerText: '#A31F2D',
+  overlay: 'rgba(11,27,58,0.42)',
 };
 
 export type AppMode = 'freelancer' | 'client';

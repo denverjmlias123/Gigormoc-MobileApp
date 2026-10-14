@@ -97,13 +97,14 @@ export default function EditProfileScreen() {
 
   const loadData = useCallback(async () => {
     if (!user?.id) return;
+    setError(null);
     try {
       const [areasRes, catsRes, userInterests, compRes, privatePhone] = await Promise.all([
-        profileService.getAreas().catch(() => []),
-        profileService.getCategories().catch(() => []),
-        profileService.getUserHiringInterests(user.id).catch(() => []),
-        profileService.getProfileCompleteness(user.id).catch(() => null),
-        profileService.getOwnPrivatePhone(user.id).catch(() => ''),
+        profileService.getAreas(),
+        profileService.getCategories(),
+        profileService.getUserHiringInterests(user.id),
+        profileService.getProfileCompleteness(user.id),
+        profileService.getOwnPrivatePhone(user.id),
       ]);
       setAreasList(areasRes);
       setCategoriesList(catsRes);
@@ -113,8 +114,8 @@ export default function EditProfileScreen() {
       setCompleteness(compRes);
       setPhone(privatePhone);
       setInitialPhone(privatePhone);
-    } catch {
-      // Non-blocking
+    } catch (err: any) {
+      setError(err?.message || 'Could not load profile details.');
     }
   }, [user?.id]);
 
@@ -437,6 +438,9 @@ export default function EditProfileScreen() {
             ]}
           >
             <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+            <TouchableOpacity onPress={loadData} accessibilityRole="button">
+              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>{strings.common.retry}</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 

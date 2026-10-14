@@ -14,10 +14,12 @@ SELECT plan(7);
 SELECT has_table('public', 'conversation_reads', 'conversation_reads table must exist');
 
 -- 2. Verify direct client writes denied on messages table
+SET LOCAL ROLE authenticated;
 SELECT throws_ok(
     'INSERT INTO public.messages (conversation_id, sender_id, content) VALUES (gen_random_uuid(), gen_random_uuid(), ''Test message'')',
     'permission denied for table messages'
 );
+RESET ROLE;
 
 -- 3. Check function signatures exist
 SELECT has_function('public', 'send_message', ARRAY['uuid', 'text']);
@@ -25,14 +27,16 @@ SELECT has_function('public', 'mark_conversation_read', ARRAY['uuid']);
 SELECT has_function('public', 'get_user_conversations', ARRAY[]::text[]);
 
 -- 4. Verify anon cannot execute send_message
+SET LOCAL ROLE anon;
 SELECT throws_ok(
     'SELECT public.send_message(gen_random_uuid(), ''Hello'')',
     'permission denied for function send_message'
 );
+RESET ROLE;
 
 -- 5. Check conversation_reads table privileges
 SELECT table_privs_are(
-    'public', 'conversation_reads', 'authenticated', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    'public', 'conversation_reads', 'authenticated', ARRAY['SELECT'],
     'Authenticated users have controlled RLS access to conversation_reads'
 );
 

@@ -6,6 +6,10 @@ export const ALREADY_DONE_MESSAGE = 'Already done on your other device.';
 const inFlightPromises = new Map<string, Promise<any>>();
 const attemptRequestIds = new Map<string, string>();
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export interface RunOnceOptions {
   /** Explicit request_id to use (e.g. for deterministic replay). */
   requestId?: string;
@@ -18,7 +22,7 @@ export interface RunOnceOptions {
  */
 export function getOrCreateAttemptRequestId(key: string): string {
   const existing = attemptRequestIds.get(key);
-  if (existing) return existing;
+  if (existing && isUuid(existing)) return existing;
   const fresh = createRequestId();
   attemptRequestIds.set(key, fresh);
   return fresh;

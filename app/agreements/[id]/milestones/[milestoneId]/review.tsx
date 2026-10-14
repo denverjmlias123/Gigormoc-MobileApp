@@ -73,8 +73,9 @@ export default function ReviewMilestoneScreen() {
         );
         const urlEntries = await Promise.all(
           allPaths.map(async (p) => {
-            const url = await milestonesService.createSignedUrl(p).catch(() => null);
-            return [p, url || p] as const;
+            const url = await milestonesService.createSignedUrl(p);
+            if (!url) throw new Error('Could not open a private submission attachment.');
+            return [p, url] as const;
           })
         );
         setSignedUrls(Object.fromEntries(urlEntries));

@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -19,6 +18,8 @@ import { profileService, Area } from '../../services/profile';
 import { aiService } from '../../services/ai';
 import { Avatar } from '../../components/ui/Avatar';
 import { strings } from '../../constants/strings';
+import { confirmDialog } from '../../lib/dialog';
+import { runConfirmedLogout } from '../../utils/confirmedLogout';
 
 export default function OnboardingStep3ProfileScreen() {
   const router = useRouter();
@@ -38,6 +39,28 @@ export default function OnboardingStep3ProfileScreen() {
   const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    try {
+      const confirmed = await runConfirmedLogout({
+        requestConfirmation: () => confirmDialog({
+          title: strings.auth.logoutConfirmTitle,
+          message: strings.auth.logoutConfirmMessage,
+          confirmText: strings.auth.logoutConfirmYes,
+          cancelText: strings.common.cancel,
+          destructive: true,
+        }),
+        signOut: () => signOut({ reason: 'user' }),
+        onConfirmed: () => setSigningOut(true),
+      });
+      if (!confirmed) return;
+      router.replace('/(auth)/login');
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   // AI Bio Drafting
   const [aiDrafts, setAiDrafts] = useState<string[]>([]);
@@ -145,7 +168,7 @@ export default function OnboardingStep3ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.topRow}>
           <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Onboarding 3 of 3</Text>
-          <TouchableOpacity onPress={() => signOut().then(() => router.replace('/(auth)/login'))}>
+          <TouchableOpacity onPress={handleSignOut} disabled={signingOut}>
             <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '600' }}>Log Out</Text>
           </TouchableOpacity>
         </View>

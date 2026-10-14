@@ -4,6 +4,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { buildOpenRouterRequest, readOpenRouterText } from './openrouter.mjs';
 
 const ALLOWED_TASKS = [
   'suggest_skills',
@@ -260,104 +261,41 @@ Rules:
 Current description: "${currentDesc}"`;
     }
 
-    // 6. Call AI API (Google Gemini or Anthropic Claude)
-    const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'AI provider is not configured on this server.' }), {
+    // 6. Call OpenRouter. The key and model stay on the server.
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY');
+    const models = (Deno.env.get('OPENROUTER_MODELS') || '')
+      .split(',')
+      .map((model) => model.trim())
+      .filter(Boolean);
+    if (!apiKey || models.length !== 3) {
+      return new Response(JSON.stringify({ error: 'AI assist is not configured on this server.' }), {
         status: 503,
         headers: corsHeaders,
       });
     }
 
-    let content = '';
-
-    if (apiKey.startsWith('sk-ant-')) {
-      const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 300,
-          messages: [{ role: 'user', content: promptText }],
-        }),
+    let openRouterRequest: ReturnType<typeof buildOpenRouterRequest>;
+    try {
+      openRouterRequest = buildOpenRouterRequest({ apiKey, models, prompt: promptText });
+    } catch {
+      console.error('OpenRouter model configuration is invalid.');
+      return new Response(JSON.stringify({ error: 'AI assist is not configured correctly on this server.' }), {
+        status: 503,
+        headers: corsHeaders,
       });
-
-      if (!aiResponse.ok) {
-        const errText = await aiResponse.text();
-        console.error('Anthropic API error:', errText);
-        return new Response(JSON.stringify({ error: 'AI assist service currently unavailable. Please try again.' }), {
-          status: 502,
-          headers: corsHeaders,
-        });
-      }
-
-      const aiData = await aiResponse.json();
-      content = aiData?.content?.[0]?.text || '';
-    } else {
-      // Google Gemini API call
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-      const aiResponse = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 1500,
-            temperature: 0.2,
-          },
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        // Fallback to gemini-3.8-flash
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-        const fallbackResp = await fetch(fallbackUrl, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              maxOutputTokens: 1500,
-              temperature: 0.2,
-            },
-          }),
-        });
-
-        if (!fallbackResp.ok) {
-          const errText = await fallbackResp.text();
-          console.error('Gemini API error:', errText);
-          let detail = '';
-          try {
-            const errObj = JSON.parse(errText);
-            detail = errObj?.error?.message || errText;
-          } catch {
-            detail = errText;
-          }
-          return new Response(JSON.stringify({ error: `Gemini API error: ${detail}` }), {
-            status: 502,
-            headers: corsHeaders,
-          });
-        }
-
-        const fallbackData = await fallbackResp.json();
-        const parts = fallbackData?.candidates?.[0]?.content?.parts || [];
-        content = parts.map((p: any) => p.text || '').join('');
-      } else {
-        const aiData = await aiResponse.json();
-        const parts = aiData?.candidates?.[0]?.content?.parts || [];
-        content = parts.map((p: any) => p.text || '').join('');
-      }
     }
+    const aiResponse = await fetch(openRouterRequest.url, openRouterRequest.init);
+    if (!aiResponse.ok) {
+      // Do not expose provider diagnostics or user prompt content to the client/logs.
+      console.error('OpenRouter request failed with status:', aiResponse.status);
+      return new Response(JSON.stringify({ error: 'AI assist service currently unavailable. Please try again.' }), {
+        status: 502,
+        headers: corsHeaders,
+      });
+    }
+
+    const aiData = await aiResponse.json();
+    const content = readOpenRouterText(aiData);
 
     // 7. Parse and Validate JSON Output Strict Schema
     let parsed: any;
@@ -369,8 +307,8 @@ Current description: "${currentDesc}"`;
       } else {
         parsed = JSON.parse(content);
       }
-    } catch (parseErr) {
-      console.error('Failed to parse AI JSON:', content, parseErr);
+    } catch {
+      console.error('Failed to parse AI JSON response.');
       return new Response(JSON.stringify({ error: 'AI returned malformed output format. Please retry.' }), {
         status: 502,
         headers: corsHeaders,

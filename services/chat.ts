@@ -9,6 +9,7 @@ export interface MessageItem {
   sender_id: string;
   content: string;
   created_at: string;
+  is_system?: boolean;
   sender?: {
     id: string;
     display_name: string;
@@ -38,6 +39,8 @@ export interface ConversationItem {
   freelancer_id: string;
   created_at: string;
   updated_at: string;
+  closed_at: string | null;
+  closed_reason: string | null;
   client?: {
     id: string;
     display_name: string;
@@ -51,6 +54,24 @@ export interface ConversationItem {
 }
 
 export const chatService = {
+  subscribeToConversationChanges(
+    conversationId: string,
+    onUpdate: (change: { closed_at: string | null; closed_reason: string | null }) => void
+  ) {
+    const channel = supabase
+      .channel(`conversation-state:${conversationId}:${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${conversationId}` },
+        (payload) => onUpdate({
+          closed_at: payload.new.closed_at || null,
+          closed_reason: payload.new.closed_reason || null,
+        })
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   async getUserConversations(): Promise<ConversationSummary[]> {
     const { data, error } = await supabase.rpc('get_user_conversations');
     if (error) throw error;
@@ -92,6 +113,8 @@ export const chatService = {
         freelancer_id,
         created_at,
         updated_at,
+        closed_at,
+        closed_reason,
         client:profiles!conversations_client_id_fkey(id, display_name, avatar_path),
         freelancer:profiles!conversations_freelancer_id_fkey(id, display_name, avatar_path)
       `)
@@ -111,6 +134,7 @@ export const chatService = {
         sender_id,
         content,
         created_at,
+        is_system,
         sender:profiles(id, display_name, avatar_path)
       `)
       .eq('conversation_id', conversationId)
@@ -178,6 +202,7 @@ export const chatService = {
             sender_id: payload.new.sender_id,
             content: payload.new.content,
             created_at: payload.new.created_at,
+            is_system: payload.new.is_system,
             sender: data || undefined,
           };
           onMessage(newMsg);

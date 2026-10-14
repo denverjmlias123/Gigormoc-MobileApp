@@ -1,6 +1,6 @@
 -- pgTAP tests for Milestone 9 & V3 Hardening
 BEGIN;
-SELECT plan(15);
+SELECT plan(10);
 
 -- 1. Table structure tests
 SELECT has_table('public', 'agreements', 'Table agreements exists');

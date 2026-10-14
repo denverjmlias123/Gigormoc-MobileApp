@@ -14,6 +14,7 @@ SELECT has_function('public', 'publish_gig', ARRAY['uuid'], 'publish_gig(uuid) f
 SELECT has_function('public', 'cancel_gig', ARRAY['uuid', 'text'], 'cancel_gig(uuid, text) function must exist');
 
 -- 2. Verify anon cannot execute publish_gig or cancel_gig
+SET LOCAL ROLE anon;
 SELECT throws_ok(
     'SELECT public.publish_gig(gen_random_uuid())',
     'permission denied for function publish_gig'
@@ -23,6 +24,7 @@ SELECT throws_ok(
     'SELECT public.cancel_gig(gen_random_uuid(), ''Test cancellation'')',
     'permission denied for function cancel_gig'
 );
+RESET ROLE;
 
 -- 3. Verify public/anon direct write permissions denied on gigs
 SELECT table_privs_are(

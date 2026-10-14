@@ -21,9 +21,15 @@ v5 milestones M11-M15 are built. Next, in this order: **M16 (email + profile + p
 Milestones 0-9 and retrofits R1-R5 are built. Next, in this order: **R6 (wiring audit)**, **M11 (notifications)**, **M12 (messaging)**, **M13 (Post gig real)**, **M14 (AI onboarding)**, **M15 (complete real loop, final proof)**. If everything is already built, skip straight to **V1 (full verification)** at the bottom of this file. See `docs/REAL_LOGIC_V5.md`. One at a time, verified with real `supabase test db` output.
 
 ## Current project status (update this after every milestone)
-- Built so far: Milestones 0-7.
-- M0-M2 were built on the OLD blueprint (before mode rules, DESIGN.md and the UI kit). M7 was built before these fixes.
-- **Next, in this order:** (1) Retrofit audit, (2) Retrofit fix, (3) M7 fix, (4) Milestone 8. Do not start Milestone 8 before 1-3 are verified with real `supabase test db` output.
+  - Historical v3 build: Milestones 0-7. The current v5 milestones below are the active plan.
+  - M26 auth UI and M27 lockout/session work are implemented. M27's migration and `login-guard` Edge Function are deployed to the linked Supabase project. M28's audit trail migration and admin log trail are deployed.
+  - M29 admin dashboard and user management are implemented. The M29 migration and `admin-users` Edge Function are deployed to the linked Supabase project. Live catalog checks confirm the M29 migration, admin RPCs, and forced-password field are present.
+  - M30 `docs/DATABASE_STRUCTURE.md` was generated read-only from the linked live catalog on 2026-10-13 (27 public tables, 124 public routines, 5 Storage buckets). It reports no public tables without a primary key or RLS, no missing core FK relationships, and ten FKs without a full leading-column index. Proposed additive SQL is documented for approval and has not been applied.
+  - V3 follow-up: added nested Expo Router layouts for `(auth)` and `(onboarding)` after the root Stack emitted missing-route warnings. `npx expo export --platform web` and `npx expo export --platform android` both passed without those route warnings; localhost returned HTTP 200.
+  - M31 delete-gig flow is implemented with additive migrations `20261013110000_m31_delete_gig.sql` and `20261013120000_m31_deleted_state_realtime.sql`; both are applied locally and to the linked Supabase project. The client action soft-deletes only, blocks hired/completed work, closes pending proposals, sends deduplicated notifications, preserves title snapshots, and makes related chats read-only. Manual two-account app verification is still pending; M31 is NOT VERIFIED until the applicant sees the notification/proposal and read-only chat after a fresh launch.
+  - Latest local verification after M31: `npx tsc --noEmit` passed; `npm test` passed (165 tests); `npx supabase test db` passed (419 assertions across 28 files). Manual app and two-account verification remains required; V3 is NOT VERIFIED.
+  - First admin still must be a real account added to `platform_admins` once. No seed/sample/demo implementation files were found in the repository filename search; test fixtures are temporary and rollback-scoped.
+  - **Next:** Manually verify M31 with two real accounts first, then complete V3 checking-day verification. Do not claim full project completion until both have been verified with the real app and two real accounts.
 - Skip the "First message" prompt below: the project already exists, so start with R1.
 - **Blueprint v4 added role UX and the own-content rule.** If the build is already finished, run **R4** (database) and **R5** (screens) after R1-R3, then repeat Milestone 9 hardening. R4 also tells you what is really built.
 

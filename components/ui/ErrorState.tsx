@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { Button } from './Button';
+import { strings } from '../../constants/strings';
 
 interface ErrorStateProps {
   message?: string;
@@ -10,7 +11,7 @@ interface ErrorStateProps {
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
-  message = 'We couldn\'t load this. Check your connection and try again.',
+  message = strings.errors.network,
   onRetry,
 }) => {
   const theme = useAppTheme();
@@ -18,9 +19,9 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.dangerSoft, borderRadius: theme.radii.card }]}>
       <Ionicons name="cloud-offline-outline" size={32} color={theme.colors.dangerText} style={styles.icon} />
-      <Text style={[styles.title, { color: theme.colors.dangerText }]}>Something went wrong</Text>
+      <Text style={[styles.title, { color: theme.colors.dangerText }]}>{strings.common.errorTitle}</Text>
       <Text style={[styles.message, { color: theme.colors.dangerText }]}>{message}</Text>
-      {onRetry && <Button title="Try again" onPress={onRetry} variant="danger" style={styles.retryBtn} />}
+      {onRetry && <Button title={strings.common.retry} onPress={onRetry} variant="danger" style={styles.retryBtn} />}
     </View>
   );
 };
