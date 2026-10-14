@@ -13,3 +13,9 @@ yarn-error.log*
 Thumbs.db
 node_modules
 supabase/.temp/
+
+# Supabase CLI local state
+supabase/.branches/
+
+# Archives
+*.zip

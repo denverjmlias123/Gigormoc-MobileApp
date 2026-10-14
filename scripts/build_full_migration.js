@@ -132,10 +132,13 @@ const part2 = bundleFiles(part2Files, '');
 const part3 = bundleFiles(part3Files, '');
 const full = bundleFiles(files, cleanup);
 
-fs.writeFileSync(path.join(__dirname, '..', 'supabase', 'FULL_SETUP_MIGRATIONS.sql'), full, 'utf8');
-fs.writeFileSync(path.join(__dirname, '..', 'supabase', 'PART_1_CORE_SCHEMA.sql'), part1, 'utf8');
-fs.writeFileSync(path.join(__dirname, '..', 'supabase', 'PART_2_LOOP_AND_MESSAGING.sql'), part2, 'utf8');
-fs.writeFileSync(path.join(__dirname, '..', 'supabase', 'PART_3_PROFILE_CATEGORIES_SKILLS.sql'), part3, 'utf8');
+// Reference bundles only. Apply schema with `supabase db push`, never by pasting these (AGENTS.md rule 7).
+const bundleDir = path.join(__dirname, '..', 'docs', 'sql-bundles');
+fs.mkdirSync(bundleDir, { recursive: true });
+fs.writeFileSync(path.join(bundleDir, 'FULL_SETUP_MIGRATIONS.sql'), full, 'utf8');
+fs.writeFileSync(path.join(bundleDir, 'PART_1_CORE_SCHEMA.sql'), part1, 'utf8');
+fs.writeFileSync(path.join(bundleDir, 'PART_2_LOOP_AND_MESSAGING.sql'), part2, 'utf8');
+fs.writeFileSync(path.join(bundleDir, 'PART_3_PROFILE_CATEGORIES_SKILLS.sql'), part3, 'utf8');
 
 console.log('Successfully generated idempotent migration bundles:');
 console.log(' - FULL_SETUP_MIGRATIONS.sql (' + full.length + ' bytes)');
