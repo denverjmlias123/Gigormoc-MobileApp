@@ -21,6 +21,7 @@ import { chatService, ConversationSummary } from '../../services/chat';
 import { notificationsService } from '../../services/notifications';
 import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonMessageList } from '../../components/ui/Skeleton';
 
@@ -192,7 +193,7 @@ export default function MessagesScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
       <View
         style={[
@@ -399,7 +400,7 @@ export default function MessagesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </ScreenBackground>
   );
 }
 

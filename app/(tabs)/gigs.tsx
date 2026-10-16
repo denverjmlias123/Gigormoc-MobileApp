@@ -22,6 +22,7 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton, SkeletonGigList } from '../../components/ui/Skeleton';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 import { confirmDialog } from '../../lib/dialog';
 import { showToast } from '../../components/ui/Toast';
@@ -174,7 +175,7 @@ export default function GigsScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
         <View style={styles.titleRow}>
@@ -408,7 +409,7 @@ export default function GigsScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 

@@ -24,6 +24,7 @@ import { chatService } from '../../services/chat';
 import { notificationsService } from '../../services/notifications';
 import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonActivityList } from '../../components/ui/Skeleton';
@@ -525,7 +526,7 @@ export default function ActivityScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
@@ -601,7 +602,7 @@ export default function ActivityScreen() {
           )}
         </ScrollView>
       )}
-    </View>
+    </ScreenBackground>
   );
 }
 

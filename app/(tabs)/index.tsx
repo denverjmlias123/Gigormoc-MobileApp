@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Skeleton, SkeletonGigList, SkeletonActivityList } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { profileService, FreelancerSummary, Category } from '../../services/profile';
 import { notificationsService } from '../../services/notifications';
@@ -109,7 +110,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero: smooth gradient with active mode personality */}
         <LinearGradient
@@ -408,7 +409,7 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
