@@ -18,10 +18,10 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
   const theme = useAppTheme();
   const isClient = theme.isClient;
 
-  // Rich, tinted non-white aurora gradient baselines
+  // Rich, calming tinted non-white aurora gradient baselines
   const baseGradient = isClient
-    ? (['#D8E3F4', '#E2ECF9', '#CFDCF2'] as [string, string, string])
-    : (['#DBE6FA', '#E5EFFD', '#D4E2F8'] as [string, string, string]);
+    ? (['#CAD7EB', '#D8E4F5', '#C2D3EC'] as [string, string, string])
+    : (['#CEDBF0', '#DCE8F7', '#C6D7EE'] as [string, string, string]);
 
   // Vibrant aurora ambient glow spheres
   const topGlowColor = isClient ? 'rgba(37, 99, 235, 0.22)' : 'rgba(79, 70, 229, 0.22)';

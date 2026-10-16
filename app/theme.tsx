@@ -25,7 +25,7 @@ type Palette = {
 const freelancerPalette: Palette = {
   primary: '#2F55F4',
   primaryDark: '#1B34B8',
-  primarySoft: '#E8EDFF',
+  primarySoft: '#D8E4F8',
   primaryText: '#FFFFFF',
   accent: '#22C7FF',
   heroBg: '#2F55F4',
@@ -37,7 +37,7 @@ const freelancerPalette: Palette = {
 const clientPalette: Palette = {
   primary: '#2A47C9',
   primaryDark: '#0B1445',
-  primarySoft: '#E9EDFB',
+  primarySoft: '#D5E2F6',
   primaryText: '#FFFFFF',
   accent: '#6C8CFF',
   heroBg: '#0B1445',
@@ -47,14 +47,14 @@ const clientPalette: Palette = {
 };
 
 const base = {
-  bg: '#EAF0FA',
-  background: '#EAF0FA',
-  surface: '#F1F5FC',
-  surfaceAlt: '#E2EAF7',
+  bg: '#DDE7F5',
+  background: '#DDE7F5',
+  surface: '#E5EEFA',
+  surfaceAlt: '#D6E3F4',
   text: '#0C1233',
-  muted: '#5C6788',
-  border: '#D4DFEE',
-  borderStrong: '#B8C7E0',
+  muted: '#54617F',
+  border: '#BFD0E8',
+  borderStrong: '#9EB4D9',
   // Brand extras used by the first screen and highlights
   ink: '#070B26', // deepest navy, used for immersive surfaces
   spark: '#FFB524', // warm highlight (ratings, "new" dots)
@@ -90,15 +90,15 @@ const buildTheme = (mode: AppMode) => ({
     sunrise: 'linear-gradient(135deg, #FFB524 0%, #FF6B8A 100%)',
     primary: (mode === 'client' ? ['#2A47C9', '#172554'] : ['#2F55F4', '#4F46E5']) as [string, string],
     hero: (mode === 'client' ? ['#0B1445', '#172554'] : ['#2F55F4', '#3730A3']) as [string, string],
-    surface: ['rgba(241, 245, 252, 0.94)', 'rgba(230, 237, 249, 0.88)'] as [string, string],
+    surface: ['rgba(229, 238, 250, 0.90)', 'rgba(216, 228, 246, 0.85)'] as [string, string],
     emerald: ['#059669', '#10B981'] as [string, string],
   },
   glass: {
-    surface: 'rgba(239, 244, 252, 0.88)',
-    surfaceSubtle: 'rgba(230, 237, 248, 0.75)',
-    border: 'rgba(202, 215, 240, 0.85)',
-    borderSubtle: 'rgba(188, 204, 234, 0.65)',
-    highlight: 'rgba(245, 249, 255, 0.95)',
+    surface: 'rgba(224, 234, 248, 0.82)',
+    surfaceSubtle: 'rgba(214, 226, 244, 0.70)',
+    border: 'rgba(180, 198, 230, 0.75)',
+    borderSubtle: 'rgba(168, 188, 224, 0.55)',
+    highlight: 'rgba(228, 238, 254, 0.60)',
     darkSurface: 'rgba(11, 20, 69, 0.88)',
     darkBorder: 'rgba(147, 169, 219, 0.25)',
   },
@@ -122,11 +122,11 @@ const buildTheme = (mode: AppMode) => ({
     } as any,
     neoGlass: {
       shadowColor: '#0C1233',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.08,
-      shadowRadius: 20,
-      elevation: 4,
-      boxShadow: '0 8px 24px -4px rgba(12, 18, 51, 0.08), inset 0 1px 1px 0 rgba(255, 255, 255, 0.85)',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.07,
+      shadowRadius: 16,
+      elevation: 3,
+      boxShadow: '0 6px 18px -4px rgba(12, 18, 51, 0.08), 0 2px 6px rgba(12, 18, 51, 0.04)',
     } as any,
     raised: {
       shadowColor: '#0C1233',

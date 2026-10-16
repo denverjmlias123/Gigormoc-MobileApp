@@ -178,7 +178,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <Pressable
-                style={[styles.heroCta, { backgroundColor: '#FFFFFF' }]}
+                style={[styles.heroCta, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border }]}
                 onPress={() => router.push('/gigs/post')}
                 accessibilityRole="button"
               >
@@ -197,8 +197,8 @@ export default function HomeScreen() {
                 accessibilityRole="search"
                 accessibilityLabel="Search gigs"
               >
-                <Ionicons name="search" size={18} color={theme.colors.muted} />
-                <Text style={{ color: theme.colors.muted, fontSize: 15 }}>{strings.gigs.searchPlaceholder}</Text>
+                <Ionicons name="search" size={18} color="rgba(255, 255, 255, 0.9)" />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 15 }}>{strings.gigs.searchPlaceholder}</Text>
               </Pressable>
             </>
           )}
@@ -479,7 +479,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
