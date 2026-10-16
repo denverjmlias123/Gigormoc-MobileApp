@@ -115,8 +115,12 @@ export interface FreelancerSummary {
   id: string;
   display_name: string;
   headline: string | null;
+  bio: string | null;
   avatar_path: string | null;
   area: string | null;
+  availability: 'available_now' | 'part_time' | 'weekends' | 'not_taking_work' | null;
+  experience_years: 'lt_1' | '1_3' | '3_5' | '5_plus' | null;
+  work_types: string[];
   freelancer_rating_avg: number;
   freelancer_rating_count: number;
   freelancer_completed_gigs: number;
@@ -749,14 +753,15 @@ export const profileService = {
     let query = supabase
       .from('profiles')
       .select(
-        'id, display_name, headline, avatar_path, area, freelancer_rating_avg, freelancer_rating_count, freelancer_completed_gigs, active_mode, status'
+        'id, display_name, headline, bio, avatar_path, area, availability, experience_years, work_types, freelancer_rating_avg, freelancer_rating_count, freelancer_completed_gigs, active_mode, status'
       )
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .neq('active_mode', 'hire');
 
     if (params?.searchQuery && params.searchQuery.trim()) {
       const clean = params.searchQuery.trim().replace(/[%_]/g, '');
       if (clean) {
-        query = query.or(`display_name.ilike.%${clean}%,headline.ilike.%${clean}%`);
+        query = query.or(`display_name.ilike.%${clean}%,headline.ilike.%${clean}%,bio.ilike.%${clean}%`);
       }
     }
 
@@ -815,8 +820,12 @@ export const profileService = {
       id: p.id,
       display_name: p.display_name || 'Ormoc Freelancer',
       headline: p.headline || null,
+      bio: p.bio || null,
       avatar_path: p.avatar_path || null,
       area: p.area || 'Ormoc City',
+      availability: p.availability || null,
+      experience_years: p.experience_years || null,
+      work_types: Array.isArray(p.work_types) ? p.work_types : [],
       freelancer_rating_avg: Number(p.freelancer_rating_avg || 0),
       freelancer_rating_count: Number(p.freelancer_rating_count || 0),
       freelancer_completed_gigs: Number(p.freelancer_completed_gigs || 0),
