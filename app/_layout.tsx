@@ -93,6 +93,26 @@ function RootNavigation() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'aria-hidden') {
+            const target = mutation.target as HTMLElement;
+            if (target && target.getAttribute('aria-hidden') === 'true') {
+              const active = document.activeElement as HTMLElement | null;
+              if (active && target.contains(active)) {
+                active.blur?.();
+              }
+            }
+          }
+        }
+      });
+      observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['aria-hidden'] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
   const recordSessionActivity = () => {
     if (user?.id) void sessionService.noteActivity().catch(() => undefined);
   };

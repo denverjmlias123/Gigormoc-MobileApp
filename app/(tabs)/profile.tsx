@@ -20,6 +20,7 @@ import {
   ProfileCompleteBadge,
   ProfileCompletenessCard,
 } from '../../components/ui/ProfileCompleteness';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import {
   profileService,
   ProfileCompleteness,
@@ -148,8 +149,9 @@ export default function ProfileScreen() {
   const goPublic = () => user && router.push({ pathname: '/profile/[id]', params: { id: user.id } });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <ScreenBackground>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { backgroundColor: theme.colors.heroBg }]}>
           <Avatar
             name={displayName}
@@ -350,12 +352,13 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
     </View>
+  </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 60, maxWidth: 680, width: '100%', alignSelf: 'center' },
   hero: {
     paddingTop: 64,
     paddingHorizontal: 20,
