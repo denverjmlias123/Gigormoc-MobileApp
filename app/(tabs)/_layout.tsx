@@ -55,14 +55,18 @@ export default function TabLayout() {
           backgroundColor: theme.colors.background,
         },
         tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
+          backgroundColor: theme.glass.surface,
+          borderTopColor: theme.glass.border,
+          borderTopWidth: 1,
           height: Platform.OS === 'ios' ? 90 : 68,
           paddingTop: 8,
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
           ...(Platform.OS === 'web'
-            ? ({ boxShadow: '0 -8px 24px rgba(12, 18, 51, 0.05)' } as any)
+            ? ({
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 -8px 24px rgba(12, 18, 51, 0.05)',
+              } as any)
             : null),
         },
       }}

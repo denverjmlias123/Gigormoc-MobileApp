@@ -23,6 +23,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonMessageList } from '../../components/ui/Skeleton';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 
 export interface PartnerConversationGroup {
   partner_id: string;
@@ -192,12 +193,12 @@ export default function MessagesScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+          { backgroundColor: theme.glass.surface, borderBottomColor: theme.glass.border },
         ]}
       >
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Messages</Text>
@@ -399,7 +400,7 @@ export default function MessagesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </ScreenBackground>
   );
 }
 

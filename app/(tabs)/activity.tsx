@@ -27,6 +27,7 @@ import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonActivityList } from '../../components/ui/Skeleton';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
@@ -525,9 +526,9 @@ export default function ActivityScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.glass.surface, borderBottomColor: theme.glass.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
         <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
           {isFindWork
@@ -601,7 +602,7 @@ export default function ActivityScreen() {
           )}
         </ScrollView>
       )}
-    </View>
+    </ScreenBackground>
   );
 }
 

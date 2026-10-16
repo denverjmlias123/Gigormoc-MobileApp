@@ -20,6 +20,7 @@ import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton, SkeletonGigList } from '../../components/ui/Skeleton';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
@@ -174,9 +175,9 @@ export default function GigsScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScreenBackground style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.glass.surface, borderBottomColor: theme.glass.border }]}>
         <View style={styles.titleRow}>
           <Text style={[theme.type.title, { color: theme.colors.text }]}>
             {isClient ? 'My Gigs' : 'Browse Gigs'}
@@ -408,7 +409,7 @@ export default function GigsScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
