@@ -27,6 +27,7 @@ import { Badge } from '../../components/ui/Badge';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { Button } from '../../components/ui/Button';
+import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import {
   Timeline,
   NextStepBanner,
@@ -328,30 +329,33 @@ export default function GigDetailScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View
-        style={[
-          styles.topBar,
-          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/gigs');
-            }
-          }}
-          style={styles.backBtn}
+    <ScreenBackground>
+      <View style={styles.container}>
+        {/* Top Bar */}
+        <View
+          style={[
+            styles.topBar,
+            { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderBottomColor: theme.colors.border },
+          ]}
         >
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-        </TouchableOpacity>
-        <Badge status={gig.status} />
-      </View>
+          <View style={styles.topBarInner}>
+            <TouchableOpacity
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/gigs');
+                }
+              }}
+              style={styles.backBtn}
+            >
+              <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
+            </TouchableOpacity>
+            <Badge status={gig.status} />
+          </View>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Shared Next Step Banner & Relationship Timeline (Section 1) */}
         {loopState && (
           <View style={styles.loopSection}>
@@ -418,10 +422,11 @@ export default function GigDetailScreen() {
       <View
         style={[
           styles.bottomBar,
-          { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+          { backgroundColor: 'rgba(255, 255, 255, 0.95)', borderTopColor: theme.colors.border },
         ]}
       >
-        {gigAgreement ? (
+        <View style={styles.bottomBarInner}>
+          {gigAgreement ? (
           <View style={{ width: '100%', gap: 8 }}>
             <Button
               title={gig.status === 'completed' ? 'View Completed Agreement' : 'View Agreement'}
@@ -527,6 +532,7 @@ export default function GigDetailScreen() {
             )}
           </View>
         )}
+        </View>
       </View>
 
       {/* Modularized Manage Gig Bottom Sheet Modal */}
@@ -555,6 +561,7 @@ export default function GigDetailScreen() {
         deleting={deleting}
       />
     </View>
+  </ScreenBackground>
   );
 }
 
@@ -566,10 +573,15 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     paddingHorizontal: 16,
     paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  topBarInner: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
     paddingVertical: 6,
@@ -591,7 +603,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 140,
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
   },
   loopSection: {
     gap: 12,
@@ -602,6 +617,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     marginBottom: 14,
+    backgroundColor: '#FFFFFF',
   },
   sectionTitle: {
     fontSize: 16,
@@ -620,6 +636,11 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  bottomBarInner: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
   },
   ownerActionBar: {
     flexDirection: 'row',

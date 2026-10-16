@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,29 +7,44 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Dimensions,
+  useWindowDimensions,
+  Platform,
+  Modal,
+  Share,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../theme';
+import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '../../components/ui/Avatar';
-import { ProfileCompleteBadge } from '../../components/ui/ProfileCompleteness';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
-import { profileService, PublicProfileData } from '../../services/profile';
+import { ProfileCompleteBadge } from '../../components/ui/ProfileCompleteness';
+import { showToast } from '../../components/ui/Toast';
+import { profileService, PublicProfileData, PortfolioItem } from '../../services/profile';
 import { reviewsService, ReviewItem } from '../../services/reviews';
+import { chatService, ConversationSummary } from '../../services/chat';
 import { strings } from '../../constants/strings';
 
 export default function PublicProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 860;
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
 
   const [data, setData] = useState<PublicProfileData | null>(null);
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [myConversations, setMyConversations] = useState<ConversationSummary[]>([]);
+  const [activePhotoModal, setActivePhotoModal] = useState<string | null>(null);
+  const [messagingBusy, setMessagingBusy] = useState(false);
+
+  const isOwner = user?.id === id;
 
   useEffect(() => {
     let mounted = true;
@@ -47,7 +62,7 @@ export default function PublicProfileScreen() {
             setError('Profile not found.');
           } else {
             setData(res);
-            setReviews(revList);
+            setReviews(revList || []);
           }
         }
       } catch (err: any) {
@@ -61,7 +76,7 @@ export default function PublicProfileScreen() {
     return () => {
       mounted = false;
     };
-  }, [id, loadAttempt]);
+  }, [id, loadAttempt, user?.id]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -71,36 +86,104 @@ export default function PublicProfileScreen() {
     }
   };
 
+  const handleShare = async () => {
+    if (!data?.profile) return;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://gigormoc.ph/profile/${id}`;
+    const title = `${data.profile.display_name || 'User'} on GigOrmoc`;
+    try {
+      if (Platform.OS === 'web' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('Profile link copied to clipboard!', 'info');
+      } else {
+        await Share.share({
+          message: `Check out ${data.profile.display_name}'s profile on GigOrmoc: ${shareUrl}`,
+          url: shareUrl,
+          title,
+        });
+      }
+    } catch {
+      showToast('Could not share profile link.', 'error');
+    }
+  };
+
+  const handleMessagePress = async () => {
+    if (isOwner) {
+      router.push('/profile/edit');
+      return;
+    }
+    if (!user) {
+      showToast('Please sign in to send a message.', 'info');
+      router.push('/(auth)/login');
+      return;
+    }
+
+    setMessagingBusy(true);
+    try {
+      let existingConv = null;
+      try {
+        const convList = await chatService.getUserConversations();
+        existingConv = convList.find(
+          (c) => c.partner_id === id || c.partner_name === data?.profile.display_name
+        );
+      } catch {
+        // If conversations fail to load, fallback to standard flow
+      }
+
+      if (existingConv) {
+        router.push({
+          pathname: '/chat/[conversationId]',
+          params: {
+            conversationId: existingConv.id,
+            partnerName: data?.profile.display_name || 'User',
+          },
+        });
+      } else {
+        // If viewing a client's profile, route to their active gigs to apply/inquire
+        if (data?.profile.active_mode === 'hire') {
+          showToast('Browse gigs posted by this client to apply and start chatting!', 'info');
+          router.push('/(tabs)/gigs');
+        } else {
+          // If viewing a freelancer's profile, prompt to hire/post gig or invite
+          showToast('To message this freelancer, post a gig or accept an application.', 'info');
+          router.push('/(tabs)/gigs');
+        }
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Could not open message channel.', 'error');
+    } finally {
+      setMessagingBusy(false);
+    }
+  };
+
   if (loading) {
     return (
-      <ScreenBackground style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <ScreenBackground>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { color: theme.colors.muted }]}>Loading profile...</Text>
+        </View>
       </ScreenBackground>
     );
   }
 
   if (error || !data) {
     return (
-      <ScreenBackground style={styles.centerContainer}>
-        <View style={[styles.errorCard, { backgroundColor: theme.colors.surface, borderColor: theme.glass.border }, theme.shadow.card]}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.dangerText} style={{ marginBottom: 12 }} />
-          <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Unable to load profile</Text>
-          <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'Profile not found.'}</Text>
-          <View style={styles.errorActionsRow}>
-            {error ? (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={() => setLoadAttempt((attempt) => attempt + 1)}
-              >
-                <Text style={styles.actionBtnTextPrimary}>{strings.common.retry}</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.actionBtnSecondary, { borderColor: theme.colors.border }]}
-              onPress={handleBack}
-            >
-              <Text style={[styles.actionBtnTextSecondary, { color: theme.colors.text }]}>← Go back</Text>
-            </TouchableOpacity>
+      <ScreenBackground>
+        <View style={styles.centerContainer}>
+          <View style={[styles.errorCard, { backgroundColor: '#FFFFFF', borderColor: theme.colors.border }]}>
+            <Ionicons name="alert-circle-outline" size={48} color={theme.colors.danger} />
+            <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Unable to load profile</Text>
+            <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'Profile not found.'}</Text>
+            <View style={styles.errorBtnRow}>
+              {error ? (
+                <Button
+                  title={strings.common.retry}
+                  variant="primary"
+                  onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+                />
+              ) : null}
+              <Button title="← Go back" variant="secondary" onPress={handleBack} />
+            </View>
           </View>
         </View>
       </ScreenBackground>
@@ -110,620 +193,697 @@ export default function PublicProfileScreen() {
   const { profile, skills, portfolioItems, hiringInterests, gigsPostedCount, completeness } = data;
   const isHire = profile.active_mode === 'hire';
 
-  const availabilityOption = strings.profile.availabilityOptions.find(
+  const availabilityLabel = strings.profile.availabilityOptions.find(
     (o) => o.value === profile.availability
-  );
-  const availabilityLabel = availabilityOption?.label;
-
+  )?.label;
   const experienceLabel = strings.profile.experienceOptions.find(
     (o) => o.value === profile.experience_years
   )?.label;
-
   const clientTypeLabel = strings.profile.clientTypeOptions.find(
     (o) => o.value === profile.client_type
   )?.label;
 
-  // Format availability indicator colors
-  const getAvailabilityStatus = (val?: string | null) => {
-    switch (val) {
-      case 'available_now':
-        return { color: '#10B981', label: availabilityLabel || 'Available now' };
-      case 'part_time':
-        return { color: '#F59E0B', label: availabilityLabel || 'Part-time' };
-      case 'weekends':
-        return { color: '#6366F1', label: availabilityLabel || 'Weekends' };
-      case 'not_taking_work':
-        return { color: '#9CA3AF', label: availabilityLabel || 'Busy' };
-      default:
-        return null;
-    }
-  };
+  const roleAccentColor = isHire ? '#2563EB' : '#059669';
+  const roleBadgeText = isHire ? 'Client / Hiring' : 'Freelancer / Talent';
+  const roleBadgeIcon = isHire ? 'briefcase' : 'person-circle-outline';
 
-  const availInfo = getAvailabilityStatus(profile.availability);
+  // Left Identity Column Content (Desktop Sidebar or Mobile Hero)
+  const renderIdentityCard = () => (
+    <View
+      style={[
+        styles.card,
+        styles.identityCard,
+        {
+          backgroundColor: '#FFFFFF',
+          borderColor: theme.colors.border,
+          shadowColor: theme.shadow.card.shadowColor,
+        },
+      ]}
+    >
+      {/* Top Banner / Role Status Header */}
+      <View style={styles.identityHeader}>
+        <View
+          style={[
+            styles.roleBadgePill,
+            {
+              backgroundColor: isHire ? '#EFF6FF' : '#ECFDF5',
+              borderColor: isHire ? '#BFDBFE' : '#A7F3D0',
+            },
+          ]}
+        >
+          <Ionicons name={roleBadgeIcon as any} size={14} color={roleAccentColor} />
+          <Text style={[styles.roleBadgeText, { color: roleAccentColor }]}>{roleBadgeText}</Text>
+        </View>
 
-  // Gradient themes for cover banner
-  const coverGradients: [string, string, string] = isHire
-    ? ['#1E293B', '#1E3A8A', '#2563EB'] // Executive client indigo/navy
-    : ['#064E3B', '#065F46', '#059669']; // Vibrant creative emerald
-
-  return (
-    <ScreenBackground style={styles.container}>
-      {/* Top Navigation Bar */}
-      <View style={styles.topNavWrapper}>
-        <View style={styles.topNavContent}>
-          <TouchableOpacity
-            style={[
-              styles.navBackBtn,
-              { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-              theme.shadow.card,
-            ]}
-            onPress={handleBack}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Ionicons name="arrow-back" size={18} color={theme.colors.text} />
-            <Text style={[styles.navBackText, { color: theme.colors.text }]}>Back</Text>
-          </TouchableOpacity>
-
-          <View style={styles.navTitleContainer}>
-            <Text style={[styles.navHeaderTitle, { color: theme.colors.text }]}>
-              {isHire ? 'Client Profile' : 'Freelancer Profile'}
+        {!isHire && availabilityLabel ? (
+          <View style={styles.statusDotRow}>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    profile.availability === 'available_now' ? '#10B981' : '#F59E0B',
+                },
+              ]}
+            />
+            <Text style={[styles.statusDotText, { color: theme.colors.muted }]}>
+              {availabilityLabel}
             </Text>
           </View>
+        ) : null}
+      </View>
 
-          <View style={styles.navPlaceholder} />
+      {/* Avatar & Display Name */}
+      <View style={styles.avatarCenteredBlock}>
+        <Avatar
+          name={profile.display_name || 'User'}
+          imageUri={profile.avatar_path}
+          size={isDesktop ? 88 : 76}
+        />
+
+        <View style={styles.nameBlock}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.displayName, { color: theme.colors.text }]}>
+              {profile.display_name || 'Anonymous User'}
+            </Text>
+            {completeness?.complete ? <ProfileCompleteBadge /> : null}
+          </View>
+
+          {isHire && profile.business_name ? (
+            <View style={styles.businessRow}>
+              <Ionicons name="business-outline" size={15} color={theme.colors.muted} />
+              <Text style={[styles.businessName, { color: theme.colors.primary }]}>
+                {profile.business_name}
+              </Text>
+            </View>
+          ) : null}
+
+          {!isHire && profile.headline ? (
+            <Text style={[styles.headlineText, { color: theme.colors.muted }]}>
+              {profile.headline}
+            </Text>
+          ) : null}
+
+          <View style={styles.locationRow}>
+            <Ionicons name="location-sharp" size={14} color={theme.colors.muted} />
+            <Text style={[styles.locationText, { color: theme.colors.muted }]}>
+              {profile.area ? `${profile.area}, Ormoc City` : 'Ormoc City, Leyte'}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* Key Stats Grid */}
+      <View style={[styles.statsGrid, { borderTopColor: '#F1F5F9', borderBottomColor: '#F1F5F9' }]}>
+        {isHire ? (
+          <>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                ★ {Number(profile.client_rating_avg || 0).toFixed(1)}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>
+                {profile.client_rating_count || 0} reviews
+              </Text>
+            </View>
+
+            <View style={styles.statBoxDivider} />
+
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                {gigsPostedCount || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Gigs Posted</Text>
+            </View>
+
+            <View style={styles.statBoxDivider} />
+
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                {profile.client_completed_gigs || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Completed</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>
+                {profile.freelancer_rating_count || 0} reviews
+              </Text>
+            </View>
+
+            <View style={styles.statBoxDivider} />
+
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                {profile.freelancer_completed_gigs || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Gigs Done</Text>
+            </View>
+
+            <View style={styles.statBoxDivider} />
+
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                {experienceLabel || '—'}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Experience</Text>
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionButtonGroup}>
+        <Button
+          title={isOwner ? 'Edit My Profile' : isHire ? 'Browse Client Gigs' : 'Send Message / Hire'}
+          variant="primary"
+          onPress={handleMessagePress}
+          loading={messagingBusy}
+        />
+        <Button
+          title="Share Profile"
+          variant="secondary"
+          onPress={handleShare}
+        />
+      </View>
+
+      {/* Quick Details List */}
+      <View style={styles.quickDetailsList}>
+        <Text style={[styles.quickDetailsHeading, { color: theme.colors.muted }]}>
+          Profile Details
+        </Text>
+
+        {isHire && clientTypeLabel ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="briefcase-outline" size={15} color={theme.colors.muted} />
+            <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Client type:</Text>
+            <Text style={[styles.detailVal, { color: theme.colors.text }]}>{clientTypeLabel}</Text>
+          </View>
+        ) : null}
+
+        {!isHire && profile.work_types && profile.work_types.length > 0 ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="laptop-outline" size={15} color={theme.colors.muted} />
+            <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Work Mode:</Text>
+            <Text style={[styles.detailVal, { color: theme.colors.text }]}>
+              {profile.work_types
+                .map((wt) => strings.profile.workTypeOptions.find((o) => o.value === wt)?.label || wt)
+                .join(', ')}
+            </Text>
+          </View>
+        ) : null}
+
+        {profile.languages && profile.languages.length > 0 ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="chatbubbles-outline" size={15} color={theme.colors.muted} />
+            <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Languages:</Text>
+            <Text style={[styles.detailVal, { color: theme.colors.text }]}>
+              {profile.languages.join(', ')}
+            </Text>
+          </View>
+        ) : null}
+
+        {profile.preferred_contact ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="mail-outline" size={15} color={theme.colors.muted} />
+            <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Contact:</Text>
+            <Text style={[styles.detailVal, { color: theme.colors.text }]}>
+              {profile.preferred_contact}
+            </Text>
+          </View>
+        ) : null}
+
+        {!isHire && profile.starting_rate_note ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="cash-outline" size={15} color={theme.colors.muted} />
+            <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Rates:</Text>
+            <Text style={[styles.detailVal, { color: theme.colors.text }]}>
+              {profile.starting_rate_note}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Dual Role Badging if user participated in both modes */}
+        {isHire && profile.freelancer_completed_gigs ? (
+          <View style={styles.dualRoleNotice}>
+            <Text style={[styles.dualRoleText, { color: theme.colors.muted }]}>
+              Also freelanced: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} ({profile.freelancer_completed_gigs} gigs)
+            </Text>
+          </View>
+        ) : null}
+
+        {!isHire && profile.client_completed_gigs ? (
+          <View style={styles.dualRoleNotice}>
+            <Text style={[styles.dualRoleText, { color: theme.colors.muted }]}>
+              Also hired: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} ({profile.client_completed_gigs} gigs)
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  // Right Column Content (Main Information & Feed)
+  const renderMainPanels = () => (
+    <View style={styles.mainPanelsContainer}>
+      {/* 1. About / Overview Card */}
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: '#FFFFFF',
+            borderColor: theme.colors.border,
+            shadowColor: theme.shadow.card.shadowColor,
+          },
+        ]}
       >
-        <View style={styles.mainWrapper}>
-          {/* Hero Profile Card */}
-          <View
-            style={[
-              styles.heroCard,
-              { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-              theme.shadow.neoGlass,
-            ]}
-          >
-            {/* Cover Banner */}
-            <LinearGradient
-              colors={coverGradients}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroCover}
+        <View style={styles.cardHeaderRow}>
+          <Ionicons
+            name={isHire ? 'business-outline' : 'person-outline'}
+            size={20}
+            color={roleAccentColor}
+          />
+          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+            {isHire ? 'About the Client' : 'About Me'}
+          </Text>
+        </View>
+
+        {profile.bio ? (
+          <Text style={[styles.bioText, { color: theme.colors.text }]}>{profile.bio}</Text>
+        ) : (
+          <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+            {isHire
+              ? 'This client has not added an overview yet.'
+              : 'This freelancer has not added a bio yet.'}
+          </Text>
+        )}
+
+        {/* Highlight Callout for Clients: What We Usually Hire For */}
+        {isHire && profile.about_hiring ? (
+          <View style={[styles.hiringCallout, { borderColor: '#BFDBFE', backgroundColor: '#F8FAFC' }]}>
+            <View style={styles.calloutHeader}>
+              <Ionicons name="sparkles" size={16} color="#2563EB" />
+              <Text style={[styles.calloutTitle, { color: '#1E3A8A' }]}>
+                What We Look For In Freelancers
+              </Text>
+            </View>
+            <Text style={[styles.calloutBody, { color: '#334155' }]}>{profile.about_hiring}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* 2. Skills or Hiring Interests Card */}
+      {isHire ? (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: '#FFFFFF',
+              borderColor: theme.colors.border,
+              shadowColor: theme.shadow.card.shadowColor,
+            },
+          ]}
+        >
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="compass-outline" size={20} color="#2563EB" />
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+              Hiring Interests ({hiringInterests?.length || 0})
+            </Text>
+          </View>
+
+          {!hiringInterests || hiringInterests.length === 0 ? (
+            <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+              No specific hiring categories specified yet.
+            </Text>
+          ) : (
+            <View style={styles.chipsWrap}>
+              {hiringInterests.map((cat) => (
+                <View
+                  key={cat.id}
+                  style={[
+                    styles.interestChip,
+                    { borderColor: '#DBEAFE', backgroundColor: '#F0F7FF' },
+                  ]}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={14} color="#2563EB" />
+                  <Text style={[styles.interestChipText, { color: '#1E40AF' }]}>{cat.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: '#FFFFFF',
+              borderColor: theme.colors.border,
+              shadowColor: theme.shadow.card.shadowColor,
+            },
+          ]}
+        >
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="construct-outline" size={20} color="#059669" />
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+              Skills & Expertise ({skills.length})
+            </Text>
+          </View>
+
+          {skills.length === 0 ? (
+            <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+              No skills added to this profile yet.
+            </Text>
+          ) : (
+            <View style={styles.chipsWrap}>
+              {skills.map((skill) => (
+                <View
+                  key={skill.id}
+                  style={[
+                    styles.skillChip,
+                    { borderColor: '#D1FAE5', backgroundColor: '#F0FDF4' },
+                  ]}
+                >
+                  <Ionicons name="star" size={12} color="#059669" />
+                  <Text style={[styles.skillChipText, { color: '#065F46' }]}>{skill.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* 3. Portfolio Showcase (Freelancers) */}
+      {!isHire ? (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: '#FFFFFF',
+              borderColor: theme.colors.border,
+              shadowColor: theme.shadow.card.shadowColor,
+            },
+          ]}
+        >
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="images-outline" size={20} color="#059669" />
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+              Portfolio Showcase ({portfolioItems.length})
+            </Text>
+          </View>
+
+          {portfolioItems.length === 0 ? (
+            <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+              No portfolio projects published yet.
+            </Text>
+          ) : (
+            <View style={styles.portfolioGrid}>
+              {portfolioItems.map((item) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.portfolioItemCard,
+                    { borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
+                  ]}
+                >
+                  {item.file_paths && item.file_paths.length > 0 ? (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setActivePhotoModal(item.file_paths[0])}
+                    >
+                      <Image
+                        source={{ uri: item.file_paths[0] }}
+                        style={styles.portfolioCover}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.portfolioPlaceholder}>
+                      <Ionicons name="document-text-outline" size={32} color="#94A3B8" />
+                    </View>
+                  )}
+
+                  <View style={styles.portfolioItemBody}>
+                    <Text style={[styles.portfolioTitle, { color: theme.colors.text }]}>
+                      {item.title}
+                    </Text>
+                    {item.description ? (
+                      <Text
+                        style={[styles.portfolioDesc, { color: theme.colors.muted }]}
+                        numberOfLines={3}
+                      >
+                        {item.description}
+                      </Text>
+                    ) : null}
+
+                    {item.file_paths && item.file_paths.length > 1 ? (
+                      <View style={styles.portfolioThumbRow}>
+                        {item.file_paths.slice(1, 4).map((f, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => setActivePhotoModal(f)}
+                            style={styles.thumbWrapper}
+                          >
+                            <Image source={{ uri: f }} style={styles.portfolioSmallThumb} />
+                          </TouchableOpacity>
+                        ))}
+                        {item.file_paths.length > 4 ? (
+                          <View style={styles.moreThumbsChip}>
+                            <Text style={styles.moreThumbsText}>+{item.file_paths.length - 4}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      {/* 4. Reviews & Testimonials Card */}
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: '#FFFFFF',
+            borderColor: theme.colors.border,
+            shadowColor: theme.shadow.card.shadowColor,
+          },
+        ]}
+      >
+        <View style={styles.cardHeaderBetween}>
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="star" size={20} color="#EAB308" />
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+              Reviews ({reviews.length})
+            </Text>
+          </View>
+          <Text style={[styles.overallScoreText, { color: theme.colors.primary }]}>
+            ★ {Number(isHire ? profile.client_rating_avg : profile.freelancer_rating_avg || 0).toFixed(1)}
+          </Text>
+        </View>
+
+        {reviews.length === 0 ? (
+          <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
+            No reviews received yet on completed gigs.
+          </Text>
+        ) : (
+          <View style={styles.reviewsList}>
+            {reviews.map((rev) => (
+              <View
+                key={rev.id}
+                style={[
+                  styles.reviewItemCard,
+                  { borderColor: '#F1F5F9', backgroundColor: '#FAFCFE' },
+                ]}
+              >
+                <View style={styles.reviewerHeader}>
+                  <View style={styles.reviewerIdentity}>
+                    <Avatar
+                      name={rev.reviewer?.display_name || 'Anonymous User'}
+                      imageUri={rev.reviewer?.avatar_path}
+                      size={36}
+                    />
+                    <View>
+                      <Text style={[styles.reviewerName, { color: theme.colors.text }]}>
+                        {rev.reviewer?.display_name || 'Anonymous User'}
+                      </Text>
+                      <Text style={[styles.reviewerRoleSubtitle, { color: theme.colors.muted }]}>
+                        {new Date(rev.created_at).toLocaleDateString()} • As {rev.role}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.starsPill}>
+                    <Text style={styles.starsGold}>{'★'.repeat(rev.rating)}</Text>
+                    <Text style={styles.starsEmpty}>{'☆'.repeat(5 - rev.rating)}</Text>
+                  </View>
+                </View>
+
+                {rev.comment ? (
+                  <Text style={[styles.reviewComment, { color: theme.colors.text }]}>
+                    “{rev.comment}”
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  return (
+    <ScreenBackground>
+      <View style={styles.screenWrapper}>
+        {/* Web Desktop Header & Breadcrumbs / Mobile Navigation Bar */}
+        <View style={[styles.topNavBar, { borderBottomColor: theme.colors.border }]}>
+          <View style={[styles.navInner, isDesktop && styles.navInnerDesktop]}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.7}
             >
-              <View style={styles.heroCoverOverlay}>
-                <View style={styles.heroCoverBadge}>
-                  <Ionicons
-                    name={isHire ? 'briefcase' : 'sparkles'}
-                    size={12}
-                    color="#FFFFFF"
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text style={styles.heroCoverBadgeText}>
-                    {isHire ? 'Client Account' : 'Freelancer Pro'}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
+              <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+              <Text style={[styles.backText, { color: theme.colors.text }]}>
+                {isDesktop ? 'Back to Directory' : 'Back'}
+              </Text>
+            </TouchableOpacity>
 
-            {/* Profile Identity Area */}
-            <View style={styles.heroBody}>
-              <View style={styles.avatarOverlapContainer}>
-                <View style={[styles.avatarRing, { borderColor: theme.colors.surface }]}>
-                  <Avatar
-                    name={profile.display_name || 'User'}
-                    imageUri={profile.avatar_path}
-                    size={84}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.identityDetails}>
-                <View style={styles.nameBadgeRow}>
-                  <Text style={[styles.displayName, { color: theme.colors.text }]}>
-                    {profile.display_name || 'Anonymous User'}
-                  </Text>
-                  {completeness?.complete ? <ProfileCompleteBadge /> : null}
-                </View>
-
-                {/* Role Specific Headline / Business */}
-                {!isHire && profile.headline ? (
-                  <Text style={[styles.headlineText, { color: theme.colors.text }]}>
-                    {profile.headline}
-                  </Text>
-                ) : null}
-
-                {isHire && profile.business_name ? (
-                  <View style={styles.businessBadge}>
-                    <Ionicons name="business" size={14} color={theme.colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.businessNameText, { color: theme.colors.text }]}>
-                      {profile.business_name}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Location and Availability Row */}
-                <View style={styles.locationAvailRow}>
-                  {profile.area ? (
-                    <View style={styles.locationChip}>
-                      <Ionicons name="location-sharp" size={14} color={theme.colors.primary} />
-                      <Text style={[styles.areaText, { color: theme.colors.muted }]}>{profile.area}</Text>
-                    </View>
-                  ) : null}
-
-                  {!isHire && availInfo ? (
-                    <View style={[styles.availChip, { backgroundColor: `${availInfo.color}15`, borderColor: `${availInfo.color}40` }]}>
-                      <View style={[styles.availDot, { backgroundColor: availInfo.color }]} />
-                      <Text style={[styles.availText, { color: availInfo.color }]}>{availInfo.label}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            </View>
-
-            {/* Key Metrics / Stat Counter Bar */}
-            <View style={[styles.metricsContainer, { borderTopColor: theme.colors.border, backgroundColor: '#F8FAFC' }]}>
-              {isHire ? (
-                <>
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      ★ {Number(profile.client_rating_avg || 0).toFixed(1)}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      Client: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} ({profile.client_rating_count || 0})
-                    </Text>
-                  </View>
-
-                  <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      {gigsPostedCount || 0}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      {gigsPostedCount || 0} gigs posted
-                    </Text>
-                  </View>
-
-                  <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      {profile.client_completed_gigs || 0}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      {profile.client_completed_gigs || 0} completed as client
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      Freelancer: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} ({profile.freelancer_rating_count || 0})
-                    </Text>
-                  </View>
-
-                  <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      {profile.freelancer_completed_gigs || 0}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      {profile.freelancer_completed_gigs || 0} gigs completed
-                    </Text>
-                  </View>
-
-                  <View style={[styles.metricDivider, { backgroundColor: theme.colors.border }]} />
-
-                  <View style={styles.metricColumn}>
-                    <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                      {experienceLabel ? experienceLabel.split(' ')[0] : 'Pro'}
-                    </Text>
-                    <Text style={[styles.metricLabel, { color: theme.colors.muted }]}>
-                      {experienceLabel || 'Experience'}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* Cross-role rating note if active in both roles */}
-            {isHire && (profile.freelancer_completed_gigs || 0) > 0 ? (
-              <View style={[styles.crossRoleNote, { borderTopColor: theme.colors.border }]}>
-                <Ionicons name="information-circle-outline" size={14} color={theme.colors.muted} />
-                <Text style={[styles.crossRoleText, { color: theme.colors.muted }]}>
-                  Also active as Freelancer: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} ({profile.freelancer_completed_gigs} completed)
+            {isDesktop ? (
+              <View style={styles.desktopBreadcrumbs}>
+                <Text style={[styles.breadcrumbMuted, { color: theme.colors.muted }]}>
+                  Directory
                 </Text>
-              </View>
-            ) : !isHire && (profile.client_completed_gigs || 0) > 0 ? (
-              <View style={[styles.crossRoleNote, { borderTopColor: theme.colors.border }]}>
-                <Ionicons name="information-circle-outline" size={14} color={theme.colors.muted} />
-                <Text style={[styles.crossRoleText, { color: theme.colors.muted }]}>
-                  Client: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} ({profile.client_rating_count || 0}) • {profile.client_completed_gigs || 0} gigs
+                <Text style={[styles.breadcrumbDivider, { color: theme.colors.muted }]}>/</Text>
+                <Text style={[styles.breadcrumbMuted, { color: theme.colors.muted }]}>
+                  {isHire ? 'Clients' : 'Freelancers'}
+                </Text>
+                <Text style={[styles.breadcrumbDivider, { color: theme.colors.muted }]}>/</Text>
+                <Text style={[styles.breadcrumbActive, { color: theme.colors.text }]}>
+                  {profile.display_name || 'Profile'}
                 </Text>
               </View>
             ) : null}
-          </View>
 
-          {/* About Section Card */}
-          {profile.bio || (isHire && profile.about_hiring) ? (
-            <View
-              style={[
-                styles.contentCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-                theme.shadow.card,
-              ]}
+            <TouchableOpacity
+              style={styles.shareIconBtn}
+              onPress={handleShare}
+              activeOpacity={0.7}
             >
-              <View style={styles.cardHeader}>
-                <Ionicons name="person-circle-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                  {isHire ? 'About the Client' : 'About'}
-                </Text>
-              </View>
-
-              {profile.bio ? (
-                <Text style={[styles.bioText, { color: theme.colors.text }]}>
-                  {profile.bio}
-                </Text>
-              ) : null}
-
-              {isHire && profile.about_hiring ? (
-                <View style={[styles.highlightBox, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
-                  <View style={styles.highlightHeader}>
-                    <Ionicons name="bulb-outline" size={16} color="#0284C7" />
-                    <Text style={[styles.highlightTitle, { color: '#0369A1' }]}>
-                      What we usually hire for:
-                    </Text>
-                  </View>
-                  <Text style={[styles.highlightContent, { color: '#0C4A6E' }]}>
-                    {profile.about_hiring}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* Profile Details & Overview Card */}
-          <View
-            style={[
-              styles.contentCard,
-              { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-              theme.shadow.card,
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                {isHire ? 'Client Details' : 'Key Specifications'}
-              </Text>
-            </View>
-
-            <View style={styles.detailsGrid}>
-              {/* Client specific details */}
-              {isHire && clientTypeLabel ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="business-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Client type:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{clientTypeLabel}</Text>
-                </View>
-              ) : null}
-
-              {isHire && profile.business_name ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="storefront-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Business / Organization:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{profile.business_name}</Text>
-                </View>
-              ) : null}
-
-              {isHire ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="layers-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Gigs posted:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{gigsPostedCount || 0} gigs posted</Text>
-                </View>
-              ) : null}
-
-              {/* Freelancer specific details */}
-              {!isHire && availabilityLabel ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="time-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Availability:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{availabilityLabel}</Text>
-                </View>
-              ) : null}
-
-              {!isHire && experienceLabel ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="ribbon-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Experience:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{experienceLabel}</Text>
-                </View>
-              ) : null}
-
-              {!isHire && profile.work_types && profile.work_types.length > 0 ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="laptop-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Work types:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>
-                    {profile.work_types
-                      .map(
-                        (wt) =>
-                          strings.profile.workTypeOptions.find((o) => o.value === wt)?.label || wt
-                      )
-                      .join(', ')}
-                  </Text>
-                </View>
-              ) : null}
-
-              {!isHire && profile.starting_rate_note ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="pricetag-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Starting rate note:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{profile.starting_rate_note}</Text>
-                </View>
-              ) : null}
-
-              {/* Shared details */}
-              {profile.languages && profile.languages.length > 0 ? (
-                <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="globe-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Languages:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{profile.languages.join(', ')}</Text>
-                </View>
-              ) : null}
-
-              {profile.preferred_contact ? (
-                <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
-                  <View style={styles.detailKeyWrap}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.colors.muted} />
-                    <Text style={[styles.detailKey, { color: theme.colors.muted }]}>Preferred contact:</Text>
-                  </View>
-                  <Text style={[styles.detailVal, { color: theme.colors.text }]}>{profile.preferred_contact}</Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          {/* Hiring Interests Section (shown for clients) */}
-          {isHire ? (
-            <View
-              style={[
-                styles.contentCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-                theme.shadow.card,
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons name="sparkles-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                  Hiring Interests
-                </Text>
-              </View>
-
-              {!hiringInterests || hiringInterests.length === 0 ? (
-                <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
-                  No hiring interests specified yet.
-                </Text>
-              ) : (
-                <View style={styles.skillsGrid}>
-                  {hiringInterests.map((cat) => (
-                    <View
-                      key={cat.id}
-                      style={[
-                        styles.interestChip,
-                        { borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' },
-                      ]}
-                    >
-                      <Ionicons name="checkmark-circle" size={14} color="#2563EB" style={{ marginRight: 6 }} />
-                      <Text style={[styles.interestChipText, { color: '#1E40AF' }]}>
-                        {cat.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {/* Skills Section (shown for freelancers only) */}
-          {!isHire ? (
-            <View
-              style={[
-                styles.contentCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-                theme.shadow.card,
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons name="construct-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                  Skills & Expertise
-                </Text>
-              </View>
-
-              {skills.length === 0 ? (
-                <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
-                  No skills specified yet.
-                </Text>
-              ) : (
-                <View style={styles.skillsGrid}>
-                  {skills.map((skill) => (
-                    <View
-                      key={skill.id}
-                      style={[
-                        styles.skillChip,
-                        { borderColor: '#D1FAE5', backgroundColor: '#ECFDF5' },
-                      ]}
-                    >
-                      <Ionicons name="star" size={12} color="#059669" style={{ marginRight: 6 }} />
-                      <Text style={[styles.skillChipText, { color: '#065F46' }]}>
-                        {skill.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {/* Portfolio Section (shown for freelancers only) */}
-          {!isHire ? (
-            <View
-              style={[
-                styles.contentCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-                theme.shadow.card,
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons name="images-outline" size={20} color={theme.colors.primary} />
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                  Portfolio ({portfolioItems.length})
-                </Text>
-              </View>
-
-              {portfolioItems.length === 0 ? (
-                <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
-                  No portfolio items published yet.
-                </Text>
-              ) : (
-                <View style={styles.portfolioList}>
-                  {portfolioItems.map((item) => (
-                    <View
-                      key={item.id}
-                      style={[
-                        styles.portfolioCard,
-                        { borderColor: theme.colors.border, backgroundColor: '#FAFAFA' },
-                      ]}
-                    >
-                      <Text style={[styles.portfolioTitle, { color: theme.colors.text }]}>
-                        {item.title}
-                      </Text>
-                      {item.description ? (
-                        <Text style={[styles.portfolioDesc, { color: theme.colors.muted }]}>
-                          {item.description}
-                        </Text>
-                      ) : null}
-                      {item.file_paths && item.file_paths.length > 0 ? (
-                        <View style={styles.portfolioFiles}>
-                          {item.file_paths.map((f, idx) => (
-                            <Image
-                              key={idx}
-                              source={{ uri: f }}
-                              style={styles.portfolioThumb}
-                              resizeMode="cover"
-                            />
-                          ))}
-                        </View>
-                      ) : null}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {/* Reviews Section */}
-          <View
-            style={[
-              styles.contentCard,
-              { backgroundColor: theme.colors.surface, borderColor: theme.glass.border },
-              theme.shadow.card,
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <Ionicons name="star" size={20} color="#F59E0B" />
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                Reviews & Ratings ({reviews.length})
-              </Text>
-            </View>
-
-            {reviews.length === 0 ? (
-              <View style={styles.emptyReviewsBox}>
-                <Ionicons name="chatbubbles-outline" size={32} color={theme.colors.muted} style={{ opacity: 0.5, marginBottom: 6 }} />
-                <Text style={[styles.emptyNote, { color: theme.colors.muted }]}>
-                  No reviews received yet.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.reviewsList}>
-                {reviews.map((rev) => (
-                  <View
-                    key={rev.id}
-                    style={[
-                      styles.reviewCard,
-                      { borderColor: theme.colors.border, backgroundColor: '#F8FAFC' },
-                    ]}
-                  >
-                    <View style={styles.reviewCardHeader}>
-                      <View style={styles.reviewerMetaRow}>
-                        <Avatar
-                          name={rev.reviewer?.display_name || 'Anonymous User'}
-                          imageUri={rev.reviewer?.avatar_path}
-                          size={36}
-                        />
-                        <View style={styles.reviewerDetails}>
-                          <Text style={[styles.reviewerDisplayName, { color: theme.colors.text }]}>
-                            {rev.reviewer?.display_name || 'Anonymous User'}
-                          </Text>
-                          <Text style={[styles.reviewDateText, { color: theme.colors.muted }]}>
-                            {new Date(rev.created_at).toLocaleDateString()} • As {rev.role}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.starRatingBadge}>
-                        <Text style={[styles.reviewStarsText, { color: '#F59E0B' }]}>
-                          {'★'.repeat(rev.rating)}
-                          {'☆'.repeat(Math.max(0, 5 - rev.rating))}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={[styles.reviewCommentText, { color: theme.colors.text }]}>
-                      "{rev.comment}"
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              <Ionicons name="share-outline" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+
+        {/* Responsive Content Area */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContainer,
+            isDesktop && styles.scrollContainerDesktop,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {isDesktop ? (
+            /* 2-Column Desktop Web Layout */
+            <View style={styles.desktopRowGrid}>
+              <View style={styles.desktopLeftColumn}>{renderIdentityCard()}</View>
+              <View style={styles.desktopRightColumn}>{renderMainPanels()}</View>
+            </View>
+          ) : (
+            /* 1-Column Mobile App Layout */
+            <View style={styles.mobileColStack}>
+              {renderIdentityCard()}
+              {renderMainPanels()}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Portfolio High-Res Image Lightbox Modal */}
+      {activePhotoModal ? (
+        <Modal
+          visible={Boolean(activePhotoModal)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActivePhotoModal(null)}
+        >
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setActivePhotoModal(null)}
+            >
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Image
+              source={{ uri: activePhotoModal }}
+              style={styles.modalFullImage}
+              resizeMode="contain"
+            />
+          </View>
+        </Modal>
+      ) : null}
     </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screenWrapper: {
     flex: 1,
+  },
+  topNavBar: {
+    paddingTop: Platform.OS === 'ios' ? 48 : 16,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  navInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  navInnerDesktop: {
+    maxWidth: 1040,
+    alignSelf: 'center',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  backText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  desktopBreadcrumbs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  breadcrumbMuted: {
+    fontSize: 14,
+  },
+  breadcrumbDivider: {
+    fontSize: 14,
+  },
+  breadcrumbActive: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  shareIconBtn: {
+    padding: 8,
+    borderRadius: 8,
   },
   centerContainer: {
     flex: 1,
@@ -731,295 +891,200 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+  },
   errorCard: {
-    width: '100%',
-    maxWidth: 420,
-    borderRadius: 20,
     borderWidth: 1,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     alignItems: 'center',
+    maxWidth: 420,
+    width: '100%',
   },
   errorTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
+    marginTop: 12,
     marginBottom: 6,
-    textAlign: 'center',
   },
   errorDesc: {
     fontSize: 14,
-    marginBottom: 20,
     textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: 20,
   },
-  errorActionsRow: {
+  errorBtnRow: {
     flexDirection: 'row',
     gap: 12,
+    width: '100%',
+    justifyContent: 'center',
   },
-  actionBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
+  scrollContainer: {
+    padding: 16,
+    paddingBottom: 48,
   },
-  actionBtnTextPrimary: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+  scrollContainerDesktop: {
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
   },
-  actionBtnSecondary: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+  desktopRowGrid: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+    width: '100%',
+  },
+  desktopLeftColumn: {
+    width: 340,
+  },
+  desktopRightColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mobileColStack: {
+    gap: 16,
+  },
+  mainPanelsContainer: {
+    gap: 16,
+  },
+  card: {
     borderWidth: 1,
+    borderRadius: 20,
+    padding: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  actionBtnTextSecondary: {
-    fontWeight: '600',
-    fontSize: 14,
+  identityCard: {
+    gap: 16,
   },
-  topNavWrapper: {
-    paddingTop: 48,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-  },
-  topNavContent: {
+  identityHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    maxWidth: 780,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  navBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 6,
-  },
-  navBackText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  navTitleContainer: {
-    alignItems: 'center',
-  },
-  navHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  navPlaceholder: {
-    width: 60,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 48,
-  },
-  mainWrapper: {
-    width: '100%',
-    maxWidth: 780,
-    alignSelf: 'center',
-    gap: 16,
-  },
-  heroCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  heroCover: {
-    height: 110,
-    width: '100%',
-    justifyContent: 'flex-start',
-    padding: 12,
-  },
-  heroCoverOverlay: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  heroCoverBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  heroCoverBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  heroBody: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  avatarOverlapContainer: {
-    marginTop: -44,
-    marginBottom: 12,
-    flexDirection: 'row',
-  },
-  avatarRing: {
-    borderWidth: 3.5,
-    borderRadius: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  identityDetails: {
-    gap: 4,
-  },
-  nameBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
   },
-  displayName: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  headlineText: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  businessBadge: {
+  roleBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  businessNameText: {
-    fontSize: 15,
+  roleBadgeText: {
+    fontSize: 12.5,
     fontWeight: '700',
   },
-  locationAvailRow: {
+  statusDotRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 6,
+    gap: 6,
   },
-  locationChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  areaText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  availChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 5,
-  },
-  availDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  availText: {
+  statusDotText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  metricsContainer: {
+  avatarCenteredBlock: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 12,
+  },
+  nameBlock: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-  },
-  metricColumn: {
-    flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    gap: 8,
+    flexWrap: 'wrap',
   },
-  metricValue: {
-    fontSize: 17,
+  displayName: {
+    fontSize: 22,
     fontWeight: '800',
-    marginBottom: 2,
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
-  metricLabel: {
-    fontSize: 11,
+  businessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  businessName: {
+    fontSize: 14.5,
+    fontWeight: '700',
+  },
+  headlineText: {
+    fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
   },
-  metricDivider: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+  },
+  statBox: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statBoxDivider: {
     width: 1,
     height: 28,
+    backgroundColor: '#E2E8F0',
   },
-  crossRoleNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-    backgroundColor: '#F8FAFC',
+  statValue: {
+    fontSize: 16.5,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
-  crossRoleText: {
-    fontSize: 12,
+  statLabel: {
+    fontSize: 11.5,
     fontWeight: '500',
+    marginTop: 2,
   },
-  contentCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 20,
+  actionButtonGroup: {
+    gap: 10,
+    width: '100%',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
+  quickDetailsList: {
+    paddingTop: 8,
+    gap: 10,
   },
-  cardTitle: {
-    fontSize: 18,
+  quickDetailsHeading: {
+    fontSize: 11.5,
     fontWeight: '700',
-  },
-  bioText: {
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  highlightBox: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 6,
-  },
-  highlightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  highlightTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  highlightContent: {
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '500',
-  },
-  detailsGrid: {
-    gap: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  detailKeyWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1031,11 +1096,69 @@ const styles = StyleSheet.create({
   detailVal: {
     fontSize: 13,
     fontWeight: '600',
-    textAlign: 'right',
-    flexShrink: 1,
-    marginLeft: 12,
+    flex: 1,
   },
-  skillsGrid: {
+  dualRoleNotice: {
+    marginTop: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  dualRoleText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  cardHeaderBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  overallScoreText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  bioText: {
+    fontSize: 14.5,
+    lineHeight: 23,
+  },
+  emptyNote: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  hiringCallout: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    gap: 6,
+  },
+  calloutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calloutTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  calloutBody: {
+    fontSize: 13.5,
+    lineHeight: 20,
+  },
+  chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
@@ -1043,6 +1166,7 @@ const styles = StyleSheet.create({
   skillChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
@@ -1055,6 +1179,7 @@ const styles = StyleSheet.create({
   interestChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
@@ -1064,87 +1189,125 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  emptyNote: {
-    fontSize: 14,
-    fontStyle: 'italic',
+  portfolioGrid: {
+    gap: 16,
   },
-  emptyReviewsBox: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  portfolioList: {
-    gap: 14,
-  },
-  portfolioCard: {
+  portfolioItemCard: {
     borderWidth: 1,
     borderRadius: 16,
+    overflow: 'hidden',
+  },
+  portfolioCover: {
+    width: '100%',
+    height: 190,
+  },
+  portfolioPlaceholder: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portfolioItemBody: {
     padding: 16,
+    gap: 6,
   },
   portfolioTitle: {
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 4,
   },
   portfolioDesc: {
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 20,
-    marginBottom: 8,
   },
-  portfolioFiles: {
+  portfolioThumbRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 4,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
   },
-  portfolioThumb: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
+  thumbWrapper: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  portfolioSmallThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+  },
+  moreThumbsChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreThumbsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
   },
   reviewsList: {
     gap: 12,
   },
-  reviewCard: {
+  reviewItemCard: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
   },
-  reviewCardHeader: {
+  reviewerHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  reviewerMetaRow: {
+  reviewerIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
   },
-  reviewerDetails: {
-    flex: 1,
-  },
-  reviewerDisplayName: {
+  reviewerName: {
     fontSize: 14,
     fontWeight: '700',
   },
-  reviewDateText: {
-    fontSize: 11,
+  reviewerRoleSubtitle: {
+    fontSize: 12,
     marginTop: 1,
   },
-  starRatingBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
+  starsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  reviewStarsText: {
-    fontSize: 12,
-    fontWeight: '700',
+  starsGold: {
+    color: '#EAB308',
+    fontSize: 14,
   },
-  reviewCommentText: {
-    fontSize: 13,
+  starsEmpty: {
+    color: '#CBD5E1',
+    fontSize: 14,
+  },
+  reviewComment: {
+    fontSize: 13.5,
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.90)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 40,
+    right: 24,
+    zIndex: 10,
+    padding: 8,
+  },
+  modalFullImage: {
+    width: '100%',
+    height: '80%',
   },
 });
