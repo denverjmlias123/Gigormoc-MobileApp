@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
@@ -16,6 +15,8 @@ import { aiService } from '../../services/ai';
 import { strings } from '../../constants/strings';
 import { confirmDialog } from '../../lib/dialog';
 import { runConfirmedLogout } from '../../utils/confirmedLogout';
+import { ClientHiringDetailsCard } from '../../components/onboarding/ClientHiringDetailsCard';
+import { FreelancerSkillSections } from '../../components/onboarding/FreelancerSkillSections';
 
 const MAX_HIRING_INTERESTS = 8;
 const MAX_PROFILE_SKILLS = 15;
@@ -68,13 +69,14 @@ export default function OnboardingStep2SkillsScreen() {
     if (signingOut) return;
     try {
       const confirmed = await runConfirmedLogout({
-        requestConfirmation: () => confirmDialog({
-          title: strings.auth.logoutConfirmTitle,
-          message: strings.auth.logoutConfirmMessage,
-          confirmText: strings.auth.logoutConfirmYes,
-          cancelText: strings.common.cancel,
-          destructive: true,
-        }),
+        requestConfirmation: () =>
+          confirmDialog({
+            title: strings.auth.logoutConfirmTitle,
+            message: strings.auth.logoutConfirmMessage,
+            confirmText: strings.auth.logoutConfirmYes,
+            cancelText: strings.common.cancel,
+            destructive: true,
+          }),
         signOut: () => signOut({ reason: 'user' }),
         onConfirmed: () => setSigningOut(true),
       });
@@ -193,7 +195,6 @@ export default function OnboardingStep2SkillsScreen() {
     setSkillsSaved(false);
     setZeroSkillsWarning(false);
 
-    // If already saved in DB, remove via RPC
     const alreadySaved = savedSkills.find((s) => s.id === id);
     if (alreadySaved) {
       handleRemoveTrayItem({
@@ -263,7 +264,6 @@ export default function OnboardingStep2SkillsScreen() {
     const normalized = validation.normalized;
     const lower = normalized.toLowerCase();
 
-    // Case-insensitive dedupe against already selected or catalog skills
     if (selectedSkillTray.some((item) => item.name.trim().toLowerCase() === lower)) {
       setCustomInput('');
       return;
@@ -281,11 +281,6 @@ export default function OnboardingStep2SkillsScreen() {
       setCustomSkills((prev) => [...prev, normalized]);
     }
     setCustomInput('');
-  };
-
-  const removeCustomSkill = (skill: string) => {
-    setSkillsSaved(false);
-    setCustomSkills((prev) => prev.filter((s) => s.toLowerCase() !== skill.toLowerCase()));
   };
 
   const handleRemoveTrayItem = async (item: {
@@ -343,7 +338,6 @@ export default function OnboardingStep2SkillsScreen() {
       const suggestions = await aiService.suggestSkills(workDescription);
       setAiSuggestions(suggestions);
 
-      // Select suggested skills up to MAX_PROFILE_SKILLS without duplicating existing tray items
       const existingLower = new Set(
         selectedSkillTray.map((item) => item.name.trim().toLowerCase())
       );
@@ -387,7 +381,6 @@ export default function OnboardingStep2SkillsScreen() {
     setSaving(true);
     try {
       await profileService.addProfileSkills(selectedCatalogIds, customNamesToSave);
-      // Re-fetch authoritative saved skills from the database
       const refreshedFromDb = await profileService.getUserSkills(profile.id);
       setSavedSkills(refreshedFromDb);
       setSelectedCatalogIds([]);
@@ -478,7 +471,6 @@ export default function OnboardingStep2SkillsScreen() {
       const suggestions = await aiService.suggestCategories(helpDescription);
       setAiCategorySuggestions(suggestions);
 
-      // Match against existing catalog categories or add to custom categories up to 8 total
       const nextCatIds = [...selectedCategoryIds];
       const nextCustom = [...selectedCustomCategories];
 
@@ -556,7 +548,6 @@ export default function OnboardingStep2SkillsScreen() {
       return;
     }
 
-    // Freelancer mode: save any unsaved skills via handleSaveSkills, then advance
     const customNamesToSave = Array.from(new Set([...selectedAiSkills, ...customSkills]));
 
     if (selectedCatalogIds.length === 0 && customNamesToSave.length === 0) {
@@ -611,303 +602,31 @@ export default function OnboardingStep2SkillsScreen() {
         )}
 
         {isHire ? (
-          <>
-            {/* Client Type */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                Who are you hiring as?
-              </Text>
-              <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-                Let freelancers know if you are hiring for yourself, a small business, or an organization.
-              </Text>
-              <View style={styles.chipsWrap}>
-                {strings.profile.clientTypeOptions.map((opt) => {
-                  const selected = clientType === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.chip,
-                        { borderColor: theme.colors.border },
-                        selected && {
-                          backgroundColor: theme.colors.primary,
-                          borderColor: theme.colors.primary,
-                        },
-                      ]}
-                      onPress={() => setClientType(selected ? '' : opt.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          { color: selected ? '#ffffff' : theme.colors.text },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <Text style={[styles.subLabel, { color: theme.colors.text, marginTop: 14 }]}>
-                Business or Organization Name (Optional, 2–60 characters)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { borderColor: theme.colors.border, color: theme.colors.text, marginBottom: 0 },
-                ]}
-                placeholder="e.g. Ormoc Print Shop"
-                placeholderTextColor={theme.colors.muted}
-                value={businessName}
-                onChangeText={setBusinessName}
-                maxLength={60}
-              />
-            </View>
-
-            {/* AI Category Suggestions for Clients */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                🤖 Suggest Categories with AI
-              </Text>
-              <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-                Describe what you usually need help with, and our assistant will suggest relevant categories.
-              </Text>
-
-              <TextInput
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-                placeholder={strings.onboarding.aiCategoriesPlaceholder}
-                placeholderTextColor={theme.colors.muted}
-                value={helpDescription}
-                onChangeText={setHelpDescription}
-                multiline
-                numberOfLines={2}
-              />
-
-              {aiError && (
-                <View style={styles.inlineError}>
-                  <Text style={styles.inlineErrorText}>{aiError}</Text>
-                  <TouchableOpacity onPress={handleSuggestCategories} style={{ marginTop: 4 }}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  styles.aiBtn,
-                  { backgroundColor: theme.colors.primarySoft },
-                  aiLoading && { opacity: 0.7 },
-                ]}
-                onPress={handleSuggestCategories}
-                disabled={aiLoading}
-                activeOpacity={0.8}
-              >
-                {aiLoading ? (
-                  <View style={styles.btnRow}>
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                    <Text style={[styles.aiBtnText, { color: theme.colors.primary, marginLeft: 8 }]}>
-                      {strings.onboarding.suggestingCategories}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.aiBtnText, { color: theme.colors.primary }]}>
-                    {strings.onboarding.suggestCategoriesBtn}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {aiCategorySuggestions.length > 0 && (
-                <View style={styles.suggestionsContainer}>
-                  <Text style={[styles.subLabel, { color: theme.colors.text }]}>
-                    Suggested Categories (tap to toggle):
-                  </Text>
-                  <View style={styles.chipsWrap}>
-                    {aiCategorySuggestions.map((catName) => {
-                      const catalogMatch = catalogCategories.find(
-                        (c) => c.name.toLowerCase() === catName.toLowerCase()
-                      );
-                      const selected = catalogMatch
-                        ? selectedCategoryIds.includes(catalogMatch.id)
-                        : selectedCustomCategories.some(
-                            (c) => c.toLowerCase() === catName.toLowerCase()
-                          );
-                      return (
-                        <TouchableOpacity
-                          key={catName}
-                          style={[
-                            styles.chip,
-                            { borderColor: theme.colors.border },
-                            selected && {
-                              backgroundColor: theme.colors.primary,
-                              borderColor: theme.colors.primary,
-                            },
-                          ]}
-                          onPress={() =>
-                            catalogMatch
-                              ? toggleCatalogCategory(catalogMatch.id)
-                              : toggleCustomCategory(catName)
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: selected ? '#ffffff' : theme.colors.text },
-                            ]}
-                          >
-                            {selected ? '✓ ' : '+ '}
-                            {catName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Hiring Interests Catalog & Custom Category Input */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS})
-              </Text>
-              <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-                Pick up to {MAX_HIRING_INTERESTS} categories of work you usually hire for.
-              </Text>
-
-              {loading ? (
-                <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: 12 }} />
-              ) : catalogCategories.length > 0 ? (
-                <View style={[styles.chipsWrap, { marginBottom: 12 }]}>
-                  {catalogCategories.map((cat) => {
-                    const selected = selectedCategoryIds.includes(cat.id);
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={[
-                          styles.chip,
-                          { borderColor: theme.colors.border },
-                          selected && {
-                            backgroundColor: theme.colors.primary,
-                            borderColor: theme.colors.primary,
-                          },
-                        ]}
-                        onPress={() => toggleCatalogCategory(cat.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            { color: selected ? '#ffffff' : theme.colors.text },
-                          ]}
-                        >
-                          {selected ? '✓ ' : ''}
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : null}
-
-              <View style={styles.customInputRow}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                      marginBottom: 0,
-                    },
-                  ]}
-                  placeholder={strings.onboarding.addCustomCategoryPlaceholder}
-                  placeholderTextColor={theme.colors.muted}
-                  value={customCategoryInput}
-                  onChangeText={setCustomCategoryInput}
-                  maxLength={50}
-                />
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
-                  onPress={handleAddCustomCategory}
-                >
-                  <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {selectedCustomCategories.length > 0 && (
-                <View style={[styles.chipsWrap, { marginTop: 12 }]}>
-                  {selectedCustomCategories.map((catName) => (
-                    <View
-                      key={catName}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: theme.colors.primarySoft,
-                          borderColor: theme.colors.primary,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: theme.colors.primary, marginRight: 6 }}>{catName}</Text>
-                      <TouchableOpacity onPress={() => toggleCustomCategory(catName)}>
-                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* About Hiring */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                What kind of work do you usually need? (Optional)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: theme.colors.border,
-                    color: theme.colors.text,
-                    minHeight: 80,
-                    marginBottom: 4,
-                  },
-                ]}
-                placeholder="e.g. Weekly store errands, graphic design for promotions, aircon maintenance..."
-                placeholderTextColor={theme.colors.muted}
-                value={aboutHiring}
-                onChangeText={setAboutHiring}
-                multiline
-                numberOfLines={3}
-                maxLength={300}
-                textAlignVertical="top"
-              />
-              <Text style={{ fontSize: 12, color: theme.colors.muted }}>
-                {aboutHiring.trim().length}/300 characters
-              </Text>
-            </View>
-          </>
+          <ClientHiringDetailsCard
+            clientType={clientType}
+            setClientType={setClientType}
+            businessName={businessName}
+            setBusinessName={setBusinessName}
+            aboutHiring={aboutHiring}
+            setAboutHiring={setAboutHiring}
+            catalogCategories={catalogCategories}
+            catalogLoading={loading}
+            selectedCategoryIds={selectedCategoryIds}
+            toggleCatalogCategory={toggleCatalogCategory}
+            helpDescription={helpDescription}
+            setHelpDescription={setHelpDescription}
+            aiCategorySuggestions={aiCategorySuggestions}
+            onSuggestCategories={handleSuggestCategories}
+            aiLoading={aiLoading}
+            aiError={aiError}
+            selectedCustomCategories={selectedCustomCategories}
+            toggleCustomCategory={toggleCustomCategory}
+            customCategoryInput={customCategoryInput}
+            setCustomCategoryInput={setCustomCategoryInput}
+            onAddCustomCategory={handleAddCustomCategory}
+            totalSelectedInterests={totalSelectedInterests}
+            maxHiringInterests={MAX_HIRING_INTERESTS}
+          />
         ) : (
           <>
             {/* Section 4 Rule 1 & 2: "Your skills (n)" Tray at the top of the screen */}
@@ -1009,178 +728,24 @@ export default function OnboardingStep2SkillsScreen() {
               )}
             </View>
 
-            {/* AI Skill Suggestion Box (Freelancer only) */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                🤖 Suggest Skills with AI
-              </Text>
-              <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-                Describe the work you do in plain words, and our assistant will suggest relevant skills.
-              </Text>
-
-              <TextInput
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-                placeholder={strings.onboarding.aiSkillsPlaceholder}
-                placeholderTextColor={theme.colors.muted}
-                value={workDescription}
-                onChangeText={setWorkDescription}
-                multiline
-                numberOfLines={2}
-              />
-
-              {aiError && (
-                <View style={styles.inlineError}>
-                  <Text style={styles.inlineErrorText}>{aiError}</Text>
-                  <TouchableOpacity onPress={handleSuggestSkills} style={{ marginTop: 4 }}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  styles.aiBtn,
-                  { backgroundColor: theme.colors.primarySoft },
-                  aiLoading && { opacity: 0.7 },
-                ]}
-                onPress={handleSuggestSkills}
-                disabled={aiLoading}
-                activeOpacity={0.8}
-              >
-                {aiLoading ? (
-                  <View style={styles.btnRow}>
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                    <Text style={[styles.aiBtnText, { color: theme.colors.primary, marginLeft: 8 }]}>
-                      {strings.onboarding.suggestingSkills}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.aiBtnText, { color: theme.colors.primary }]}>
-                    {strings.onboarding.suggestSkillsBtn}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {aiSuggestions.length > 0 && (
-                <View style={styles.suggestionsContainer}>
-                  <Text style={[styles.subLabel, { color: theme.colors.text }]}>
-                    Suggested Skills (tap to toggle):
-                  </Text>
-                  <View style={styles.chipsWrap}>
-                    {aiSuggestions.map((skill) => {
-                      const lower = skill.trim().toLowerCase();
-                      const selected =
-                        selectedAiSkills.some((s) => s.trim().toLowerCase() === lower) ||
-                        savedSkills.some((s) => s.name.trim().toLowerCase() === lower);
-                      return (
-                        <TouchableOpacity
-                          key={skill}
-                          style={[
-                            styles.chip,
-                            { borderColor: theme.colors.border },
-                            selected && {
-                              backgroundColor: theme.colors.primary,
-                              borderColor: theme.colors.primary,
-                            },
-                          ]}
-                          onPress={() => toggleAiSkill(skill)}
-                        >
-                          <Text style={[styles.chipText, selected && { color: '#ffffff' }]}>
-                            {selected ? '✓ ' : '+ '}
-                            {skill}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Catalog Skills */}
-            {loading ? (
-              <View style={styles.center}>
-                <ActivityIndicator color={theme.colors.primary} />
-              </View>
-            ) : catalogSkills.length > 0 ? (
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                ]}
-              >
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                  📋 Skills Catalog
-                </Text>
-                <View style={styles.chipsWrap}>
-                  {catalogSkills.map((skill) => {
-                    const selected =
-                      selectedCatalogIds.includes(skill.id) ||
-                      savedSkills.some((s) => s.id === skill.id);
-                    return (
-                      <TouchableOpacity
-                        key={skill.id}
-                        style={[
-                          styles.chip,
-                          { borderColor: theme.colors.border },
-                          selected && {
-                            backgroundColor: theme.colors.primary,
-                            borderColor: theme.colors.primary,
-                          },
-                        ]}
-                        onPress={() => toggleCatalogSkill(skill.id)}
-                      >
-                        <Text style={[styles.chipText, selected && { color: '#ffffff' }]}>
-                          {selected ? '✓ ' : ''}
-                          {skill.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
-
-            {/* Manual Custom Skill Input */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-                ✍️ Add Custom Skill
-              </Text>
-              <View style={styles.customInputRow}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                      marginBottom: 0,
-                    },
-                  ]}
-                  placeholder={strings.onboarding.addCustomSkillPlaceholder}
-                  placeholderTextColor={theme.colors.muted}
-                  value={customInput}
-                  onChangeText={setCustomInput}
-                  maxLength={40}
-                />
-                <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
-                  onPress={handleAddCustomSkill}
-                >
-                  <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <FreelancerSkillSections
+              workDescription={workDescription}
+              setWorkDescription={setWorkDescription}
+              aiSuggestions={aiSuggestions}
+              selectedAiSkills={selectedAiSkills}
+              toggleAiSkill={toggleAiSkill}
+              savedSkills={savedSkills}
+              aiLoading={aiLoading}
+              aiError={aiError}
+              onSuggestSkills={handleSuggestSkills}
+              catalogSkills={catalogSkills}
+              catalogLoading={loading}
+              selectedCatalogIds={selectedCatalogIds}
+              toggleCatalogSkill={toggleCatalogSkill}
+              customInput={customInput}
+              setCustomInput={setCustomInput}
+              onAddCustomSkill={handleAddCustomSkill}
+            />
           </>
         )}
       </ScrollView>
@@ -1318,48 +883,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 12,
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  aiBtn: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  btnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inlineError: {
-    backgroundColor: '#FDE8EA',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  inlineErrorText: {
-    color: '#D92D3E',
-    fontSize: 13,
-  },
-  suggestionsContainer: {
-    marginTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 12,
-  },
-  subLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1374,16 +897,6 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 13,
   },
-  customInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  addBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
   errorBanner: {
     backgroundColor: '#FDE8EA',
     padding: 12,
@@ -1393,11 +906,6 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#D92D3E',
     fontSize: 14,
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
   },
   footer: {
     padding: 20,

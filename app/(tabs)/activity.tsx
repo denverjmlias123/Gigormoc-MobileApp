@@ -153,7 +153,7 @@ export default function ActivityScreen() {
     loadData();
   };
 
-  const handleOpenApplicationChat = async (applicationId: string, partnerName: string) => {
+  const handleOpenApplicationChat = useCallback(async (applicationId: string, partnerName: string) => {
     try {
       const convId = await chatService.getOrCreateConversation({ applicationId });
       router.push({
@@ -163,9 +163,9 @@ export default function ActivityScreen() {
     } catch (err: any) {
       showToast(err?.message || 'Could not open conversation.', 'error');
     }
-  };
+  }, [router]);
 
-  const handleRespondToCounter = async (
+  const handleRespondToCounter = useCallback(async (
     app: ApplicationItem,
     action: 'accept' | 'decline' | 'withdraw'
   ) => {
@@ -198,7 +198,7 @@ export default function ActivityScreen() {
     } finally {
       setCounterBusyId(null);
     }
-  };
+  }, [loadData, router]);
 
   const renderFreelancerPrimaryTab = () => {
     if (myApplications.length === 0) {

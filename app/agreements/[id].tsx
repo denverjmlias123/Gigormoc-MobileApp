@@ -30,6 +30,9 @@ import {
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
+import { AgreementTermsCard } from '../../components/agreements/AgreementTermsCard';
+import { PaymentsEvidenceCard } from '../../components/agreements/PaymentsEvidenceCard';
+import { AgreementReviewsCard } from '../../components/agreements/AgreementReviewsCard';
 
 export default function AgreementDetailScreen() {
   const router = useRouter();
@@ -153,31 +156,24 @@ export default function AgreementDetailScreen() {
 
     setCancelling(true);
     try {
-      const resultStatus = await reportsService.cancelAgreement(
-        id,
-        'Party requested cancellation via agreement detail screen'
-      );
+      await reportsService.cancelAgreement(id, 'Mutual or early agreement cancellation.');
+      showToast(strings.toasts.agreementCancelled);
       await loadData();
-      if (resultStatus === 'cancelled') {
-        showToast(strings.toasts.agreementCancelled);
-      } else {
-        showToast(strings.toasts.cancellationDisputeOpened);
-      }
     } catch (err: any) {
-      showToast(
-        mapSqlErrorToFriendlyMessage(err, 'Could not cancel agreement.'),
-        'error'
-      );
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Failed to cancel agreement.'), 'error');
     } finally {
       setCancelling(false);
     }
   };
 
   const handleConfirmPayment = async (paymentId: string) => {
+    if (confirmingPaymentId) return;
+
     const confirmed = await confirmDialog({
-      title: 'Confirm Payment',
-      message: 'Are you sure you want to confirm receipt of this payment? This action cannot be undone.',
-      confirmText: 'Confirm Received',
+      title: 'Confirm External Payment',
+      message:
+        'Have you confirmed receipt of these funds outside the app (GCash, Maya, Bank or Cash)? This action cannot be undone.',
+      confirmText: 'Yes, Confirm Received',
       cancelText: 'Cancel',
     });
 
@@ -189,10 +185,7 @@ export default function AgreementDetailScreen() {
       showToast(strings.toasts.paymentConfirmed);
       await loadData();
     } catch (err: any) {
-      showToast(
-        mapSqlErrorToFriendlyMessage(err, 'Could not confirm payment.'),
-        'error'
-      );
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Failed to confirm payment.'), 'error');
     } finally {
       setConfirmingPaymentId(null);
     }
@@ -204,8 +197,8 @@ export default function AgreementDetailScreen() {
     const confirmed = await confirmDialog({
       title: 'Complete Agreement',
       message:
-        'Are you sure you want to finalize and complete this agreement? This will record the project as completed for both parties.',
-      confirmText: 'Complete Agreement',
+        'Are you sure all agreed deliverables are approved and all external payments have been confirmed? This concludes the active contract.',
+      confirmText: 'Complete Contract',
       cancelText: 'Cancel',
     });
 
@@ -217,16 +210,13 @@ export default function AgreementDetailScreen() {
       showToast(strings.toasts.agreementCompleted);
       await loadData();
     } catch (err: any) {
-      showToast(
-        mapSqlErrorToFriendlyMessage(err, 'Could not complete agreement.'),
-        'error'
-      );
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Could not complete agreement.'), 'error');
     } finally {
       setCompleting(false);
     }
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -237,10 +227,10 @@ export default function AgreementDetailScreen() {
   if (error || !agreement) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.danger }]}>
+        <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>
           {error || 'Agreement not found.'}
         </Text>
-        <Button title="Go Back" variant="secondary" onPress={safeNavigateBack} />
+        <Button title="Back to Activity" variant="secondary" onPress={safeNavigateBack} />
       </View>
     );
   }
@@ -249,16 +239,16 @@ export default function AgreementDetailScreen() {
   const isFreelancer = user?.id === agreement.freelancer_id;
   const viewerRole: 'client' | 'freelancer' = isClient ? 'client' : 'freelancer';
 
-  const approvedMilestonesCount = milestones.filter((m) => m.status === 'approved').length;
-  const allMilestonesApproved = milestones.length > 0 && approvedMilestonesCount === milestones.length;
-
   const confirmedPaymentsCentavos = payments
     .filter((p) => p.status === 'confirmed_received')
     .reduce((sum, p) => sum + p.amount, 0);
 
+  const approvedMilestonesCount = milestones.filter((m) => m.status === 'approved').length;
+  const allMilestonesApproved =
+    milestones.length > 0 && milestones.every((m) => m.status === 'approved');
+  const isFullyPaid = confirmedPaymentsCentavos >= agreement.agreed_price;
   const hasPaymentDisputes = payments.some((p) => p.status === 'disputed');
   const hasPendingPaymentReports = payments.some((p) => p.status === 'reported_sent');
-  const isFullyPaid = confirmedPaymentsCentavos >= agreement.agreed_price;
 
   const canCompleteAgreement =
     agreement.status === 'active' &&
@@ -304,6 +294,7 @@ export default function AgreementDetailScreen() {
               milestoneId: nextPending.id,
               title: nextPending.title,
               revisionCount: nextPending.revision_count.toString(),
+              revisionFeedback: nextPending.revision_feedback || '',
             },
           });
         };
@@ -336,6 +327,7 @@ export default function AgreementDetailScreen() {
               milestoneId: revM.id,
               title: revM.title,
               revisionCount: revM.revision_count.toString(),
+              revisionFeedback: revM.revision_feedback || '',
             },
           });
         };
@@ -345,7 +337,11 @@ export default function AgreementDetailScreen() {
       bannerActionPress = () => {
         router.push({
           pathname: '/agreements/[id]/payments/report',
-          params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+          params: {
+            id: agreement.id,
+            agreedPrice: agreement.agreed_price.toString(),
+            unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
+          },
         });
       };
     } else if (loopState.currentStage === 'payment_reported' && isFreelancer) {
@@ -389,7 +385,7 @@ export default function AgreementDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Next Step Banner (Section 1 Rule 1: names who must act in plain words + Open Chat) */}
+        {/* Next Step Banner */}
         <NextStepBanner
           loopState={loopState}
           actionLabel={bannerActionLabel}
@@ -397,100 +393,34 @@ export default function AgreementDetailScreen() {
           onOpenChatPress={handleOpenChat}
         />
 
-        {/* Shared Relationship Timeline (Section 1: Posted -> Reviewed with "You are here") */}
+        {/* Shared Relationship Timeline */}
         <Timeline
           currentStage={loopState.currentStage}
           viewerRole={viewerRole}
           loopState={loopState}
         />
 
-        {/* Status & Gig Header */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <View style={styles.statusRow}>
-            <Text style={[styles.label, { color: theme.colors.muted }]}>Status</Text>
-            <Badge status={agreement.status} />
-          </View>
-
-          <Text style={[styles.gigTitle, { color: theme.colors.text }]}>
-            {agreement.gig?.title || 'Gig Agreement'}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => {
-              if (agreement.gig_id) {
-                router.push({ pathname: '/gigs/[id]', params: { id: agreement.gig_id } });
-              }
-            }}
-          >
-            <Text style={[styles.linkText, { color: theme.colors.primary }]}>View Original Gig ›</Text>
-          </TouchableOpacity>
-
-          {/* Quick Agreement Communication & Protection Actions */}
-          <View style={styles.quickActionButtonsRow}>
-            <TouchableOpacity
-              style={[styles.chatBtn, { backgroundColor: theme.colors.primarySoft }]}
-              onPress={handleOpenChat}
-            >
-              <Text style={[styles.chatBtnText, { color: theme.colors.primary }]}>💬 Open Chat</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.reportBtn, { borderColor: theme.colors.border }]}
-              onPress={() => {
-                router.push({
-                  pathname: '/reports/new',
-                  params: {
-                    targetType: 'agreement',
-                    targetId: agreement.id,
-                    targetTitle: agreement.gig?.title || 'Agreement',
-                  },
-                });
-              }}
-            >
-              <Text style={[styles.reportBtnText, { color: theme.colors.muted }]}>🚩 Report</Text>
-            </TouchableOpacity>
-
-            {agreement.status === 'active' && (
-              <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: theme.colors.danger }]}
-                onPress={handleCancelAgreement}
-              >
-                <Text style={[styles.cancelBtnText, { color: theme.colors.danger }]}>Cancel Agreement</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Financial Terms */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Agreement Terms</Text>
-
-          <View style={styles.detailRow}>
-            <Text style={[styles.label, { color: theme.colors.muted }]}>Agreed Amount:</Text>
-            <Text style={[styles.priceValue, { color: theme.colors.primary }]}>
-              {formatPrice(agreement.agreed_price)}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={[styles.label, { color: theme.colors.muted }]}>Completion Deadline:</Text>
-            <Text style={[styles.value, { color: theme.colors.text }]}>
-              {new Date(agreement.deadline).toLocaleDateString(undefined, {
-                weekday: 'short',
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={[styles.label, { color: theme.colors.muted }]}>Agreement ID:</Text>
-            <Text style={[styles.monoValue, { color: theme.colors.muted }]}>
-              {agreement.id.slice(0, 8)}...
-            </Text>
-          </View>
-        </View>
+        {/* Agreement Status & Terms */}
+        <AgreementTermsCard
+          agreement={agreement}
+          onViewGig={() => {
+            if (agreement.gig_id) {
+              router.push({ pathname: '/gigs/[id]', params: { id: agreement.gig_id } });
+            }
+          }}
+          onOpenChat={handleOpenChat}
+          onReport={() => {
+            router.push({
+              pathname: '/reports/new',
+              params: {
+                targetType: 'agreement',
+                targetId: agreement.id,
+                targetTitle: agreement.gig?.title || 'Agreement',
+              },
+            });
+          }}
+          onCancelAgreement={handleCancelAgreement}
+        />
 
         {/* Milestones Section */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -629,135 +559,6 @@ export default function AgreementDetailScreen() {
               })}
             </View>
           )}
-        </View>
-
-        {/* Payments Section (External Evidence) */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Payments</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
-                Confirmed: {formatPrice(confirmedPaymentsCentavos)} / {formatPrice(agreement.agreed_price)}
-              </Text>
-            </View>
-
-            {isClient && agreement.status === 'active' && (
-              <Button
-                title="Report Payment"
-                variant="primary"
-                onPress={() => {
-                  router.push({
-                    pathname: '/agreements/[id]/payments/report',
-                    params: {
-                      id: agreement.id,
-                      agreedPrice: agreement.agreed_price.toString(),
-                      unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
-                    },
-                  });
-                }}
-              />
-            )}
-          </View>
-
-          {payments.length === 0 ? (
-            <View style={styles.emptyMilestonesBox}>
-              <Text style={[styles.emptyMilestonesText, { color: theme.colors.muted }]}>
-                {isClient
-                  ? 'No external payments reported yet. After sending funds (GCash, Maya, cash), tap "Report Payment" above.'
-                  : 'No payment reports recorded yet by the client.'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.milestonesList}>
-              {payments.map((p) => {
-                const isReported = p.status === 'reported_sent';
-                const isConfirmed = p.status === 'confirmed_received';
-                const isDisputed = p.status === 'disputed';
-                const canAct = isFreelancer && isReported;
-
-                return (
-                  <View
-                    key={p.id}
-                    style={[
-                      styles.paymentRowCard,
-                      {
-                        borderColor: isDisputed ? '#F3A6AE' : isConfirmed ? '#9BD9BE' : theme.colors.border,
-                        backgroundColor: isDisputed ? '#FDE8EA' : isConfirmed ? '#DDF5EA' : theme.colors.surface,
-                      },
-                    ]}
-                  >
-                    <View style={styles.paymentRowTop}>
-                      <Text style={[styles.paymentAmount, { color: theme.colors.text }]}>
-                        {formatPrice(p.amount)}
-                      </Text>
-
-                      <View style={styles.badgeWrapper}>
-                        {isReported && <Badge status="pending" label="Reported sent" />}
-                        {isConfirmed && <Badge status="active" label="Confirmed by freelancer" />}
-                        {isDisputed && <Badge status="disputed" label="Disputed" />}
-                      </View>
-                    </View>
-
-                    <Text style={[styles.paymentMethod, { color: theme.colors.muted }]}>
-                      Channel: {p.payment_method.toUpperCase()}
-                      {p.reference_number ? ` • Ref: ${p.reference_number}` : ''}
-                    </Text>
-
-                    {p.receipt_path ? (
-                      <TouchableOpacity
-                        onPress={() => handleOpenReceipt(p.receipt_path!)}
-                        style={{ marginTop: 4 }}
-                      >
-                        <Text style={[styles.linkText, { color: theme.colors.primary }]}>
-                          🧾 View Payment Receipt ›
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null}
-
-                    {p.notes ? (
-                      <Text style={[styles.paymentNotes, { color: theme.colors.muted }]}>
-                        Notes: {p.notes}
-                      </Text>
-                    ) : null}
-
-                    {isDisputed && p.dispute_reason ? (
-                      <Text style={styles.disputeReasonText}>
-                        Dispute reason: {p.dispute_reason}
-                      </Text>
-                    ) : null}
-
-                    {/* Freelancer Action Buttons */}
-                    {canAct && (
-                      <View style={styles.paymentActionButtons}>
-                        <Button
-                          title="Confirm Receipt"
-                          variant="primary"
-                          onPress={() => handleConfirmPayment(p.id)}
-                          disabled={confirmingPaymentId === p.id}
-                          loading={confirmingPaymentId === p.id}
-                        />
-                        <Button
-                          title="Dispute"
-                          variant="danger"
-                          onPress={() => {
-                            router.push({
-                              pathname: '/agreements/[id]/payments/[paymentId]/dispute',
-                              params: {
-                                id: agreement.id,
-                                paymentId: p.id,
-                                amount: p.amount.toString(),
-                                method: p.payment_method,
-                              },
-                            });
-                          }}
-                        />
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
 
           {/* Complete Agreement Button */}
           {agreement.status === 'active' && (
@@ -786,123 +587,68 @@ export default function AgreementDetailScreen() {
           )}
         </View>
 
-        {/* Counterparty Information */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Participants</Text>
+        {/* Payments Section */}
+        <PaymentsEvidenceCard
+          payments={payments}
+          confirmedPaymentsCentavos={confirmedPaymentsCentavos}
+          agreedPrice={agreement.agreed_price}
+          isClient={isClient}
+          isFreelancer={isFreelancer}
+          agreementStatus={agreement.status}
+          confirmingPaymentId={confirmingPaymentId}
+          onReportPayment={() => {
+            router.push({
+              pathname: '/agreements/[id]/payments/report',
+              params: {
+                id: agreement.id,
+                agreedPrice: agreement.agreed_price.toString(),
+                unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
+              },
+            });
+          }}
+          onOpenReceipt={handleOpenReceipt}
+          onConfirmPayment={handleConfirmPayment}
+          onDisputePayment={(p) => {
+            router.push({
+              pathname: '/agreements/[id]/payments/[paymentId]/dispute',
+              params: {
+                id: agreement.id,
+                paymentId: p.id,
+                amount: p.amount.toString(),
+                method: p.payment_method,
+              },
+            });
+          }}
+        />
 
-          {/* Client */}
-          <View style={styles.partyRow}>
-            <View>
-              <Text style={[styles.partyRole, { color: theme.colors.muted }]}>Client</Text>
-              <Text style={[styles.partyName, { color: theme.colors.text }]}>
-                {agreement.client?.display_name || 'Client'}
-                {isClient ? ' (You)' : ''}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => {
-                if (agreement.client_id) {
-                  router.push({ pathname: '/profile/[id]', params: { id: agreement.client_id } });
-                }
-              }}
-            >
-              <Text style={[styles.linkText, { color: theme.colors.primary }]}>Profile ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-
-          {/* Freelancer */}
-          <View style={styles.partyRow}>
-            <View>
-              <Text style={[styles.partyRole, { color: theme.colors.muted }]}>Freelancer</Text>
-              <Text style={[styles.partyName, { color: theme.colors.text }]}>
-                {agreement.freelancer?.display_name || 'Freelancer'}
-                {isFreelancer ? ' (You)' : ''}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => {
-                if (agreement.freelancer_id) {
-                  router.push({ pathname: '/profile/[id]', params: { id: agreement.freelancer_id } });
-                }
-              }}
-            >
-              <Text style={[styles.linkText, { color: theme.colors.primary }]}>Profile ›</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Reviews Section (Only for completed agreements) */}
-        {agreement.status === 'completed' && (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Reviews & Feedback</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
-                  {reviews.length > 0 ? `${reviews.length} review(s) published` : 'No reviews submitted yet'}
-                </Text>
-              </View>
-
-              {!reviews.some((r) => r.reviewer_id === user?.id) && (
-                <Button
-                  title="Leave Review"
-                  variant="primary"
-                  onPress={() => {
-                    const targetName = isClient
-                      ? agreement.freelancer?.display_name || 'Freelancer'
-                      : agreement.client?.display_name || 'Client';
-                    const targetRole = isClient ? 'freelancer' : 'client';
-                    router.push({
-                      pathname: '/agreements/[id]/review',
-                      params: { id: agreement.id, targetName, targetRole },
-                    });
-                  }}
-                />
-              )}
-            </View>
-
-            {reviews.length === 0 ? (
-              <View style={styles.emptyMilestonesBox}>
-                <Text style={[styles.emptyMilestonesText, { color: theme.colors.muted }]}>
-                  Both parties have 14 days following completion to leave honest, uneditable feedback.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.milestonesList}>
-                {reviews.map((r) => (
-                  <View
-                    key={r.id}
-                    style={[styles.reviewItemCard, { borderColor: theme.colors.border }]}
-                  >
-                    <View style={styles.reviewHeader}>
-                      <Text style={[styles.reviewerName, { color: theme.colors.text }]}>
-                        {r.reviewer?.display_name || 'Participant'} ({r.role})
-                      </Text>
-                      <Text style={styles.reviewStars}>
-                        {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
-                      </Text>
-                    </View>
-                    <Text style={[styles.reviewComment, { color: theme.colors.text }]}>
-                      {r.comment}
-                    </Text>
-                    <Text style={[styles.reviewDate, { color: theme.colors.muted }]}>
-                      {new Date(r.created_at).toLocaleDateString()}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Safety Notice */}
-        <View style={[styles.noticeCard, { backgroundColor: '#DDF5EA', borderColor: '#9BD9BE' }]}>
-          <Text style={styles.noticeTitle}>🛡️ Direct Payment & Record Integrity</Text>
-          <Text style={styles.noticeText}>
-            Payments are made directly outside the platform. Statuses indicate external reports and confirmations between parties; Gigormoc never holds or guarantees escrow funds.
-          </Text>
-        </View>
+        {/* Participants, Reviews & Notice */}
+        <AgreementReviewsCard
+          agreement={agreement}
+          reviews={reviews}
+          currentUserId={user?.id}
+          isClient={isClient}
+          isFreelancer={isFreelancer}
+          onViewClientProfile={() => {
+            if (agreement.client_id) {
+              router.push({ pathname: '/profile/[id]', params: { id: agreement.client_id } });
+            }
+          }}
+          onViewFreelancerProfile={() => {
+            if (agreement.freelancer_id) {
+              router.push({ pathname: '/profile/[id]', params: { id: agreement.freelancer_id } });
+            }
+          }}
+          onLeaveReview={() => {
+            const targetName = isClient
+              ? agreement.freelancer?.display_name || 'Freelancer'
+              : agreement.client?.display_name || 'Client';
+            const targetRole = isClient ? 'freelancer' : 'client';
+            router.push({
+              pathname: '/agreements/[id]/review',
+              params: { id: agreement.id, targetName, targetRole },
+            });
+          }}
+        />
       </ScrollView>
     </View>
   );
@@ -954,15 +700,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  gigTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -1000,7 +737,7 @@ const styles = StyleSheet.create({
   },
   milestoneSeqTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   milestoneDesc: {
     fontSize: 13,
@@ -1019,181 +756,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   milestoneActionRow: {
-    marginTop: 4,
-  },
-  paymentRowCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 6,
-  },
-  paymentRowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
-  badgeWrapper: {
-    flexShrink: 1,
-    alignItems: 'flex-end',
-  },
-  paymentAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  paymentMethod: {
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  paymentNotes: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  disputeReasonText: {
-    fontSize: 13,
-    color: '#A31F2D',
-    fontWeight: '500',
-  },
-  paymentActionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
+    marginTop: 6,
   },
   completeAgreementContainer: {
     marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DCE4F2',
-    gap: 6,
+    gap: 8,
   },
   completeRequirementsHint: {
     fontSize: 12,
     lineHeight: 16,
-    textAlign: 'center',
-  },
-  quickActionButtonsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DCE4F2',
-  },
-  chatBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  chatBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  reportBtn: {
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  reportBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  cancelBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  reviewItemCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 6,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  reviewerName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  reviewStars: {
-    fontSize: 14,
-    color: '#B45309',
-  },
-  reviewComment: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  reviewDate: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  label: {
-    fontSize: 14,
-  },
-  value: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  priceValue: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  monoValue: {
-    fontSize: 13,
-    fontFamily: 'monospace',
-  },
-  linkText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  partyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  partyRole: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  partyName: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    marginVertical: 4,
-  },
-  noticeCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 6,
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0B5C41',
-  },
-  noticeText: {
-    fontSize: 13,
-    color: '#12805C',
-    lineHeight: 18,
   },
 });

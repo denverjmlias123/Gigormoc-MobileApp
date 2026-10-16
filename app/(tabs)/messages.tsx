@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,7 @@ export default function MessagesScreen() {
     }, [loadConversations, user?.id])
   );
 
-  const handleConversationPress = (item: ConversationSummary) => {
+  const handleConversationPress = useCallback((item: ConversationSummary) => {
     // Optimistic unread removal
     if (item.is_unread) {
       setConversations((prev) =>
@@ -67,7 +68,16 @@ export default function MessagesScreen() {
         partnerName: item.partner_name || 'Ormoc User',
       },
     });
-  };
+  }, [router]);
+
+  const keyExtractor = useCallback((item: ConversationSummary) => item.id, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: ConversationSummary }) => (
+      <ConversationCard item={item} theme={theme} onPress={handleConversationPress} />
+    ),
+    [theme, handleConversationPress]
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -95,7 +105,12 @@ export default function MessagesScreen() {
       ) : (
         <FlatList
           data={conversations}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -107,64 +122,75 @@ export default function MessagesScreen() {
             />
           }
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.convCard,
-                {
-                  backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.colors.surface,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-              onPress={() => handleConversationPress(item)}
-              activeOpacity={0.7}
-            >
-              <Avatar name={item.partner_name || 'U'} size={48} />
-
-              <View style={styles.convDetails}>
-                <View style={styles.nameRow}>
-                  <Text style={[styles.partnerName, { color: theme.colors.text }]} numberOfLines={1}>
-                    {item.partner_name || 'Anonymous User'}
-                  </Text>
-                  {item.last_message_created_at && (
-                    <Text style={[styles.timeText, { color: theme.colors.muted }]}>
-                      {new Date(item.last_message_created_at).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </Text>
-                  )}
-                </View>
-
-                <Text style={[styles.gigBadge, { color: theme.colors.primary }]} numberOfLines={1}>
-                  📁 {item.gig_title}
-                </Text>
-
-                <View style={styles.messageRow}>
-                  <Text
-                    style={[
-                      styles.previewText,
-                      {
-                        color: item.is_unread ? theme.colors.text : theme.colors.muted,
-                        fontWeight: item.is_unread ? '700' : '400',
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.last_message_content || 'No messages yet.'}
-                  </Text>
-                  {item.is_unread && (
-                    <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
         />
       )}
     </View>
   );
 }
+
+const ConversationCard = React.memo(function ConversationCard({
+  item,
+  theme,
+  onPress,
+}: {
+  item: ConversationSummary;
+  theme: any;
+  onPress: (item: ConversationSummary) => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.convCard,
+        {
+          backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.colors.surface,
+          borderColor: theme.colors.border,
+        },
+      ]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <Avatar name={item.partner_name || 'U'} size={48} />
+
+      <View style={styles.convDetails}>
+        <View style={styles.nameRow}>
+          <Text style={[styles.partnerName, { color: theme.colors.text }]} numberOfLines={1}>
+            {item.partner_name || 'Anonymous User'}
+          </Text>
+          {item.last_message_created_at && (
+            <Text style={[styles.timeText, { color: theme.colors.muted }]}>
+              {new Date(item.last_message_created_at).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              })}
+            </Text>
+          )}
+        </View>
+
+        <Text style={[styles.gigBadge, { color: theme.colors.primary }]} numberOfLines={1}>
+          📁 {item.gig_title}
+        </Text>
+
+        <View style={styles.messageRow}>
+          <Text
+            style={[
+              styles.previewText,
+              {
+                color: item.is_unread ? theme.colors.text : theme.colors.muted,
+                fontWeight: item.is_unread ? '700' : '400',
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {item.last_message_content || 'No messages yet.'}
+          </Text>
+          {item.is_unread && (
+            <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

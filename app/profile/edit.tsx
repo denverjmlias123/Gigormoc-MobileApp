@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
-import { Avatar } from '../../components/ui/Avatar';
 import {
   ProfileCompleteBadge,
   ProfileCompletenessCard,
@@ -28,6 +27,9 @@ import {
 } from '../../services/profile';
 import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
+import { PhotoUploadCard } from '../../components/profile/PhotoUploadCard';
+import { FreelancerWorkSection } from '../../components/profile/FreelancerWorkSection';
+import { ClientHiringProfileSection } from '../../components/profile/ClientHiringProfileSection';
 
 const MAX_HIRING_INTERESTS = 8;
 
@@ -457,63 +459,15 @@ export default function EditProfileScreen() {
           </View>
         ) : null}
 
-        {/* Photo Section (Both modes, anytime) */}
-        <View style={[styles.photoCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            {strings.profile.photoSectionTitle}
-          </Text>
-          <View style={styles.photoRow}>
-            <Avatar
-              name={displayName || profile?.display_name}
-              imageUri={profile?.avatar_path}
-              size={72}
-              editable
-              onPress={() => handlePickAvatar('library')}
-            />
-            <View style={styles.photoActions}>
-              <TouchableOpacity
-                style={[styles.photoBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={() => handlePickAvatar('library')}
-                disabled={photoBusy}
-              >
-                <Ionicons name="images-outline" size={16} color="#ffffff" />
-                <Text style={styles.photoBtnText}>{strings.profile.chooseFromLibraryBtn}</Text>
-              </TouchableOpacity>
-
-              {Platform.OS !== 'web' ? (
-                <TouchableOpacity
-                  style={[styles.photoBtnOutline, { borderColor: theme.colors.border }]}
-                  onPress={() => handlePickAvatar('camera')}
-                  disabled={photoBusy}
-                >
-                  <Ionicons name="camera-outline" size={16} color={theme.colors.text} />
-                  <Text style={[styles.photoBtnOutlineText, { color: theme.colors.text }]}>
-                    {strings.profile.takePhotoBtn}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {profile?.avatar_path ? (
-                <TouchableOpacity
-                  style={[styles.photoBtnOutline, { borderColor: theme.colors.danger }]}
-                  onPress={handleRemoveAvatar}
-                  disabled={photoBusy}
-                >
-                  <Ionicons name="trash-outline" size={16} color={theme.colors.dangerText} />
-                  <Text style={[styles.photoBtnOutlineText, { color: theme.colors.dangerText }]}>
-                    {strings.profile.removePhotoBtn}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-          {photoBusy ? (
-            <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 10 }} />
-          ) : null}
-          <Text style={[styles.helperText, { color: theme.colors.muted, marginTop: 8 }]}>
-            Square crop, JPEG/PNG/WebP up to 5 MB.
-          </Text>
-        </View>
+        {/* Photo Section */}
+        <PhotoUploadCard
+          displayName={displayName || profile?.display_name || ''}
+          avatarPath={profile?.avatar_path}
+          photoBusy={photoBusy}
+          onPickLibrary={() => handlePickAvatar('library')}
+          onPickCamera={() => handlePickAvatar('camera')}
+          onRemovePhoto={handleRemoveAvatar}
+        />
 
         {/* Display Name */}
         <View style={styles.inputGroup}>
@@ -539,35 +493,6 @@ export default function EditProfileScreen() {
             </Text>
           ) : null}
         </View>
-
-        {/* Headline (Freelancer only) */}
-        {!isHire ? (
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Headline (up to 80 characters)
-            </Text>
-            <TextInput
-              ref={headlineInputRef}
-              style={[
-                styles.input,
-                {
-                  borderColor: fieldErrors.headline ? theme.colors.danger : theme.colors.border,
-                  color: theme.colors.text,
-                },
-              ]}
-              value={headline}
-              onChangeText={setHeadline}
-              placeholder="e.g. Phone repair and tutoring in Cogon"
-              placeholderTextColor={theme.colors.muted}
-              maxLength={80}
-            />
-            {fieldErrors.headline ? (
-              <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-                {fieldErrors.headline}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
 
         {/* Bio */}
         <View style={styles.inputGroup}>
@@ -723,7 +648,7 @@ export default function EditProfileScreen() {
           ) : null}
         </View>
 
-        {/* Private Phone (stored ONLY in profile_private) */}
+        {/* Private Phone */}
         <View style={styles.inputGroup}>
           <View style={styles.privateLabelRow}>
             <Ionicons name="lock-closed" size={14} color={theme.colors.muted} />
@@ -758,367 +683,43 @@ export default function EditProfileScreen() {
 
         {/* Role-specific section */}
         {!isHire ? (
-          <View style={[styles.roleSection, { borderColor: theme.colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Freelancer Work Details
-            </Text>
-
-            {/* Work types offered */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Work Types Offered</Text>
-              <View style={styles.chipsWrap}>
-                {strings.profile.workTypeOptions.map((opt) => {
-                  const selected = workTypes.includes(opt.value);
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: selected ? theme.colors.primary : theme.colors.border,
-                          backgroundColor: selected
-                            ? theme.colors.primarySoft
-                            : theme.colors.surface,
-                        },
-                      ]}
-                      onPress={() => toggleWorkType(opt.value)}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? theme.colors.primary : theme.colors.text,
-                          fontWeight: selected ? '700' : '500',
-                          fontSize: 13,
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Availability */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Availability</Text>
-              <View style={styles.chipsWrap}>
-                {strings.profile.availabilityOptions.map((opt) => {
-                  const selected = availability === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: selected ? theme.colors.primary : theme.colors.border,
-                          backgroundColor: selected
-                            ? theme.colors.primarySoft
-                            : theme.colors.surface,
-                        },
-                      ]}
-                      onPress={() => setAvailability(selected ? '' : opt.value)}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? theme.colors.primary : theme.colors.text,
-                          fontWeight: selected ? '700' : '500',
-                          fontSize: 13,
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Years of Experience */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Years of Experience</Text>
-              <View style={styles.chipsWrap}>
-                {strings.profile.experienceOptions.map((opt) => {
-                  const selected = experienceYears === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: selected ? theme.colors.primary : theme.colors.border,
-                          backgroundColor: selected
-                            ? theme.colors.primarySoft
-                            : theme.colors.surface,
-                        },
-                      ]}
-                      onPress={() => setExperienceYears(selected ? '' : opt.value)}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? theme.colors.primary : theme.colors.text,
-                          fontWeight: selected ? '700' : '500',
-                          fontSize: 13,
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Typical Starting Rate Note */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Typical Starting Rate Note (Optional)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: fieldErrors.startingRateNote
-                      ? theme.colors.danger
-                      : theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={startingRateNote}
-                onChangeText={setStartingRateNote}
-                placeholder="e.g. Starts at ₱300/session depending on scope"
-                placeholderTextColor={theme.colors.muted}
-                maxLength={120}
-              />
-              {fieldErrors.startingRateNote ? (
-                <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-                  {fieldErrors.startingRateNote}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Portfolio Link */}
-            <TouchableOpacity
-              style={[styles.portfolioLinkBtn, { borderColor: theme.colors.border }]}
-              onPress={() => router.push('/profile/portfolio')}
-            >
-              <Ionicons name="folder-open-outline" size={18} color={theme.colors.primary} />
-              <Text style={[styles.portfolioLinkText, { color: theme.colors.primary }]}>
-                Manage Portfolio Items →
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <FreelancerWorkSection
+            headline={headline}
+            setHeadline={setHeadline}
+            headlineInputRef={headlineInputRef}
+            startingRateNote={startingRateNote}
+            setStartingRateNote={setStartingRateNote}
+            workTypes={workTypes}
+            toggleWorkType={toggleWorkType}
+            availability={availability}
+            setAvailability={setAvailability}
+            experienceYears={experienceYears}
+            setExperienceYears={setExperienceYears}
+            onNavigatePortfolio={() => router.push('/profile/portfolio')}
+            fieldErrors={fieldErrors}
+          />
         ) : (
-          <View style={[styles.roleSection, { borderColor: theme.colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Client Hiring Details
-            </Text>
-
-            {/* Client Type */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Client Type</Text>
-              <View style={styles.chipsWrap}>
-                {strings.profile.clientTypeOptions.map((opt) => {
-                  const selected = clientType === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: selected ? theme.colors.primary : theme.colors.border,
-                          backgroundColor: selected
-                            ? theme.colors.primarySoft
-                            : theme.colors.surface,
-                        },
-                      ]}
-                      onPress={() => setClientType(selected ? '' : opt.value)}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? theme.colors.primary : theme.colors.text,
-                          fontWeight: selected ? '700' : '500',
-                          fontSize: 13,
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Business Name */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Business or Organization Name (Optional, 2–60 characters)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    borderColor: fieldErrors.businessName
-                      ? theme.colors.danger
-                      : theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={businessName}
-                onChangeText={setBusinessName}
-                placeholder="e.g. Ormoc Print Shop"
-                placeholderTextColor={theme.colors.muted}
-                maxLength={60}
-              />
-              {fieldErrors.businessName ? (
-                <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-                  {fieldErrors.businessName}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Hiring Interests (up to 8 categories) */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS})
-              </Text>
-              <Text style={[styles.helperText, { color: theme.colors.muted, marginBottom: 8 }]}>
-                Select up to {MAX_HIRING_INTERESTS} categories of work you usually hire for.
-              </Text>
-
-              {categoriesList.length > 0 ? (
-                <View style={styles.chipsWrap}>
-                  {categoriesList.map((cat) => {
-                    const selected = selectedCategoryIds.includes(cat.id);
-                    return (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={[
-                          styles.chip,
-                          {
-                            borderColor: selected ? theme.colors.primary : theme.colors.border,
-                            backgroundColor: selected
-                              ? theme.colors.primarySoft
-                              : theme.colors.surface,
-                          },
-                        ]}
-                        onPress={() => toggleHiringCategory(cat.id)}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? theme.colors.primary : theme.colors.text,
-                            fontWeight: selected ? '700' : '500',
-                            fontSize: 13,
-                          }}
-                        >
-                          {selected ? '✓ ' : ''}
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : null}
-
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                <TextInput
-                  ref={customCategoryInputRef}
-                  style={[
-                    styles.input,
-                    {
-                      flex: 1,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                    },
-                  ]}
-                  value={customCategoryInput}
-                  onChangeText={setCustomCategoryInput}
-                  placeholder={strings.onboarding.addCustomCategoryPlaceholder}
-                  placeholderTextColor={theme.colors.muted}
-                  maxLength={50}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.photoBtn,
-                    { backgroundColor: theme.colors.primary, paddingHorizontal: 16 },
-                  ]}
-                  onPress={handleAddCustomCategory}
-                >
-                  <Text style={styles.photoBtnText}>Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {customCategories.length > 0 ? (
-                <View style={[styles.chipsWrap, { marginTop: 10 }]}>
-                  {customCategories.map((catName) => (
-                    <View
-                      key={catName}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: theme.colors.primary,
-                          backgroundColor: theme.colors.primarySoft,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 6,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          color: theme.colors.primary,
-                          fontWeight: '700',
-                          fontSize: 13,
-                        }}
-                      >
-                        {catName}
-                      </Text>
-                      <TouchableOpacity onPress={() => removeCustomCategory(catName)}>
-                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              {fieldErrors.hiringInterests ? (
-                <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-                  {fieldErrors.hiringInterests}
-                </Text>
-              ) : null}
-            </View>
-
-            {/* About Hiring */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                What kind of help do you usually hire for? (Optional)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    borderColor: fieldErrors.aboutHiring
-                      ? theme.colors.danger
-                      : theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={aboutHiring}
-                onChangeText={setAboutHiring}
-                placeholder="e.g. Graphic design, store errands, equipment maintenance..."
-                placeholderTextColor={theme.colors.muted}
-                multiline
-                numberOfLines={3}
-                maxLength={300}
-                textAlignVertical="top"
-              />
-              {fieldErrors.aboutHiring ? (
-                <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-                  {fieldErrors.aboutHiring}
-                </Text>
-              ) : null}
-            </View>
-          </View>
+          /* Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS}) */
+          <ClientHiringProfileSection
+            clientType={clientType}
+            setClientType={setClientType}
+            businessName={businessName}
+            setBusinessName={setBusinessName}
+            aboutHiring={aboutHiring}
+            setAboutHiring={setAboutHiring}
+            categoriesList={categoriesList}
+            selectedCategoryIds={selectedCategoryIds}
+            toggleHiringCategory={toggleHiringCategory}
+            customCategories={customCategories}
+            removeCustomCategory={removeCustomCategory}
+            customCategoryInput={customCategoryInput}
+            setCustomCategoryInput={setCustomCategoryInput}
+            onAddCustomCategory={handleAddCustomCategory}
+            customCategoryInputRef={customCategoryInputRef}
+            totalSelectedInterests={totalSelectedInterests}
+            maxHiringInterests={MAX_HIRING_INTERESTS}
+            fieldErrors={fieldErrors}
+          />
         )}
 
         <TouchableOpacity
@@ -1215,123 +816,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  photoCard: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  photoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  photoActions: {
-    flex: 1,
-    gap: 8,
-  },
-  photoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  photoBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  photoBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  photoBtnOutlineText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   inputGroup: {
-    marginBottom: 18,
-  },
-  privateLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 6,
   },
-  helperText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  fieldError: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
-  },
   input: {
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
+    padding: 12,
+    fontSize: 14,
   },
   textArea: {
-    minHeight: 100,
+    minHeight: 80,
+  },
+  fieldError: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  helperText: {
+    fontSize: 12,
+  },
+  privateLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 8,
   },
   chip: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
+    paddingVertical: 7,
+    borderRadius: 20,
     borderWidth: 1,
-  },
-  roleSection: {
-    borderTopWidth: 1,
-    paddingTop: 18,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  portfolioLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  portfolioLinkText: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   button: {
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
   },
   buttonText: {
     color: '#ffffff',

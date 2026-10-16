@@ -87,6 +87,10 @@ export default function HomeScreen() {
   const openCount = myGigs.filter((g) => g.status?.toLowerCase() === 'open').length;
   const draftCount = myGigs.filter((g) => g.status?.toLowerCase() === 'draft').length;
 
+  const handleGigPress = useCallback((gigId: string) => {
+    router.push({ pathname: '/gigs/[id]', params: { id: gigId } });
+  }, [router]);
+
   const renderLoading = () => (
     <View>
       <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
@@ -224,7 +228,7 @@ export default function HomeScreen() {
                   <GigCard
                     key={gig.id}
                     gig={gig}
-                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                    onPress={() => handleGigPress(gig.id)}
                   />
                 ))
               )}
@@ -253,7 +257,7 @@ export default function HomeScreen() {
                   <GigCard
                     key={gig.id}
                     gig={gig}
-                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                    onPress={() => handleGigPress(gig.id)}
                   />
                 ))
               )}

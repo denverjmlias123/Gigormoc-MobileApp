@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,7 +57,7 @@ export default function NotificationsScreen() {
     }, [user?.id, loadNotifications])
   );
 
-  const handleNotificationPress = async (item: NotificationItem) => {
+  const handleNotificationPress = useCallback(async (item: NotificationItem) => {
     if (!item.read_at) {
       try {
         const marked = await notificationsService.markAsRead(item.id);
@@ -195,7 +196,7 @@ export default function NotificationsScreen() {
     ) {
       router.push('/(tabs)/profile');
     }
-  };
+  }, [router, loadNotifications]);
 
   const handleMarkAllRead = async () => {
     setNotifications((prev) =>
@@ -251,6 +252,20 @@ export default function NotificationsScreen() {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
+  const keyExtractor = useCallback((item: NotificationItem) => item.id, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: NotificationItem }) => (
+      <NotificationCard
+        item={item}
+        theme={theme}
+        icon={getNotificationIcon(item.type)}
+        onPress={handleNotificationPress}
+      />
+    ),
+    [theme, handleNotificationPress]
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
@@ -295,7 +310,12 @@ export default function NotificationsScreen() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -307,60 +327,71 @@ export default function NotificationsScreen() {
             />
           }
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => {
-            const isUnread = !item.read_at;
-            return (
-              <TouchableOpacity
-                style={[
-                  styles.notificationCard,
-                  {
-                    backgroundColor: isUnread ? theme.colors.surfaceAlt : theme.colors.surface,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-                onPress={() => handleNotificationPress(item)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.iconCircle,
-                    {
-                      backgroundColor: isUnread ? theme.colors.primarySoft : theme.colors.surfaceAlt,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={getNotificationIcon(item.type)}
-                    size={20}
-                    color={isUnread ? theme.colors.primary : theme.colors.muted}
-                  />
-                </View>
-
-                <View style={styles.contentCol}>
-                  <View style={styles.titleRow}>
-                    <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    {isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />}
-                  </View>
-                  <Text style={[styles.itemBody, { color: theme.colors.muted }]}>{item.body}</Text>
-                  <Text style={[styles.itemDate, { color: theme.colors.muted }]}>
-                    {new Date(item.created_at).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
         />
       )}
     </View>
   );
 }
+
+const NotificationCard = React.memo(function NotificationCard({
+  item,
+  theme,
+  icon,
+  onPress,
+}: {
+  item: NotificationItem;
+  theme: any;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  onPress: (item: NotificationItem) => void;
+}) {
+  const isUnread = !item.read_at;
+  return (
+    <TouchableOpacity
+      style={[
+        styles.notificationCard,
+        {
+          backgroundColor: isUnread ? theme.colors.surfaceAlt : theme.colors.surface,
+          borderColor: theme.colors.border,
+        },
+      ]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <View
+        style={[
+          styles.iconCircle,
+          {
+            backgroundColor: isUnread ? theme.colors.primarySoft : theme.colors.surfaceAlt,
+          },
+        ]}
+      >
+        <Ionicons
+          name={icon}
+          size={20}
+          color={isUnread ? theme.colors.primary : theme.colors.muted}
+        />
+      </View>
+
+      <View style={styles.contentCol}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={1}>
+            {item.title}
+          </Text>
+          {isUnread && <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />}
+        </View>
+        <Text style={[styles.itemBody, { color: theme.colors.muted }]}>{item.body}</Text>
+        <Text style={[styles.itemDate, { color: theme.colors.muted }]}>
+          {new Date(item.created_at).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

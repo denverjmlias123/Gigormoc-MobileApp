@@ -54,7 +54,12 @@ const workTypeMeta: Record<string, { label: string; icon: React.ComponentProps<t
   hybrid: { label: 'Hybrid', icon: 'swap-horizontal-outline' },
 };
 
-export const GigCard: React.FC<GigCardProps> = ({ gig, onPress, onDelete, deleting = false }) => {
+export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
+  gig,
+  onPress,
+  onDelete,
+  deleting = false,
+}) {
   const theme = useAppTheme();
   const c = theme.colors;
 
@@ -137,7 +142,7 @@ export const GigCard: React.FC<GigCardProps> = ({ gig, onPress, onDelete, deleti
       ) : null}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: { padding: 16, marginBottom: 12 },

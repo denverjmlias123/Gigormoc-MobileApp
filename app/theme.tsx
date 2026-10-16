@@ -106,6 +106,7 @@ const buildTheme = (mode: AppMode) => ({
 });
 
 export type Theme = ReturnType<typeof buildTheme>;
+export type AppTheme = Theme;
 
 export const lightFreelancerTheme = buildTheme('freelancer');
 export const clientTheme = buildTheme('client');

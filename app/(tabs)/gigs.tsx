@@ -93,6 +93,10 @@ export default function GigsScreen() {
     }, [isClient, clientSegment, selectedCategory, workTypeFilter, user?.id])
   );
 
+  const handleGigPress = useCallback((gigId: string) => {
+    router.push({ pathname: '/gigs/[id]', params: { id: gigId } });
+  }, [router]);
+
   const handleSearchSubmit = () => {
     loadData();
   };
@@ -309,7 +313,7 @@ export default function GigsScreen() {
               <GigCard
                 key={gig.id}
                 gig={gig}
-                onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+                onPress={() => handleGigPress(gig.id)}
                 onDelete={['open', 'draft', 'cancelled', 'expired'].includes(gig.status) ? () => handleDeleteGig(gig) : undefined}
                 deleting={deletingGigId === gig.id}
               />
@@ -328,7 +332,7 @@ export default function GigsScreen() {
             <GigCard
               key={gig.id}
               gig={gig}
-              onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: gig.id } })}
+              onPress={() => handleGigPress(gig.id)}
             />
           ))
         )}

@@ -6,8 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
-  Pressable,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +23,6 @@ import { paymentsService } from '../../services/payments';
 import { reviewsService } from '../../services/reviews';
 import { chatService } from '../../services/chat';
 import { notificationsService } from '../../services/notifications';
-import { formatPrice, getWorkTypeIcon } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
@@ -37,6 +34,8 @@ import {
   computeAgreementLoopState,
   computePreAgreementLoopState,
 } from '../../components/ui/Timeline';
+import { GigDetailInfo } from '../../components/gigs/GigDetailInfo';
+import { ManageGigModal } from '../../components/gigs/ManageGigModal';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function GigDetailScreen() {
@@ -205,23 +204,6 @@ export default function GigDetailScreen() {
     : isFreelancerMode
     ? 'freelancer'
     : 'client';
-
-  const priceDisplay =
-    gig.price_min === gig.price_max
-      ? formatPrice(gig.price_min)
-      : `${formatPrice(gig.price_min)} - ${formatPrice(gig.price_max)}`;
-
-  const appDeadline = new Date(gig.application_deadline).toLocaleDateString('en-PH', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  const completionDeadline = new Date(gig.deadline).toLocaleDateString('en-PH', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
 
   const handleApplyPress = () => {
     if (gigAgreement) {
@@ -420,99 +402,16 @@ export default function GigDetailScreen() {
           </View>
         ) : null}
 
-        {/* Main Info */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-          ]}
-        >
-          <Text style={[styles.categoryBadge, { color: theme.colors.primary }]}>
-            {gig.category_name || 'General Category'}
-          </Text>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{gig.title}</Text>
-          <Text style={[styles.price, { color: theme.colors.text }]}>{priceDisplay}</Text>
-
-          <View style={styles.gridMeta}>
-            <View style={styles.metaCol}>
-              <Text style={[styles.metaLabel, { color: theme.colors.muted }]}>Work Type</Text>
-              <Text style={[styles.metaVal, { color: theme.colors.text }]}>
-                {getWorkTypeIcon(gig.work_type)}
-              </Text>
-            </View>
-            {gig.area ? (
-              <View style={styles.metaCol}>
-                <Text style={[styles.metaLabel, { color: theme.colors.muted }]}>Location</Text>
-                <Text style={[styles.metaVal, { color: theme.colors.text }]}>📍 {gig.area}</Text>
-              </View>
-            ) : null}
-            <View style={styles.metaCol}>
-              <Text style={[styles.metaLabel, { color: theme.colors.muted }]}>Apply Deadline</Text>
-              <Text style={[styles.metaVal, { color: theme.colors.text }]}>{appDeadline}</Text>
-            </View>
-            <View style={styles.metaCol}>
-              <Text style={[styles.metaLabel, { color: theme.colors.muted }]}>Project Deadline</Text>
-              <Text style={[styles.metaVal, { color: theme.colors.text }]}>{completionDeadline}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Description */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Description</Text>
-          <Text style={[styles.bodyText, { color: theme.colors.text }]}>{gig.description}</Text>
-        </View>
-
-        {/* Requirements */}
-        {gig.requirements ? (
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Requirements</Text>
-            <Text style={[styles.bodyText, { color: theme.colors.text }]}>{gig.requirements}</Text>
-          </View>
-        ) : null}
-
-        {/* Client Profile Summary */}
-        <TouchableOpacity
-          style={[
-            styles.card,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-          ]}
-          onPress={() => {
+        {/* Modularized Main Gig Info, Description, Requirements, and Poster Profile */}
+        <GigDetailInfo
+          gig={gig}
+          theme={theme}
+          onClientPress={() => {
             if (gig.client_id) {
               router.push({ pathname: '/profile/[id]', params: { id: gig.client_id } });
             }
           }}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Posted By</Text>
-          <View style={styles.clientRow}>
-            <View style={[styles.clientAvatar, { backgroundColor: theme.colors.primary }]}>
-              <Text style={styles.clientLetter}>
-                {(gig.client.display_name || 'C').charAt(0).toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.clientInfo}>
-              <Text style={[styles.clientName, { color: theme.colors.text }]}>
-                {gig.client.display_name}
-              </Text>
-              <Text style={[styles.clientStats, { color: theme.colors.muted }]}>
-                ★ {Number(gig.client.client_rating_avg || 0).toFixed(1)} (
-                {gig.client.client_rating_count || 0} reviews) •{' '}
-                {gig.client.client_completed_gigs || 0} completed gigs
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+        />
       </ScrollView>
 
       {/* Sticky Bottom Action Bar */}
@@ -630,84 +529,31 @@ export default function GigDetailScreen() {
         )}
       </View>
 
-      {/* Manage Gig Bottom Sheet Modal */}
-      <Modal
+      {/* Modularized Manage Gig Bottom Sheet Modal */}
+      <ManageGigModal
         visible={manageSheetVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setManageSheetVisible(false)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setManageSheetVisible(false)}>
-          <Pressable
-            style={[
-              styles.sheetContainer,
-              { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
-            ]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* Visual Drag Handle */}
-            <View style={styles.dragHandleContainer}>
-              <View style={[styles.dragHandle, { backgroundColor: theme.colors.borderStrong }]} />
-            </View>
-
-            <View style={styles.sheetHeader}>
-              <View style={{ flex: 1, marginRight: 12 }}>
-                <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Manage Gig</Text>
-                <Text style={[styles.sheetSubtitle, { color: theme.colors.muted }]} numberOfLines={1}>
-                  {gig?.title}
-                </Text>
-              </View>
-              {gig && <Badge status={gig.status} />}
-            </View>
-
-            <View style={styles.sheetActionList}>
-              <Button
-                title={strings.gigs.editGig}
-                variant="secondary"
-                icon="pencil-outline"
-                onPress={() => {
-                  setManageSheetVisible(false);
-                  router.push({ pathname: '/gigs/post', params: { editGigId: gig?.id } });
-                }}
-                disabled={publishing || cancelling || deleting}
-              />
-
-              {(gig?.status === 'open' || gig?.status === 'draft') && (
-                <Button
-                  title={strings.gigs.cancelGigBtn}
-                  variant="secondary"
-                  icon="close-circle-outline"
-                  onPress={async () => {
-                    setManageSheetVisible(false);
-                    await handleCancelGig();
-                  }}
-                  loading={cancelling}
-                  disabled={cancelling || deleting}
-                />
-              )}
-
-              <Button
-                title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
-                variant="danger"
-                icon="trash-outline"
-                onPress={async () => {
-                  setManageSheetVisible(false);
-                  await handleDeleteGig();
-                }}
-                loading={deleting}
-                disabled={deleting || cancelling || publishing}
-              />
-            </View>
-
-            <Button
-              title="Close"
-              variant="ghost"
-              onPress={() => setManageSheetVisible(false)}
-              style={{ marginTop: 8 }}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setManageSheetVisible(false)}
+        gig={gig}
+        theme={theme}
+        editTitle={strings.gigs.editGig}
+        cancelTitle={strings.gigs.cancelGigBtn}
+        deleteTitle={strings.gigs.deleteGigBtn}
+        onEdit={() => {
+          setManageSheetVisible(false);
+          router.push({ pathname: '/gigs/post', params: { editGigId: gig?.id } });
+        }}
+        onCancel={async () => {
+          setManageSheetVisible(false);
+          await handleCancelGig();
+        }}
+        onDelete={async () => {
+          setManageSheetVisible(false);
+          await handleDeleteGig();
+        }}
+        publishing={publishing}
+        cancelling={cancelling}
+        deleting={deleting}
+      />
     </View>
   );
 }
@@ -757,40 +603,6 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 14,
   },
-  categoryBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    lineHeight: 28,
-    marginBottom: 8,
-  },
-  price: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 16,
-  },
-  gridMeta: {
-    gap: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e2e8f0',
-  },
-  metaCol: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  metaLabel: {
-    fontSize: 13,
-  },
-  metaVal: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -799,34 +611,6 @@ const styles = StyleSheet.create({
   bodyText: {
     fontSize: 15,
     lineHeight: 22,
-  },
-  clientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  clientAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clientLetter: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  clientInfo: {
-    flex: 1,
-  },
-  clientName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  clientStats: {
-    fontSize: 13,
   },
   bottomBar: {
     position: 'absolute',
@@ -856,46 +640,6 @@ const styles = StyleSheet.create({
   manageBtnText: {
     fontSize: 14,
     fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(7, 11, 38, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  sheetContainer: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    width: '100%',
-  },
-  dragHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 4,
-    marginBottom: 12,
-  },
-  dragHandle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sheetTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  sheetSubtitle: {
-    fontSize: 13,
-  },
-  sheetActionList: {
-    gap: 10,
   },
   reasonText: {
     fontSize: 12,
