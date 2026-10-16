@@ -251,7 +251,7 @@ export default function HomeScreen() {
 
               <View style={styles.freelancerHeroActions}>
                 <Pressable
-                  style={[styles.heroCta, { backgroundColor: '#FFFFFF', flex: 1 }]}
+                  style={styles.freelancerExploreBtn}
                   onPress={() => router.push('/(tabs)/gigs')}
                   accessibilityRole="button"
                 >
@@ -899,11 +899,22 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 16,
   },
+  freelancerExploreBtn: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+  },
   availabilityHeroPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     height: 48,
     borderRadius: 14,
   },
