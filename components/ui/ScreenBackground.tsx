@@ -18,18 +18,19 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
   const theme = useAppTheme();
   const isClient = theme.isClient;
 
-  // Base background palette: subtle pastel gradient transitions instead of stark plain white
+  // Rich, tinted non-white aurora gradient baselines
   const baseGradient = isClient
-    ? (['#EDF2FC', '#F8FAFE', '#E8EEF9'] as [string, string, string])
-    : (['#EEF3FF', '#F9FAFE', '#E9F0FD'] as [string, string, string]);
+    ? (['#D8E3F4', '#E2ECF9', '#CFDCF2'] as [string, string, string])
+    : (['#DBE6FA', '#E5EFFD', '#D4E2F8'] as [string, string, string]);
 
-  // Aurora sphere tones
-  const topGlowColor = isClient ? 'rgba(42, 71, 201, 0.13)' : 'rgba(79, 70, 229, 0.14)';
-  const bottomGlowColor = 'rgba(16, 185, 129, 0.10)'; // Subtle emerald glow for verified growth & wealth
+  // Vibrant aurora ambient glow spheres
+  const topGlowColor = isClient ? 'rgba(37, 99, 235, 0.22)' : 'rgba(79, 70, 229, 0.22)';
+  const bottomGlowColor = 'rgba(16, 185, 129, 0.18)'; // Subtle emerald glow for verified growth & wealth
+  const centerGlowColor = 'rgba(245, 158, 11, 0.14)'; // Soft warm amber sunset glow
 
   return (
     <View style={[styles.container, style]}>
-      {/* 1. Base Aurora Gradient Backdrop */}
+      {/* 1. Base Rich Tinted Gradient Backdrop */}
       <LinearGradient
         colors={baseGradient}
         start={{ x: 0, y: 0 }}
@@ -49,8 +50,22 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
               {
                 backgroundColor: topGlowColor,
                 ...(Platform.OS === 'web'
-                  ? ({ filter: 'blur(64px)', WebkitFilter: 'blur(64px)' } as any)
-                  : { opacity: 0.7 }),
+                  ? ({ filter: 'blur(70px)', WebkitFilter: 'blur(70px)' } as any)
+                  : { opacity: 0.75 }),
+              },
+            ]}
+          />
+
+          {/* Center-Right Warm Sunset Amber Sphere */}
+          <View
+            style={[
+              styles.auroraSphere,
+              styles.centerSphere,
+              {
+                backgroundColor: centerGlowColor,
+                ...(Platform.OS === 'web'
+                  ? ({ filter: 'blur(80px)', WebkitFilter: 'blur(80px)' } as any)
+                  : { opacity: 0.6 }),
               },
             ]}
           />
@@ -63,8 +78,8 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
               {
                 backgroundColor: bottomGlowColor,
                 ...(Platform.OS === 'web'
-                  ? ({ filter: 'blur(72px)', WebkitFilter: 'blur(72px)' } as any)
-                  : { opacity: 0.6 }),
+                  ? ({ filter: 'blur(75px)', WebkitFilter: 'blur(75px)' } as any)
+                  : { opacity: 0.7 }),
               },
             ]}
           />
@@ -89,13 +104,19 @@ const styles = StyleSheet.create({
   topSphere: {
     top: -50,
     right: -40,
-    width: 260,
-    height: 260,
-  },
-  bottomSphere: {
-    bottom: 60,
-    left: -50,
     width: 280,
     height: 280,
+  },
+  centerSphere: {
+    top: '38%',
+    right: -60,
+    width: 250,
+    height: 250,
+  },
+  bottomSphere: {
+    bottom: 50,
+    left: -50,
+    width: 300,
+    height: 300,
   },
 });

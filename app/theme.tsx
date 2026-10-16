@@ -47,14 +47,14 @@ const clientPalette: Palette = {
 };
 
 const base = {
-  bg: '#F6F8FE',
-  background: '#F6F8FE',
-  surface: '#FFFFFF',
-  surfaceAlt: '#EEF1FB',
+  bg: '#EAF0FA',
+  background: '#EAF0FA',
+  surface: '#F1F5FC',
+  surfaceAlt: '#E2EAF7',
   text: '#0C1233',
   muted: '#5C6788',
-  border: '#E2E7F5',
-  borderStrong: '#C3CCE6',
+  border: '#D4DFEE',
+  borderStrong: '#B8C7E0',
   // Brand extras used by the first screen and highlights
   ink: '#070B26', // deepest navy, used for immersive surfaces
   spark: '#FFB524', // warm highlight (ratings, "new" dots)
@@ -90,17 +90,17 @@ const buildTheme = (mode: AppMode) => ({
     sunrise: 'linear-gradient(135deg, #FFB524 0%, #FF6B8A 100%)',
     primary: (mode === 'client' ? ['#2A47C9', '#172554'] : ['#2F55F4', '#4F46E5']) as [string, string],
     hero: (mode === 'client' ? ['#0B1445', '#172554'] : ['#2F55F4', '#3730A3']) as [string, string],
-    surface: ['rgba(255, 255, 255, 0.95)', 'rgba(246, 248, 254, 0.85)'] as [string, string],
+    surface: ['rgba(241, 245, 252, 0.94)', 'rgba(230, 237, 249, 0.88)'] as [string, string],
     emerald: ['#059669', '#10B981'] as [string, string],
   },
   glass: {
-    surface: 'rgba(255, 255, 255, 0.85)',
-    surfaceSubtle: 'rgba(255, 255, 255, 0.65)',
-    border: 'rgba(255, 255, 255, 0.8)',
-    borderSubtle: 'rgba(226, 231, 245, 0.6)',
-    highlight: 'rgba(255, 255, 255, 0.95)',
-    darkSurface: 'rgba(11, 20, 69, 0.85)',
-    darkBorder: 'rgba(255, 255, 255, 0.15)',
+    surface: 'rgba(239, 244, 252, 0.88)',
+    surfaceSubtle: 'rgba(230, 237, 248, 0.75)',
+    border: 'rgba(202, 215, 240, 0.85)',
+    borderSubtle: 'rgba(188, 204, 234, 0.65)',
+    highlight: 'rgba(245, 249, 255, 0.95)',
+    darkSurface: 'rgba(11, 20, 69, 0.88)',
+    darkBorder: 'rgba(147, 169, 219, 0.25)',
   },
   type: {
     display: { fontSize: 34, lineHeight: 40, fontWeight: '800' as const, letterSpacing: -1 },
