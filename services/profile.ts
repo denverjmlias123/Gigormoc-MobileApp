@@ -111,6 +111,18 @@ export interface PublicProfileData {
   completeness?: ProfileCompleteness | null;
 }
 
+export interface FreelancerSummary {
+  id: string;
+  display_name: string;
+  headline: string | null;
+  avatar_path: string | null;
+  area: string | null;
+  freelancer_rating_avg: number;
+  freelancer_rating_count: number;
+  freelancer_completed_gigs: number;
+  skills: string[];
+}
+
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 export const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 export const ALLOWED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
@@ -726,5 +738,89 @@ export const profileService = {
       gigsPostedCount,
       completeness,
     };
+  },
+
+  async getTopFreelancers(params?: {
+    limit?: number;
+    searchQuery?: string;
+    categoryId?: string;
+  }): Promise<FreelancerSummary[]> {
+    const limit = params?.limit ?? 10;
+    let query = supabase
+      .from('profiles')
+      .select(
+        'id, display_name, headline, avatar_path, area, freelancer_rating_avg, freelancer_rating_count, freelancer_completed_gigs, active_mode, status'
+      )
+      .eq('status', 'active');
+
+    if (params?.searchQuery && params.searchQuery.trim()) {
+      const clean = params.searchQuery.trim().replace(/[%_]/g, '');
+      if (clean) {
+        query = query.or(`display_name.ilike.%${clean}%,headline.ilike.%${clean}%`);
+      }
+    }
+
+    query = query
+      .order('freelancer_rating_avg', { ascending: false, nullsFirst: false })
+      .order('freelancer_completed_gigs', { ascending: false })
+      .limit(limit * 2);
+
+    const { data: profilesData, error: profilesError } = await query;
+    if (profilesError) throw profilesError;
+    if (!profilesData || profilesData.length === 0) return [];
+
+    const profileIds = profilesData.map((p: any) => p.id);
+    const skillMap: Record<string, string[]> = {};
+    let categoryMatchSet: Set<string> | null = null;
+
+    if (profileIds.length > 0) {
+      const { data: skillsData, error: skillsError } = await supabase
+        .from('profile_skills')
+        .select(`
+          profile_id,
+          skills (
+            id,
+            name,
+            category_id
+          )
+        `)
+        .in('profile_id', profileIds);
+
+      if (!skillsError && skillsData) {
+        if (params?.categoryId) {
+          categoryMatchSet = new Set<string>();
+        }
+        for (const row of skillsData as any[]) {
+          const s = row.skills;
+          if (!s) continue;
+          if (!skillMap[row.profile_id]) {
+            skillMap[row.profile_id] = [];
+          }
+          if (s.name) {
+            skillMap[row.profile_id].push(s.name);
+          }
+          if (params?.categoryId && s.category_id === params.categoryId) {
+            categoryMatchSet?.add(row.profile_id);
+          }
+        }
+      }
+    }
+
+    let filtered = profilesData;
+    if (categoryMatchSet !== null) {
+      filtered = filtered.filter((p: any) => categoryMatchSet!.has(p.id));
+    }
+
+    return filtered.slice(0, limit).map((p: any) => ({
+      id: p.id,
+      display_name: p.display_name || 'Ormoc Freelancer',
+      headline: p.headline || null,
+      avatar_path: p.avatar_path || null,
+      area: p.area || 'Ormoc City',
+      freelancer_rating_avg: Number(p.freelancer_rating_avg || 0),
+      freelancer_rating_count: Number(p.freelancer_rating_count || 0),
+      freelancer_completed_gigs: Number(p.freelancer_completed_gigs || 0),
+      skills: skillMap[p.id] || [],
+    }));
   },
 };

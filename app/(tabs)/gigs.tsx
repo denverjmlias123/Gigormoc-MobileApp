@@ -9,13 +9,14 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
 import { applicationsService } from '../../services/applications';
-import { profileService, Category } from '../../services/profile';
+import { profileService, Category, FreelancerSummary } from '../../services/profile';
 import { GigCard, GigSummary } from '../../components/ui/GigCard';
+import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -26,18 +27,20 @@ import { confirmDialog } from '../../lib/dialog';
 import { showToast } from '../../components/ui/Toast';
 
 type WorkTypeFilter = 'all' | 'remote' | 'face_to_face' | 'hybrid';
-type ClientSegment = 'my_gigs' | 'marketplace';
+type ClientSegment = 'my_gigs' | 'find_freelancers' | 'marketplace';
 type ClientStatusFilter = 'all' | 'open' | 'draft' | 'in_progress' | 'closed';
 
 export default function GigsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ tab?: string; categoryId?: string }>();
 
   const isClient = theme.isClient;
 
   // Freelancer / Shared Browse State
   const [gigs, setGigs] = useState<GigSummary[]>([]);
+  const [freelancers, setFreelancers] = useState<FreelancerSummary[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
@@ -52,6 +55,16 @@ export default function GigsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [deletingGigId, setDeletingGigId] = useState<string | null>(null);
 
+  // Sync route params when navigating into this screen
+  React.useEffect(() => {
+    if (params.tab === 'find_freelancers') {
+      setClientSegment('find_freelancers');
+    }
+    if (params.categoryId) {
+      setSelectedCategory(params.categoryId);
+    }
+  }, [params.tab, params.categoryId]);
+
   const loadData = async (searchOverride = searchQuery) => {
     setLoading(true);
     setError(null);
@@ -61,6 +74,17 @@ export default function GigsScreen() {
           const myGigsData = await gigsService.getMyGigs(user.id);
           setMyGigs(myGigsData);
         }
+      } else if (isClient && clientSegment === 'find_freelancers') {
+        const [categoriesData, freelancersData] = await Promise.all([
+          gigsService.getBrowseCategories(),
+          profileService.getTopFreelancers({
+            searchQuery: searchOverride.trim() || undefined,
+            categoryId: selectedCategory || undefined,
+            limit: 30,
+          }),
+        ]);
+        setCategories(categoriesData);
+        setFreelancers(freelancersData);
       } else {
         const [categoriesData, gigsData] = await Promise.all([
           gigsService.getBrowseCategories(),
@@ -74,7 +98,7 @@ export default function GigsScreen() {
         setGigs(gigsData);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load gigs.');
+      setError(err?.message || 'Failed to load data.');
     } finally {
       setLoading(false);
     }
@@ -169,7 +193,7 @@ export default function GigsScreen() {
           )}
         </View>
 
-        {/* Client Segmented Control: My Gigs vs Marketplace */}
+        {/* Client Segmented Control: My Gigs vs Find Freelancers vs Market Feed */}
         {isClient && (
           <View style={[styles.segmentContainer, { backgroundColor: theme.colors.surfaceAlt, borderColor: theme.colors.border }]}>
             <TouchableOpacity
@@ -192,6 +216,23 @@ export default function GigsScreen() {
             <TouchableOpacity
               style={[
                 styles.segmentItem,
+                clientSegment === 'find_freelancers' && [styles.segmentActive, { backgroundColor: theme.colors.surface }],
+              ]}
+              onPress={() => setClientSegment('find_freelancers')}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: clientSegment === 'find_freelancers' ? theme.colors.primary : theme.colors.muted },
+                ]}
+              >
+                Find Freelancers
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.segmentItem,
                 clientSegment === 'marketplace' && [styles.segmentActive, { backgroundColor: theme.colors.surface }],
               ]}
               onPress={() => setClientSegment('marketplace')}
@@ -202,20 +243,24 @@ export default function GigsScreen() {
                   { color: clientSegment === 'marketplace' ? theme.colors.primary : theme.colors.muted },
                 ]}
               >
-                Marketplace (Read-only)
+                Market Feed
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Search Input for Browse / Marketplace */}
-        {(!isClient || clientSegment === 'marketplace') && (
+        {/* Search Input for Browse / Marketplace / Find Freelancers */}
+        {(!isClient || clientSegment === 'marketplace' || clientSegment === 'find_freelancers') && (
           <>
             <View style={[styles.searchBox, { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radii.input }]}>
               <Ionicons name="search" size={18} color={theme.colors.muted} />
               <RNTextInput
                 style={[styles.searchInput, { color: theme.colors.text }]}
-                placeholder={strings.gigs.searchPlaceholder}
+                placeholder={
+                  clientSegment === 'find_freelancers'
+                    ? 'Search freelancers by name or skill...'
+                    : strings.gigs.searchPlaceholder
+                }
                 placeholderTextColor={theme.colors.muted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -237,17 +282,20 @@ export default function GigsScreen() {
               ) : null}
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {workFilters.map((f) => (
-                <Chip
-                  key={f.id}
-                  label={f.label}
-                  icon={f.icon}
-                  selected={workTypeFilter === f.id}
-                  onPress={() => setWorkTypeFilter(f.id)}
-                />
-              ))}
-            </ScrollView>
+            {/* Work type filters only apply to job posts */}
+            {(!isClient || clientSegment === 'marketplace') && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {workFilters.map((f) => (
+                  <Chip
+                    key={f.id}
+                    label={f.label}
+                    icon={f.icon}
+                    selected={workTypeFilter === f.id}
+                    onPress={() => setWorkTypeFilter(f.id)}
+                  />
+                ))}
+              </ScrollView>
+            )}
 
             {categories.length > 0 && (
               <ScrollView
@@ -316,6 +364,33 @@ export default function GigsScreen() {
                 onPress={() => handleGigPress(gig.id)}
                 onDelete={['open', 'draft', 'cancelled', 'expired'].includes(gig.status) ? () => handleDeleteGig(gig) : undefined}
                 deleting={deletingGigId === gig.id}
+              />
+            ))
+          )
+        ) : isClient && clientSegment === 'find_freelancers' ? (
+          freelancers.length === 0 ? (
+            <EmptyState
+              icon="search-outline"
+              title="No freelancers found"
+              description="No freelancers match your search or category filter."
+              actionTitle="Clear filters"
+              onAction={() => {
+                setSearchQuery('');
+                setSelectedCategory(null);
+                void loadData('');
+              }}
+            />
+          ) : (
+            freelancers.map((freelancer) => (
+              <FreelancerCard
+                key={freelancer.id}
+                freelancer={freelancer}
+                onPress={() =>
+                  router.push({
+                    pathname: '/profile/[id]',
+                    params: { id: freelancer.id },
+                  })
+                }
               />
             ))
           )

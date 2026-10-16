@@ -12,6 +12,8 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
+import { FreelancerCard } from '../../components/ui/FreelancerCard';
+import { profileService, FreelancerSummary, Category } from '../../services/profile';
 import { notificationsService } from '../../services/notifications';
 import { strings, mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 
@@ -26,6 +28,8 @@ export default function HomeScreen() {
 
   const [availableGigs, setAvailableGigs] = useState<GigSummary[]>([]);
   const [myGigs, setMyGigs] = useState<GigSummary[]>([]);
+  const [topFreelancers, setTopFreelancers] = useState<FreelancerSummary[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,8 +41,14 @@ export default function HomeScreen() {
     setNotificationLoadError(null);
     try {
       if (isHire && userId) {
-        const gigs = await gigsService.getMyGigs(userId);
+        const [gigs, freelancers, browseCats] = await Promise.all([
+          gigsService.getMyGigs(userId),
+          profileService.getTopFreelancers({ limit: 6 }).catch(() => []),
+          gigsService.getBrowseCategories().catch(() => []),
+        ]);
         setMyGigs(gigs);
+        setTopFreelancers(freelancers);
+        setCategories(browseCats);
       } else {
         const gigs = await gigsService.getGigs();
         setAvailableGigs(gigs);
@@ -84,6 +94,8 @@ export default function HomeScreen() {
   );
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon';
+  const openGigs = myGigs.filter((g) => ['open', 'in_progress', 'draft'].includes(g.status?.toLowerCase()));
+  const completedGigs = myGigs.filter((g) => ['completed', 'cancelled', 'expired'].includes(g.status?.toLowerCase()));
   const openCount = myGigs.filter((g) => g.status?.toLowerCase() === 'open').length;
   const draftCount = myGigs.filter((g) => g.status?.toLowerCase() === 'draft').length;
 
@@ -210,12 +222,17 @@ export default function HomeScreen() {
 
           {isHire ? (
             <View>
-              <SectionHeader title={strings.gigs.myGigs} />
+              {/* 1. Active & Open Gigs */}
+              <SectionHeader
+                title="Active & Open Gigs"
+                actionLabel={openGigs.length > 0 ? 'View all' : undefined}
+                onAction={openGigs.length > 0 ? () => router.push('/(tabs)/gigs') : undefined}
+              />
               {loading ? (
                 renderLoading()
               ) : loadError ? (
                 <ErrorState message={loadError} onRetry={loadHomeData} />
-              ) : myGigs.length === 0 ? (
+              ) : openGigs.length === 0 ? (
                 <EmptyState
                   icon="document-text-outline"
                   title={strings.gigs.noMyGigsTitle}
@@ -224,13 +241,136 @@ export default function HomeScreen() {
                   onAction={() => router.push('/gigs/post')}
                 />
               ) : (
-                myGigs.map((gig) => (
+                openGigs.map((gig) => (
                   <GigCard
                     key={gig.id}
                     gig={gig}
                     onPress={() => handleGigPress(gig.id)}
                   />
                 ))
+              )}
+
+              {/* 2. Top Freelancers in Ormoc */}
+              <View style={{ marginTop: 12 }}>
+                <SectionHeader
+                  title="Top Freelancers in Ormoc"
+                  actionLabel="Find more"
+                  onAction={() =>
+                    router.push({
+                      pathname: '/(tabs)/gigs',
+                      params: { tab: 'find_freelancers' },
+                    })
+                  }
+                />
+                {loading ? (
+                  <View style={{ flexDirection: 'row', gap: 12, paddingVertical: 4 }}>
+                    <Skeleton height={140} width={220} borderRadius={16} />
+                    <Skeleton height={140} width={220} borderRadius={16} />
+                  </View>
+                ) : topFreelancers.length === 0 ? (
+                  <View
+                    style={[
+                      styles.emptyInlineCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="people-outline" size={24} color={theme.colors.muted} />
+                    <Text style={[styles.emptyInlineText, { color: theme.colors.muted }]}>
+                      Freelancers will appear here once registered.
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.freelancersScroll}
+                  >
+                    {topFreelancers.map((freelancer) => (
+                      <FreelancerCard
+                        key={freelancer.id}
+                        freelancer={freelancer}
+                        compact
+                        onPress={() =>
+                          router.push({
+                            pathname: '/profile/[id]',
+                            params: { id: freelancer.id },
+                          })
+                        }
+                      />
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
+              {/* 3. Browse Talent by Category */}
+              {categories.length > 0 && (
+                <View style={{ marginTop: 16 }}>
+                  <SectionHeader title="Browse Talent by Category" />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryChipsScroll}
+                  >
+                    {categories.slice(0, 8).map((cat) => (
+                      <Pressable
+                        key={cat.id}
+                        style={({ pressed }) => [
+                          styles.categoryCard,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                            opacity: pressed ? 0.85 : 1,
+                          },
+                        ]}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(tabs)/gigs',
+                            params: { tab: 'find_freelancers', categoryId: cat.id },
+                          })
+                        }
+                      >
+                        <Text style={[styles.categoryName, { color: theme.colors.text }]}>
+                          {cat.name}
+                        </Text>
+                        <View style={styles.categoryArrowRow}>
+                          <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
+                            Browse
+                          </Text>
+                          <Ionicons
+                            name="arrow-forward"
+                            size={12}
+                            color={theme.colors.primary}
+                          />
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* 4. Completed & Past Gigs */}
+              {completedGigs.length > 0 && (
+                <View style={{ marginTop: 16 }}>
+                  <SectionHeader
+                    title="Completed & Past Gigs"
+                    actionLabel={completedGigs.length > 2 ? 'See all' : undefined}
+                    onAction={
+                      completedGigs.length > 2
+                        ? () => router.push('/(tabs)/gigs')
+                        : undefined
+                    }
+                  />
+                  {completedGigs.slice(0, 3).map((gig) => (
+                    <GigCard
+                      key={gig.id}
+                      gig={gig}
+                      onPress={() => handleGigPress(gig.id)}
+                    />
+                  ))}
+                </View>
               )}
             </View>
           ) : (
@@ -350,4 +490,47 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   bannerText: { fontSize: 14, flex: 1, lineHeight: 19, fontWeight: '500' },
+  freelancersScroll: {
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  categoryChipsScroll: {
+    paddingVertical: 4,
+    paddingRight: 8,
+    gap: 8,
+  },
+  categoryCard: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    minWidth: 120,
+    justifyContent: 'center',
+  },
+  categoryName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  categoryArrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  categoryHint: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyInlineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  emptyInlineText: {
+    fontSize: 13,
+    flex: 1,
+  },
 });
