@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   useWindowDimensions,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -200,9 +201,12 @@ export default function WelcomeScreen() {
   const copy = (
     <View style={wide ? styles.copyWide : undefined}>
       <Animated.View style={[styles.brandRow, eBrand]}>
-        <View style={[styles.mark, gradient(BRAND, '#3A5DFF')]}>
-          <Ionicons name="flash" size={20} color="#FFFFFF" />
-        </View>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logoMark}
+          resizeMode="contain"
+          accessibilityLabel="Gigormoc logo"
+        />
         <Text style={styles.brand}>Gigormoc</Text>
       </Animated.View>
 
@@ -295,9 +299,9 @@ const styles = StyleSheet.create({
   wideRight: { flex: 0.95 },
   copyWide: { marginBottom: 8 },
 
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 36 },
-  mark: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  brand: { color: '#FFFFFF', fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
+  logoMark: { width: 44, height: 44 },
+  brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
 
   pill: {
     flexDirection: 'row',
