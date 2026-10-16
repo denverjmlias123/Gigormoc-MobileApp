@@ -28,6 +28,9 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
   if (Platform.OS === 'web') {
     const webInput = React.createElement('input', {
       type: 'date',
+      id: 'date-of-birth',
+      name: 'dateOfBirth',
+      autoComplete: 'bday',
       value,
       min: '1900-01-01',
       max: formatLocalIsoDate(maximumDate),

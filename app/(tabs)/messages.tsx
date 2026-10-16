@@ -8,11 +8,12 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { chatService, ConversationSummary } from '../../services/chat';
+import { notificationsService } from '../../services/notifications';
 import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
@@ -40,9 +41,15 @@ export default function MessagesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadConversations();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, () => {
+        void loadConversations();
+      });
+    }, [loadConversations, user?.id])
+  );
 
   const handleConversationPress = (item: ConversationSummary) => {
     // Optimistic unread removal

@@ -253,8 +253,13 @@ export const authService = {
         try {
           await callLoginGuard('success', normalizedEmail);
           await sessionService.startSession();
-        } catch (sessionError) {
+        } catch (sessionError: any) {
           await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+          if (String(sessionError?.message || '').includes('account_unavailable')) {
+            const suspendedErr: any = new Error(strings.errors.accountSuspended);
+            suspendedErr.code = 'ACCOUNT_SUSPENDED';
+            throw suspendedErr;
+          }
           throw sessionError;
         }
         return data;
@@ -272,16 +277,18 @@ export const authService = {
     }
 
     signOutInFlight = (async () => {
-      // Start audit writes before clearing the local token. They are best-effort so an offline
-      // device still exits immediately and clears its session and private cache.
-      void (async () => {
+      // End remote session before clearing the local token so the RPC call has authenticated JWT
+      try {
         const currentSessionId = await sessionService.getCurrentSessionId();
-        if (!currentSessionId) return;
-        if (options?.scope === 'global') {
-          await sessionService.endOtherSessions(currentSessionId);
+        if (currentSessionId) {
+          if (options?.scope === 'global') {
+            await sessionService.endOtherSessions(currentSessionId).catch(() => undefined);
+          }
+          await sessionService.endCurrentSession(options?.scope === 'global' ? 'revoked' : 'logout', currentSessionId).catch(() => undefined);
         }
-        await sessionService.endCurrentSession(options?.scope === 'global' ? 'revoked' : 'logout', currentSessionId);
-      })().catch(() => undefined);
+      } catch {
+        // Best-effort remote revocation; proceed with local signOut
+      }
 
       try {
         // 1. Always clear local session first so logout works even when offline

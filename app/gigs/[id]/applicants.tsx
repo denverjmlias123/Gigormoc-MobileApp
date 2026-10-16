@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   TextInput as RNTextInput,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '../../theme';
 import { applicationsService, ApplicationItem } from '../../../services/applications';
 import { chatService } from '../../../services/chat';
@@ -33,9 +33,8 @@ export default function GigApplicantsScreen() {
   const [counterPriceStr, setCounterPriceStr] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const loadApplicants = async () => {
+  const loadApplicants = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
     setError(null);
     try {
       const data = await applicationsService.getGigApplicants(id);
@@ -45,11 +44,17 @@ export default function GigApplicantsScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadApplicants();
   }, [id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadApplicants();
+      if (!id) return;
+      return applicationsService.subscribeToGigApplicants(id, () => {
+        void loadApplicants();
+      });
+    }, [id, loadApplicants])
+  );
 
   const handleOpenApplicantChat = async (app: ApplicationItem) => {
     try {

@@ -100,7 +100,7 @@ export default function HomeScreen() {
         {/* Hero: color and content change with the active mode */}
         <View style={[styles.hero, { backgroundColor: theme.colors.heroBg }]}>
           <View style={styles.heroTop}>
-            <Avatar name={displayName} size={44} onHero />
+            <Avatar name={displayName} imageUri={profile?.avatar_path} size={44} onHero />
             <View style={styles.greetingCol}>
               <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Maayong adlaw,</Text>
               <Text style={[styles.name, { color: theme.colors.heroText }]} numberOfLines={1}>
@@ -126,9 +126,9 @@ export default function HomeScreen() {
 
               <Pressable
                 style={[styles.modePill, { backgroundColor: theme.colors.heroChip }]}
-                onPress={() => router.push('/(tabs)/profile')}
+                onPress={() => router.push('/settings/mode')}
                 accessibilityRole="button"
-                accessibilityLabel="Current mode. Open profile to change."
+                accessibilityLabel="Current mode. Tap to view mode settings."
               >
                 <Ionicons name={isHire ? 'people' : 'search'} size={14} color={theme.colors.heroText} />
                 <Text style={[styles.modePillText, { color: theme.colors.heroText }]}>

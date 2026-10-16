@@ -295,15 +295,15 @@ export function computeAgreementLoopState(
     };
   }
 
-  // 6. Revision requested on a milestone -> Freelancer must resubmit ('approved' / revision stage)
+  // 6. Revision requested on a milestone -> Freelancer must resubmit ('work_submitted' revision stage)
   if (revisionMilestones.length > 0) {
     const revMilestone = revisionMilestones[0];
     const revNum = revMilestone.revision_count || 1;
-    const idx = LOOP_STAGE_ORDER.indexOf('approved');
+    const idx = LOOP_STAGE_ORDER.indexOf('work_submitted');
     const isViewerTurn = !isClient;
     const revLabel = `Revision requested (${revNum} of 2)`;
     return {
-      currentStage: 'approved',
+      currentStage: 'work_submitted',
       stageIndex: idx,
       actor: 'freelancer',
       isViewerTurn,

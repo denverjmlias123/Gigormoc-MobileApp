@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../../theme';
 import { paymentsService, PaymentMethod } from '../../../../services/payments';
+import { milestonesService, MilestoneItem } from '../../../../services/milestones';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
 import { showToast } from '../../../../components/ui/Toast';
@@ -27,12 +28,17 @@ const PAYMENT_METHODS: { label: string; value: PaymentMethod }[] = [
 export default function ReportPaymentScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { id, agreedPrice } = useLocalSearchParams<{ id: string; agreedPrice: string }>();
+  const { id, agreedPrice, unpaidAmount } = useLocalSearchParams<{ id: string; agreedPrice?: string; unpaidAmount?: string }>();
 
+  const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('gcash');
-  const [amountStr, setAmountStr] = useState(
-    agreedPrice ? (parseInt(agreedPrice, 10) / 100).toString() : ''
-  );
+  const initialAmount = unpaidAmount
+    ? (parseInt(unpaidAmount, 10) / 100).toString()
+    : agreedPrice
+    ? (parseInt(agreedPrice, 10) / 100).toString()
+    : '';
+  const [amountStr, setAmountStr] = useState(initialAmount);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [receiptPath, setReceiptPath] = useState('');
   const [notes, setNotes] = useState('');
@@ -41,6 +47,11 @@ export default function ReportPaymentScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!id) return;
+    milestonesService.getAgreementMilestones(id).then(setMilestones).catch(() => {});
+  }, [id]);
 
   const safeNavigateBack = () => {
     if (router.canGoBack()) {
@@ -96,6 +107,7 @@ export default function ReportPaymentScreen() {
       const amountCentavos = Math.round(amountNum * 100);
       await paymentsService.reportPayment({
         agreementId: id,
+        milestoneId: selectedMilestoneId || undefined,
         amount: amountCentavos,
         paymentMethod: selectedMethod,
         referenceNumber: referenceNumber.trim(),
@@ -138,6 +150,69 @@ export default function ReportPaymentScreen() {
         {error && (
           <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
             <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* Milestone Allocation (Optional) */}
+        {milestones.length > 0 && (
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Apply to Milestone (Optional)</Text>
+            <View style={styles.methodGrid}>
+              <TouchableOpacity
+                style={[
+                  styles.methodChip,
+                  {
+                    borderColor: selectedMilestoneId === null ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: selectedMilestoneId === null ? theme.colors.primarySoft : theme.colors.surface,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedMilestoneId(null);
+                  if (unpaidAmount) setAmountStr((parseInt(unpaidAmount, 10) / 100).toString());
+                }}
+              >
+                <Text
+                  style={[
+                    styles.methodText,
+                    { color: selectedMilestoneId === null ? theme.colors.primary : theme.colors.text },
+                  ]}
+                >
+                  General / Unallocated
+                </Text>
+              </TouchableOpacity>
+              {milestones.map((ms) => {
+                const isSelected = selectedMilestoneId === ms.id;
+                return (
+                  <TouchableOpacity
+                    key={ms.id}
+                    style={[
+                      styles.methodChip,
+                      {
+                        borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: isSelected ? theme.colors.primarySoft : theme.colors.surface,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setSelectedMilestoneId(null);
+                      } else {
+                        setSelectedMilestoneId(ms.id);
+                        setAmountStr((ms.amount / 100).toString());
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.methodText,
+                        { color: isSelected ? theme.colors.primary : theme.colors.text },
+                      ]}
+                    >
+                      {ms.seq}. {ms.title} ({formatPrice(ms.amount)})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
 

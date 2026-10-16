@@ -240,6 +240,7 @@ export const strings = {
     filterAllCategories: 'All Categories',
     hireModeRequiredTitle: 'Hire Someone Mode Required',
     hireModeRequiredDesc: 'You are currently in Find Work mode. Posting gigs is exclusively for clients in Hire Someone mode.',
+    editGig: 'Edit Gig',
   },
   payments: {
     reportedSent: 'Reported',

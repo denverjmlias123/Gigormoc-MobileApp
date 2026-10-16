@@ -315,4 +315,18 @@ export const applicationsService = {
       if (error) throw error;
     });
   },
+
+  subscribeToGigApplicants(gigId: string, onChange: () => void) {
+    const channel = supabase
+      .channel(`gig-applicants:${gigId}:${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'applications', filter: `gig_id=eq.${gigId}` },
+        () => onChange()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  },
 };

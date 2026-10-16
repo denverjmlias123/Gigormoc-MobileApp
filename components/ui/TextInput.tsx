@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput as RNTextInput, StyleSheet, Pressable, TextInputProps } from 'react-native';
+import { View, Text, TextInput as RNTextInput, StyleSheet, Pressable, TextInputProps, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { strings } from '../../constants/strings';
@@ -27,17 +27,31 @@ export const TextInput: React.FC<Props> = ({
 
   const borderColor = error ? theme.colors.danger : focused ? theme.colors.primary : theme.colors.border;
 
+  // Auto-generate safe id and name from label if not explicitly provided (fixes DevTools form field issue)
+  const safeId = (props as any).id || props.nativeID || `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  const safeName = (props as any).name || label.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+  // Normalize autoComplete for web standards (fixes non-standard autocomplete attribute warning)
+  let normalizedAutoComplete = props.autoComplete;
+  if (Platform.OS === 'web' && normalizedAutoComplete === ('password' as any)) {
+    normalizedAutoComplete = 'current-password';
+  }
+
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
       <View style={styles.inputContainer}>
         <RNTextInput
+          nativeID={safeId}
+          accessibilityLabel={label}
+          autoComplete={normalizedAutoComplete}
+          {...(Platform.OS === 'web' ? { id: safeId, name: safeName } : null)}
           style={[
             styles.input,
             {
               borderColor,
               borderWidth: focused || error ? 2 : 1,
-              backgroundColor: theme.colors.surface,
+              backgroundColor: focused ? theme.colors.surface : theme.colors.surfaceAlt,
               color: theme.colors.text,
               borderRadius: theme.radii.input,
             },
@@ -79,11 +93,11 @@ export const TextInput: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  label: { fontSize: 13.5, fontWeight: '700', marginBottom: 7, letterSpacing: 0.1 },
   inputContainer: { position: 'relative' },
   input: {
-    minHeight: 50,
-    paddingHorizontal: 14,
+    minHeight: 54,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
   },

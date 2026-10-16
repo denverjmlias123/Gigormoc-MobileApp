@@ -8,6 +8,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -132,7 +134,7 @@ export default function PortfolioScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => {
@@ -269,7 +271,7 @@ export default function PortfolioScreen() {
           <View style={styles.center}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !showAddForm ? (
           <View
             style={[
               styles.emptyCard,
@@ -325,7 +327,7 @@ export default function PortfolioScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

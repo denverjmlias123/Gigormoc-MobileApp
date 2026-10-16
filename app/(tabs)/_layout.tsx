@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
 import { useAppTheme } from '../theme';
+import { useAuth } from '../../hooks/useAuth';
+import { chatService } from '../../services/chat';
+import { notificationsService } from '../../services/notifications';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -13,6 +16,33 @@ const tabIcon =
 
 export default function TabLayout() {
   const theme = useAppTheme();
+  const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setUnreadCount(0);
+      return;
+    }
+    let active = true;
+    const fetchUnread = async () => {
+      try {
+        const convs = await chatService.getUserConversations();
+        if (active) {
+          const unread = convs.filter((c) => c.is_unread).length;
+          setUnreadCount(unread);
+        }
+      } catch {}
+    };
+    void fetchUnread();
+    const unsub = notificationsService.subscribeToNotifications(user.id, () => {
+      void fetchUnread();
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [user?.id]);
 
   return (
     <Tabs
@@ -21,13 +51,19 @@ export default function TabLayout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.muted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
+        sceneStyle: {
+          backgroundColor: theme.colors.background,
+        },
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: Platform.OS === 'ios' ? 88 : 66,
-          paddingTop: 6,
+          height: Platform.OS === 'ios' ? 90 : 68,
+          paddingTop: 8,
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          ...(Platform.OS === 'web'
+            ? ({ boxShadow: '0 -8px 24px rgba(12, 18, 51, 0.05)' } as any)
+            : null),
         },
       }}
     >
@@ -57,6 +93,13 @@ export default function TabLayout() {
         options={{
           title: 'Messages',
           tabBarIcon: tabIcon('chatbubbles', 'chatbubbles-outline'),
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: theme.colors.primary,
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '700',
+          },
         }}
       />
       <Tabs.Screen

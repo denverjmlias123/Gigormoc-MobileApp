@@ -27,6 +27,7 @@ import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { showToast } from '../../components/ui/Toast';
+import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 import {
   Timeline,
@@ -166,20 +167,34 @@ export default function ActivityScreen() {
 
   const handleRespondToCounter = async (
     app: ApplicationItem,
-    action: 'accept' | 'decline'
+    action: 'accept' | 'decline' | 'withdraw'
   ) => {
+    if (action === 'withdraw') {
+      const confirmed = await confirmDialog({
+        title: 'Withdraw Proposal',
+        message: 'Are you sure you want to withdraw this application? This action cannot be undone.',
+        confirmText: 'Withdraw',
+        cancelText: 'Cancel',
+      });
+      if (!confirmed) return;
+    }
+
     setCounterBusyId(app.id);
     try {
       const agreementId = await applicationsService.respondToCounter(app.id, action);
       showToast(
-        action === 'accept' ? strings.toasts.counterAccepted : strings.toasts.counterDeclined
+        action === 'accept'
+          ? strings.toasts.counterAccepted
+          : action === 'withdraw'
+          ? 'Proposal withdrawn successfully.'
+          : strings.toasts.counterDeclined
       );
       await loadData();
       if (action === 'accept' && agreementId) {
         router.push({ pathname: '/agreements/[id]', params: { id: agreementId } });
       }
     } catch (err: any) {
-      showToast(err?.message || 'Could not respond to counteroffer.', 'error');
+      showToast(err?.message || 'Could not process proposal action.', 'error');
     } finally {
       setCounterBusyId(null);
     }
@@ -280,6 +295,30 @@ export default function ActivityScreen() {
                   >
                     <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>
                       Decline
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.border }]}
+                    onPress={() => handleRespondToCounter(app, 'withdraw')}
+                    disabled={isBusy}
+                  >
+                    <Text style={{ color: theme.colors.muted, fontWeight: '600', fontSize: 13 }}>
+                      Withdraw
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Withdraw action if proposal is pending (status === 'applied') */}
+              {!deleted && app.status === 'applied' && (
+                <View style={[styles.counterActionRow, { justifyContent: 'flex-end' }]}>
+                  <TouchableOpacity
+                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.border }]}
+                    onPress={() => handleRespondToCounter(app, 'withdraw')}
+                    disabled={isBusy}
+                  >
+                    <Text style={{ color: theme.colors.muted, fontWeight: '600', fontSize: 13 }}>
+                      {isBusy ? 'Processing...' : 'Withdraw Proposal'}
                     </Text>
                   </TouchableOpacity>
                 </View>

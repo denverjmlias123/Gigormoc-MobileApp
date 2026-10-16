@@ -85,6 +85,13 @@ export default function ResetPasswordScreen() {
     };
   }, []);
 
+  const handleExitToLogin = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch {}
+    router.replace('/(auth)/login');
+  };
+
   const handleSave = async () => {
     if (saving || !ready) return;
     setError(null);
@@ -119,16 +126,17 @@ export default function ResetPasswordScreen() {
         {processing ? (
           <ActivityIndicator color={theme.colors.primary} />
         ) : ready ? (
-          <>
+          <View style={styles.actions}>
             <TextInput label={strings.auth.newPassword} value={password} onChangeText={setPassword} isPassword autoCapitalize="none" autoComplete="new-password" />
             <PasswordPolicyChecklist password={password} email={user?.email ?? ''} displayName={profile?.display_name ?? ''} />
             <TextInput label={strings.auth.confirmNewPassword} value={confirmation} onChangeText={setConfirmation} isPassword autoCapitalize="none" autoComplete="new-password" />
             <Button title={strings.common.save} onPress={handleSave} loading={saving} disabled={saving} />
-          </>
+            <Button title={strings.common.cancel} variant="secondary" onPress={handleExitToLogin} disabled={saving} />
+          </View>
         ) : (
           <View style={styles.actions}>
             <Button title={strings.auth.duplicateEmailResetBtn} onPress={() => router.replace('/(auth)/forgot-password')} />
-            <Button title={strings.auth.duplicateEmailLoginBtn} variant="secondary" onPress={() => router.replace('/(auth)/login')} />
+            <Button title={strings.auth.duplicateEmailLoginBtn} variant="secondary" onPress={handleExitToLogin} />
           </View>
         )}
       </ScrollView>

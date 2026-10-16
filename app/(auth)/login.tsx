@@ -289,7 +289,7 @@ export default function LoginScreen() {
           placeholder={strings.auth.loginPasswordPlaceholder}
           isPassword
           autoCapitalize="none"
-          autoComplete="password"
+          autoComplete="current-password"
           error={passwordFieldError}
         />
 

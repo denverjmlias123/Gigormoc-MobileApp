@@ -24,15 +24,19 @@ const checkLabels = [
 export function PasswordPolicyChecklist({ password, email, displayName }: Props) {
   const theme = useAppTheme();
   const checks = getPasswordChecks(password, email, displayName);
-  const coreKeys = ['length', 'lowercase', 'uppercase', 'number', 'special'] as const;
-  const score = coreKeys.filter((key) => checks[key]).length;
-  const strength = score <= 2 ? strings.auth.passwordStrengthWeak : score < 5 ? strings.auth.passwordStrengthFair : strings.auth.passwordStrengthStrong;
+  const totalCount = checkLabels.filter(([key]) => checks[key]).length;
+  const allPassed = checkLabels.every(([key]) => checks[key]);
+  const strength = !password || totalCount <= 3
+    ? strings.auth.passwordStrengthWeak
+    : !allPassed || totalCount < 8
+      ? strings.auth.passwordStrengthFair
+      : strings.auth.passwordStrengthStrong;
 
   return (
     <View style={styles.container} accessibilityLiveRegion="polite">
       <View style={styles.strengthRow}>
         <Text style={[theme.type.caption, { color: theme.colors.muted }]}>{strings.auth.passwordStrengthLabel}</Text>
-        <Text style={[theme.type.caption, { color: score < 5 ? theme.colors.warning : theme.colors.success }]}>{strength}</Text>
+        <Text style={[theme.type.caption, { color: allPassed ? theme.colors.success : theme.colors.warning }]}>{strength}</Text>
       </View>
       <View style={styles.grid}>
         {checkLabels.map(([key, label]) => (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -90,6 +90,15 @@ export default function ChangePasswordScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {!profile?.must_change_password && (
+        <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} style={styles.backButton}>
+            <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
+          </TouchableOpacity>
+          <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>{strings.auth.changePassword}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      )}
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.auth.changePassword}</Text>
         <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>{strings.auth.passwordCurrentRequired}</Text>
@@ -135,7 +144,28 @@ export default function ChangePasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flexGrow: 1, padding: 24, paddingTop: 48 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 52 : 36,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  topBarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  content: { flexGrow: 1, padding: 24, paddingTop: 24 },
   subtitle: { marginTop: 8, marginBottom: 24 },
   error: { marginBottom: 16 },
   notice: { marginBottom: 16 },

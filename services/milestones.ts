@@ -15,6 +15,7 @@ export interface MilestoneItem {
   amount: number; // in centavos
   status: 'pending' | 'submitted' | 'approved' | 'revision_requested';
   revision_count: number;
+  revision_feedback?: string | null;
   created_at: string;
   updated_at: string;
 }

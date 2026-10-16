@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet, AppState } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, AppState, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useAppTheme } from './theme';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
@@ -77,6 +77,20 @@ function RootNavigation() {
       clearInterval(timer);
       appStateSubscription.remove();
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && user?.id) {
+      const onWebActivity = () => {
+        void sessionService.noteActivity().catch(() => undefined);
+      };
+      window.addEventListener('pointerdown', onWebActivity, { passive: true });
+      window.addEventListener('keydown', onWebActivity, { passive: true });
+      return () => {
+        window.removeEventListener('pointerdown', onWebActivity);
+        window.removeEventListener('keydown', onWebActivity);
+      };
+    }
   }, [user?.id]);
 
   const recordSessionActivity = () => {

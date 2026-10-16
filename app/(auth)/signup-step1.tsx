@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
-import { clearSignupDraft, setSignupDraft } from '../../lib/signupDraft';
+import { clearSignupDraft, getSignupDraft, setSignupDraft } from '../../lib/signupDraft';
 import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
@@ -32,6 +32,18 @@ export default function SignUpStep1Screen() {
   const [isDuplicateEmail, setIsDuplicateEmail] = useState(params.duplicateEmail === '1');
 
   useEffect(() => {
+    const draft = getSignupDraft();
+    if (draft) {
+      if (!displayName && draft.displayName) setDisplayName(draft.displayName);
+      if (!email && draft.email) setEmail(draft.email);
+      if (!password && draft.password) {
+        setPassword(draft.password);
+        setConfirmPassword(draft.password);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (params.duplicateEmail === '1') {
       setIsDuplicateEmail(true);
       setError(strings.auth.duplicateEmailMessage);
@@ -45,6 +57,10 @@ export default function SignUpStep1Screen() {
 
     if (!displayName.trim() || displayName.trim().length < 2) {
       setError(strings.auth.signupDisplayNameRequired);
+      return;
+    }
+    if (displayName.trim().length > 50) {
+      setError('Display name cannot exceed 50 characters.');
       return;
     }
 
@@ -136,6 +152,7 @@ export default function SignUpStep1Screen() {
             onChangeText={setDisplayName}
             placeholder={strings.auth.signupDisplayNamePlaceholder}
             autoCapitalize="words"
+            maxLength={50}
           />
         </View>
 

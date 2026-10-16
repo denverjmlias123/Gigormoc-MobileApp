@@ -18,11 +18,12 @@ import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/
 export default function SubmitMilestoneScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { id, milestoneId, title, revisionCount } = useLocalSearchParams<{
+  const { id, milestoneId, title, revisionCount, revisionFeedback } = useLocalSearchParams<{
     id: string;
     milestoneId: string;
     title: string;
     revisionCount: string;
+    revisionFeedback?: string;
   }>();
 
   const revCount = parseInt(revisionCount || '0', 10);
@@ -127,6 +128,13 @@ export default function SubmitMilestoneScreen() {
             Submission Attempt: #{revCount + 1} (Max 3 total submissions)
           </Text>
         </View>
+
+        {revisionFeedback ? (
+          <View style={[styles.card, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+            <Text style={[styles.label, { color: '#B45309', fontWeight: '700' }]}>Client Revision Feedback</Text>
+            <Text style={{ color: '#92400E', fontSize: 14, lineHeight: 20 }}>{revisionFeedback}</Text>
+          </View>
+        ) : null}
 
         {error && (
           <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>

@@ -268,6 +268,36 @@ export const gigsService = {
     );
   },
 
+  async updateGig(gigId: string, params: CreateGigParams): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated.');
+
+    let categoryId = params.category_id || null;
+    if (!categoryId && params.category_name) {
+      categoryId = await this.getOrCreateCategory(params.category_name);
+    }
+
+    const { error } = await supabase
+      .from('gigs')
+      .update({
+        title: params.title,
+        description: params.description,
+        requirements: params.requirements || '',
+        category_id: categoryId,
+        price_min: params.price_min,
+        price_max: params.price_max,
+        work_type: params.work_type,
+        area: params.area || '',
+        application_deadline: params.application_deadline,
+        deadline: params.deadline,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', gigId)
+      .eq('client_id', user.id);
+
+    if (error) throw error;
+  },
+
   async getOrCreateCategory(name: string): Promise<string> {
     return runOnce(`get_or_create_category:${name.trim().toLowerCase()}`, async () => {
       const { data, error } = await supabase.rpc('get_or_create_category', {

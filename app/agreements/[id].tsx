@@ -516,6 +516,18 @@ export default function AgreementDetailScreen() {
                 }}
               />
             )}
+            {isClient && milestones.length > 0 && milestones.every((m) => m.status === 'pending') && (
+              <Button
+                title="Edit Milestones"
+                variant="secondary"
+                onPress={() => {
+                  router.push({
+                    pathname: '/agreements/[id]/milestones/setup',
+                    params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+                  });
+                }}
+              />
+            )}
           </View>
 
           {milestones.length === 0 ? (
@@ -551,6 +563,17 @@ export default function AgreementDetailScreen() {
                       <Badge status={m.status} />
                     </View>
 
+                    {m.status === 'revision_requested' && m.revision_feedback ? (
+                      <View style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 8 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#B45309', marginBottom: 2 }}>
+                          Revision Feedback:
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
+                          {m.revision_feedback}
+                        </Text>
+                      </View>
+                    ) : null}
+
                     <View style={styles.milestoneBottom}>
                       <Text style={[styles.milestoneAmount, { color: theme.colors.primary }]}>
                         {formatPrice(m.amount)}
@@ -574,6 +597,7 @@ export default function AgreementDetailScreen() {
                                 milestoneId: m.id,
                                 title: m.title,
                                 revisionCount: m.revision_count.toString(),
+                                revisionFeedback: m.revision_feedback || '',
                               },
                             });
                           }}
@@ -624,7 +648,11 @@ export default function AgreementDetailScreen() {
                 onPress={() => {
                   router.push({
                     pathname: '/agreements/[id]/payments/report',
-                    params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+                    params: {
+                      id: agreement.id,
+                      agreedPrice: agreement.agreed_price.toString(),
+                      unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
+                    },
                   });
                 }}
               />
@@ -659,20 +687,21 @@ export default function AgreementDetailScreen() {
                     ]}
                   >
                     <View style={styles.paymentRowTop}>
-                      <View>
-                        <Text style={[styles.paymentAmount, { color: theme.colors.text }]}>
-                          {formatPrice(p.amount)}
-                        </Text>
-                        <Text style={[styles.paymentMethod, { color: theme.colors.muted }]}>
-                          Channel: {p.payment_method.toUpperCase()}
-                          {p.reference_number ? ` • Ref: ${p.reference_number}` : ''}
-                        </Text>
-                      </View>
+                      <Text style={[styles.paymentAmount, { color: theme.colors.text }]}>
+                        {formatPrice(p.amount)}
+                      </Text>
 
-                      {isReported && <Badge status="pending" label="Reported sent" />}
-                      {isConfirmed && <Badge status="active" label="Confirmed by freelancer" />}
-                      {isDisputed && <Badge status="disputed" label="Disputed" />}
+                      <View style={styles.badgeWrapper}>
+                        {isReported && <Badge status="pending" label="Reported sent" />}
+                        {isConfirmed && <Badge status="active" label="Confirmed by freelancer" />}
+                        {isDisputed && <Badge status="disputed" label="Disputed" />}
+                      </View>
                     </View>
+
+                    <Text style={[styles.paymentMethod, { color: theme.colors.muted }]}>
+                      Channel: {p.payment_method.toUpperCase()}
+                      {p.reference_number ? ` • Ref: ${p.reference_number}` : ''}
+                    </Text>
 
                     {p.receipt_path ? (
                       <TouchableOpacity
@@ -1001,7 +1030,12 @@ const styles = StyleSheet.create({
   paymentRowTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: 8,
+  },
+  badgeWrapper: {
+    flexShrink: 1,
+    alignItems: 'flex-end',
   },
   paymentAmount: {
     fontSize: 16,
@@ -1010,6 +1044,7 @@ const styles = StyleSheet.create({
   paymentMethod: {
     fontSize: 12,
     marginTop: 2,
+    lineHeight: 16,
   },
   paymentNotes: {
     fontSize: 13,

@@ -6,8 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService, GigDetail } from '../../services/gigs';
@@ -20,6 +24,7 @@ import { milestonesService } from '../../services/milestones';
 import { paymentsService } from '../../services/payments';
 import { reviewsService } from '../../services/reviews';
 import { chatService } from '../../services/chat';
+import { notificationsService } from '../../services/notifications';
 import { formatPrice, getWorkTypeIcon } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { showToast } from '../../components/ui/Toast';
@@ -49,6 +54,7 @@ export default function GigDetailScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [manageSheetVisible, setManageSheetVisible] = useState(false);
 
   const loadGigAndLoop = useCallback(async () => {
     if (!id) return;
@@ -136,9 +142,15 @@ export default function GigDetailScreen() {
     }
   }, [id, user?.id, profile?.active_mode]);
 
-  useEffect(() => {
-    loadGigAndLoop();
-  }, [loadGigAndLoop]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadGigAndLoop();
+      if (!user?.id) return;
+      return notificationsService.subscribeToNotifications(user.id, () => {
+        void loadGigAndLoop();
+      });
+    }, [loadGigAndLoop, user?.id])
+  );
 
   if (loading) {
     return (
@@ -518,37 +530,35 @@ export default function GigDetailScreen() {
               variant="primary"
             />
             {isOwner && gig.status !== 'completed' ? <Button title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn} onPress={handleDeleteGig} variant="secondary" disabled={deleting || gigAgreement.status !== 'cancelled'} loading={deleting} /> : null}
-            {isOwner && gigAgreement.status !== 'cancelled' ? <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.alreadyHiredDeleteBlock}</Text> : null}
+            {isOwner && gig.status !== 'completed' && gigAgreement.status !== 'cancelled' ? <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.alreadyHiredDeleteBlock}</Text> : null}
           </View>
         ) : isOwner && (gig.status === 'open' || gig.status === 'draft') ? (
-          <View style={{ width: '100%', gap: 8 }}>
-            {gig.status === 'draft' ? (
-              <Button
-                title={strings.gigs.publishBtn}
-                onPress={handlePublishDraft}
-                variant="primary"
-                loading={publishing}
-                disabled={publishing || cancelling || deleting}
-              />
-            ) : (
-              <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
-            )}
-            {(gig.status === 'open' || gig.status === 'draft') && (
-              <Button
-                title={strings.gigs.cancelGigBtn}
-                onPress={handleCancelGig}
-                variant="secondary"
-                loading={cancelling}
-                disabled={cancelling || deleting}
-              />
-            )}
-            <Button
-              title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
-              onPress={handleDeleteGig}
-              variant="secondary"
-              loading={deleting}
-              disabled={deleting || cancelling || publishing}
-            />
+          <View style={styles.ownerActionBar}>
+            <View style={{ flex: 1 }}>
+              {gig.status === 'draft' ? (
+                <Button
+                  title={strings.gigs.publishBtn}
+                  onPress={handlePublishDraft}
+                  variant="primary"
+                  loading={publishing}
+                  disabled={publishing || cancelling || deleting}
+                />
+              ) : (
+                <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
+              )}
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.manageOptionsBtn,
+                { backgroundColor: theme.colors.surfaceAlt, borderColor: theme.colors.border },
+              ]}
+              onPress={() => setManageSheetVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Manage Gig Options"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
+              <Text style={[styles.manageBtnText, { color: theme.colors.text }]}>Options</Text>
+            </TouchableOpacity>
           </View>
         ) : isOwner && gig.status !== 'completed' ? (
           <View style={{ width: '100%', gap: 8 }}>
@@ -619,6 +629,85 @@ export default function GigDetailScreen() {
           </View>
         )}
       </View>
+
+      {/* Manage Gig Bottom Sheet Modal */}
+      <Modal
+        visible={manageSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setManageSheetVisible(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setManageSheetVisible(false)}>
+          <Pressable
+            style={[
+              styles.sheetContainer,
+              { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Visual Drag Handle */}
+            <View style={styles.dragHandleContainer}>
+              <View style={[styles.dragHandle, { backgroundColor: theme.colors.borderStrong }]} />
+            </View>
+
+            <View style={styles.sheetHeader}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Manage Gig</Text>
+                <Text style={[styles.sheetSubtitle, { color: theme.colors.muted }]} numberOfLines={1}>
+                  {gig?.title}
+                </Text>
+              </View>
+              {gig && <Badge status={gig.status} />}
+            </View>
+
+            <View style={styles.sheetActionList}>
+              <Button
+                title={strings.gigs.editGig}
+                variant="secondary"
+                icon="pencil-outline"
+                onPress={() => {
+                  setManageSheetVisible(false);
+                  router.push({ pathname: '/gigs/post', params: { editGigId: gig?.id } });
+                }}
+                disabled={publishing || cancelling || deleting}
+              />
+
+              {(gig?.status === 'open' || gig?.status === 'draft') && (
+                <Button
+                  title={strings.gigs.cancelGigBtn}
+                  variant="secondary"
+                  icon="close-circle-outline"
+                  onPress={async () => {
+                    setManageSheetVisible(false);
+                    await handleCancelGig();
+                  }}
+                  loading={cancelling}
+                  disabled={cancelling || deleting}
+                />
+              )}
+
+              <Button
+                title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
+                variant="danger"
+                icon="trash-outline"
+                onPress={async () => {
+                  setManageSheetVisible(false);
+                  await handleDeleteGig();
+                }}
+                loading={deleting}
+                disabled={deleting || cancelling || publishing}
+              />
+            </View>
+
+            <Button
+              title="Close"
+              variant="ghost"
+              onPress={() => setManageSheetVisible(false)}
+              style={{ marginTop: 8 }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -745,8 +834,68 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 16,
-    paddingBottom: 28,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  ownerActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  manageOptionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 54,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  manageBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(7, 11, 38, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheetContainer: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    width: '100%',
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    marginBottom: 12,
+  },
+  dragHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+  },
+  sheetActionList: {
+    gap: 10,
   },
   reasonText: {
     fontSize: 12,

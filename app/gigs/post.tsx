@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Category } from '../../services/profile';
@@ -16,6 +16,7 @@ import {
   SuggestedGigCategory,
   SimilarCategory,
 } from '../../services/gigs';
+import { aiService } from '../../services/ai';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
 import { showToast } from '../../components/ui/Toast';
@@ -27,7 +28,10 @@ export default function PostGigScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { profile } = useAuth();
+  const { editGigId } = useLocalSearchParams<{ editGigId?: string }>();
 
+  const [existingGigStatus, setExistingGigStatus] = useState<'draft' | 'open' | null>(null);
+  const [polishing, setPolishing] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [customCategoryName, setCustomCategoryName] = useState<string>('');
@@ -76,6 +80,26 @@ export default function PostGigScreen() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!editGigId) return;
+    let active = true;
+    gigsService.getGig(editGigId).then((g) => {
+      if (!active || !g) return;
+      setTitle(g.title);
+      setDescription(g.description);
+      setRequirements(g.requirements || '');
+      setPriceMinStr((g.price_min / 100).toString());
+      setPriceMaxStr((g.price_max / 100).toString());
+      setWorkType(g.work_type);
+      setArea(g.area || '');
+      setExistingGigStatus(g.status as any);
+      if (g.category_id) {
+        setSelectedCategoryId(g.category_id);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [editGigId]);
 
   // Source 1 (DB fuzzy match): Auto-suggest existing categories when title/description change
   useEffect(() => {
@@ -250,6 +274,20 @@ export default function PostGigScreen() {
     };
   };
 
+  const handlePolishDescription = async () => {
+    if (!description.trim() || polishing) return;
+    setPolishing(true);
+    try {
+      const polished = await aiService.polishGigDescription(description);
+      setDescription(polished);
+      showToast('Gig description polished!', 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Could not polish description.', 'error');
+    } finally {
+      setPolishing(false);
+    }
+  };
+
   const inFlightRef = React.useRef(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -260,6 +298,13 @@ export default function PostGigScreen() {
       const params = validateAndBuildParams();
       inFlightRef.current = true;
       setLoading(true);
+      if (editGigId) {
+        await gigsService.updateGig(editGigId, params);
+        setSubmitted(true);
+        showToast('Gig changes saved successfully!');
+        router.replace('/(tabs)/gigs');
+        return;
+      }
       await gigsService.createDraftGig(params);
       setSubmitted(true);
       showToast(strings.toasts.gigDraftSaved);
@@ -279,6 +324,18 @@ export default function PostGigScreen() {
       const params = validateAndBuildParams();
       inFlightRef.current = true;
       setLoading(true);
+      if (editGigId) {
+        await gigsService.updateGig(editGigId, params);
+        if (existingGigStatus === 'draft') {
+          await gigsService.publishGig(editGigId);
+          showToast(strings.toasts.gigPublished);
+        } else {
+          showToast('Gig updated successfully!');
+        }
+        setSubmitted(true);
+        router.replace('/(tabs)/gigs');
+        return;
+      }
       const { id: draftId } = await gigsService.createDraftGig(params);
       await gigsService.publishGig(draftId);
       setSubmitted(true);
@@ -348,7 +405,7 @@ export default function PostGigScreen() {
         >
           <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{strings.gigs.postGigTitle}</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{editGigId ? 'Edit Gig' : strings.gigs.postGigTitle}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -374,6 +431,18 @@ export default function PostGigScreen() {
           numberOfLines={4}
           style={{ minHeight: 90 }}
         />
+
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={handlePolishDescription}
+            disabled={polishing || !description.trim()}
+            style={[styles.aiSuggestBtn, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]}
+          >
+            <Text style={[styles.aiSuggestBtnText, { color: theme.colors.primary }]}>
+              {polishing ? '✨ Polishing...' : '✨ Polish with AI'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Unlocked Category Picker (Suggest First, Create Last) */}
         <View style={styles.fieldGroup}>
@@ -644,20 +713,32 @@ export default function PostGigScreen() {
 
         {/* Actions */}
         <View style={styles.actionRow}>
-          <Button
-            title={strings.gigs.publishBtn}
-            onPress={handlePublish}
-            variant="primary"
-            loading={loading}
-            disabled={loading}
-            style={{ marginBottom: 12 }}
-          />
-          <Button
-            title={strings.gigs.saveDraftBtn}
-            onPress={handleSaveDraft}
-            variant="secondary"
-            disabled={loading}
-          />
+          {editGigId && existingGigStatus === 'open' ? (
+            <Button
+              title="Save Changes"
+              onPress={handleSaveDraft}
+              variant="primary"
+              loading={loading}
+              disabled={loading}
+            />
+          ) : (
+            <>
+              <Button
+                title={strings.gigs.publishBtn}
+                onPress={handlePublish}
+                variant="primary"
+                loading={loading}
+                disabled={loading}
+                style={{ marginBottom: 12 }}
+              />
+              <Button
+                title={editGigId ? 'Save Changes' : strings.gigs.saveDraftBtn}
+                onPress={handleSaveDraft}
+                variant="secondary"
+                disabled={loading}
+              />
+            </>
+          )}
         </View>
       </ScrollView>
     </View>

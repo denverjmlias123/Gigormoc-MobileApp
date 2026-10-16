@@ -78,10 +78,9 @@ export default function ModeSettingsScreen() {
       await refreshProfile();
       await fetchStatus();
       showToast(strings.toasts.modeSwitched);
-      await notify('Mode Switched', `You are now in ${targetLabel} mode.`);
       router.replace('/(tabs)');
     } catch (err: any) {
-      await notify('Switch Error', mapSqlErrorToFriendlyMessage(err, 'Could not switch mode.'));
+      showToast(mapSqlErrorToFriendlyMessage(err, 'Could not switch mode.'), 'error');
     } finally {
       setSwitching(false);
     }

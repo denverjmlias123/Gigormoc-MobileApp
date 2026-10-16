@@ -126,7 +126,9 @@ export const Button: React.FC<ButtonProps> = ({
           borderWidth: variant === 'secondary' ? 1.5 : 0,
           borderRadius: theme.radii.button,
           opacity: disabled ? 0.6 : 1,
+          transform: [{ scale: pressed && !inactive ? 0.985 : 1 }],
         },
+        variant === 'primary' && !inactive ? theme.shadow.glow : null,
         style,
       ]}
     >
@@ -144,13 +146,13 @@ export const Button: React.FC<ButtonProps> = ({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 50,
+    minHeight: 54,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  text: { fontSize: 16, fontWeight: '700', letterSpacing: -0.1 },
+  text: { fontSize: 16, fontWeight: '800', letterSpacing: -0.1 },
 });
 
