@@ -78,7 +78,18 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
   const showStatus = theme.isClient || gig.status.toLowerCase() !== 'open';
 
   return (
-    <View style={[styles.card, theme.shadow.card, { backgroundColor: c.surface, borderRadius: theme.radii.card }]}>
+    <View
+      style={[
+        styles.card,
+        theme.shadow.neoGlass,
+        {
+          backgroundColor: theme.glass.surface,
+          borderColor: theme.glass.border,
+          borderWidth: 1,
+          borderRadius: theme.radii.card,
+        },
+      ]}
+    >
       <Pressable
       style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
       onPress={onPress}

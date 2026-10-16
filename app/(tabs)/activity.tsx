@@ -230,7 +230,8 @@ export default function ActivityScreen() {
               key={app.id}
               style={[
                 styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                theme.shadow.neoGlass,
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
             >
               <TouchableOpacity
@@ -366,7 +367,8 @@ export default function ActivityScreen() {
               key={gig.id}
               style={[
                 styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                theme.shadow.neoGlass,
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
               onPress={() => {
                 router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
@@ -455,7 +457,8 @@ export default function ActivityScreen() {
               key={agr.id}
               style={[
                 styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                theme.shadow.neoGlass,
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
               onPress={() => {
                 router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
@@ -652,8 +655,8 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     gap: 8,
   },
   cardHeader: {

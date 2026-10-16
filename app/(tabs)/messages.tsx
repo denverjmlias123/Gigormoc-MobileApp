@@ -422,10 +422,11 @@ const PartnerCard = React.memo(function PartnerCard({
       style={[
         styles.convCard,
         {
-          backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.colors.surface,
-          borderColor: theme.colors.border,
+          backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.glass.surface,
+          borderColor: theme.glass.border,
+          borderWidth: 1,
         },
-        theme.shadow.card,
+        theme.shadow.neoGlass,
       ]}
       onPress={() => onPress(item)}
       activeOpacity={0.7}

@@ -181,7 +181,7 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
     >
       {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.topBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.glass.surface }]}>
         <TouchableOpacity
           onPress={() => {
             if (router.canGoBack()) {
@@ -284,9 +284,11 @@ export default function ChatScreen() {
                       : [
                           styles.theirBubble,
                           {
-                            backgroundColor: theme.colors.surface,
-                            borderColor: theme.colors.border,
+                            backgroundColor: theme.glass.surface,
+                            borderColor: theme.glass.border,
+                            borderWidth: 1,
                           },
+                          theme.shadow.card,
                         ],
                   ]}
                 >

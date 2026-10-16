@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -110,8 +111,13 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero: color and content change with the active mode */}
-        <View style={[styles.hero, { backgroundColor: theme.colors.heroBg }]}>
+        {/* Hero: smooth gradient with active mode personality */}
+        <LinearGradient
+          colors={theme.gradients.hero}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
           <View style={styles.heroTop}>
             <Avatar name={displayName} imageUri={profile?.avatar_path} size={44} onHero />
             <View style={styles.greetingCol}>
@@ -195,7 +201,7 @@ export default function HomeScreen() {
               </Pressable>
             </>
           )}
-        </View>
+        </LinearGradient>
 
         <View style={styles.body}>
           {notificationLoadError && (

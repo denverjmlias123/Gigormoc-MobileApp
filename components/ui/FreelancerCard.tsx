@@ -90,12 +90,14 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
         styles.card,
         compact ? styles.compactCard : styles.fullCard,
         {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
+          backgroundColor: theme.glass.surface,
+          borderColor: theme.glass.border,
+          borderWidth: 1,
           borderRadius: theme.radii.card,
           opacity: pressed ? 0.92 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
-        theme.shadow.card,
+        theme.shadow.neoGlass,
       ]}
       onPress={onPress}
       accessibilityRole="button"

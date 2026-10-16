@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../../app/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
@@ -121,17 +122,27 @@ export const Button: React.FC<ButtonProps> = ({
       style={({ pressed }) => [
         styles.base,
         {
-          backgroundColor: pressed && !inactive ? scheme.pressed : bg,
-          borderColor: scheme.border,
-          borderWidth: variant === 'secondary' ? 1.5 : 0,
+          backgroundColor: variant === 'primary' && !disabled ? undefined : pressed && !inactive ? scheme.pressed : variant === 'secondary' ? theme.glass.surface : bg,
+          borderColor: variant === 'primary' && !disabled ? 'rgba(255, 255, 255, 0.25)' : variant === 'secondary' ? theme.glass.border : scheme.border,
+          borderWidth: variant === 'secondary' || (variant === 'primary' && !disabled) ? 1 : 0,
           borderRadius: theme.radii.button,
           opacity: disabled ? 0.6 : 1,
           transform: [{ scale: pressed && !inactive ? 0.985 : 1 }],
+          overflow: 'hidden',
         },
         variant === 'primary' && !inactive ? theme.shadow.glow : null,
+        variant === 'secondary' && !inactive ? theme.shadow.card : null,
         style,
       ]}
     >
+      {variant === 'primary' && !disabled ? (
+        <LinearGradient
+          colors={theme.gradients.primary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius: theme.radii.button }]}
+        />
+      ) : null}
       {isBusy ? (
         <ActivityIndicator color={scheme.fg} />
       ) : (
