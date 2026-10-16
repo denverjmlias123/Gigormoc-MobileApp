@@ -3,13 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
-  SectionList,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Platform,
   TextInput as RNTextInput,
   Pressable,
+  Modal,
   ScrollView,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -21,7 +22,16 @@ import { notificationsService } from '../../services/notifications';
 import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { Chip } from '../../components/ui/Chip';
+
+export interface PartnerConversationGroup {
+  partner_id: string;
+  partner_name: string;
+  partner_avatar: string | null;
+  threads: ConversationSummary[];
+  latest_thread: ConversationSummary;
+  is_unread: boolean;
+  unread_count: number;
+}
 
 function formatMessageTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -48,9 +58,11 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Search & Filter State
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGigId, setSelectedGigId] = useState<string | null>(null);
+
+  // Selected partner group for multi-thread picker modal
+  const [selectedPartnerGroup, setSelectedPartnerGroup] = useState<PartnerConversationGroup | null>(null);
 
   const loadConversations = useCallback(async () => {
     setError(null);
@@ -75,114 +87,107 @@ export default function MessagesScreen() {
     }, [loadConversations, user?.id])
   );
 
-  const handleConversationPress = useCallback(
-    (item: ConversationSummary) => {
-      if (item.is_unread) {
+  // Group conversations by partner_id so each account appears exactly once
+  const partnerGroups = useMemo(() => {
+    const map = new Map<string, PartnerConversationGroup>();
+
+    for (const c of conversations) {
+      const existing = map.get(c.partner_id);
+      if (!existing) {
+        map.set(c.partner_id, {
+          partner_id: c.partner_id,
+          partner_name: c.partner_name || 'Ormoc User',
+          partner_avatar: c.partner_avatar || null,
+          threads: [c],
+          latest_thread: c,
+          is_unread: c.is_unread,
+          unread_count: c.is_unread ? 1 : 0,
+        });
+      } else {
+        existing.threads.push(c);
+        if (c.is_unread) {
+          existing.is_unread = true;
+          existing.unread_count += 1;
+        }
+        const currentTime = new Date(c.last_message_created_at || c.updated_at).getTime();
+        const latestTime = new Date(
+          existing.latest_thread.last_message_created_at || existing.latest_thread.updated_at
+        ).getTime();
+        if (currentTime > latestTime) {
+          existing.latest_thread = c;
+        }
+      }
+    }
+
+    const list = Array.from(map.values());
+    list.sort((a, b) => {
+      const timeA = new Date(
+        a.latest_thread.last_message_created_at || a.latest_thread.updated_at
+      ).getTime();
+      const timeB = new Date(
+        b.latest_thread.last_message_created_at || b.latest_thread.updated_at
+      ).getTime();
+      return timeB - timeA;
+    });
+
+    return list;
+  }, [conversations]);
+
+  // Filter partner groups by search query
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return partnerGroups;
+    const q = searchQuery.toLowerCase().trim();
+    return partnerGroups.filter((g) => {
+      const matchesName = g.partner_name.toLowerCase().includes(q);
+      const matchesMsg = g.threads.some((t) =>
+        t.last_message_content?.toLowerCase().includes(q)
+      );
+      const matchesGig = g.threads.some((t) =>
+        t.gig_title.toLowerCase().includes(q)
+      );
+      return matchesName || matchesMsg || matchesGig;
+    });
+  }, [partnerGroups, searchQuery]);
+
+  const navigateToConversation = useCallback(
+    (thread: ConversationSummary, partnerName: string) => {
+      if (thread.is_unread) {
         setConversations((prev) =>
-          prev.map((c) => (c.id === item.id ? { ...c, is_unread: false } : c))
+          prev.map((c) => (c.id === thread.id ? { ...c, is_unread: false } : c))
         );
-        chatService.markConversationRead(item.id).catch(() => {});
+        chatService.markConversationRead(thread.id).catch(() => {});
       }
 
       router.push({
         pathname: '/chat/[conversationId]',
         params: {
-          conversationId: item.id,
-          partnerName: item.partner_name || 'Ormoc User',
+          conversationId: thread.id,
+          partnerName: partnerName || 'Ormoc User',
         },
       });
     },
     [router]
   );
 
-  // Distinct gigs for the filter chip bar
-  const gigFilterList = useMemo(() => {
-    const map = new Map<string, { id: string; title: string; count: number }>();
-    for (const c of conversations) {
-      const existing = map.get(c.gig_id);
-      if (!existing) {
-        map.set(c.gig_id, {
-          id: c.gig_id,
-          title: c.gig_title || 'Project Conversation',
-          count: 1,
-        });
+  const handlePartnerPress = useCallback(
+    (group: PartnerConversationGroup) => {
+      if (group.threads.length === 1) {
+        navigateToConversation(group.threads[0], group.partner_name);
       } else {
-        existing.count += 1;
+        // Open project selection modal for this user
+        setSelectedPartnerGroup(group);
       }
-    }
-    return Array.from(map.values());
-  }, [conversations]);
-
-  // Grouped sections for SectionList
-  const sections = useMemo(() => {
-    let list = conversations;
-
-    if (selectedGigId) {
-      list = list.filter((c) => c.gig_id === selectedGigId);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (c) =>
-          c.partner_name.toLowerCase().includes(q) ||
-          c.gig_title.toLowerCase().includes(q) ||
-          (c.last_message_content && c.last_message_content.toLowerCase().includes(q))
-      );
-    }
-
-    const groupsMap = new Map<
-      string,
-      { title: string; gigId: string; data: ConversationSummary[] }
-    >();
-
-    for (const c of list) {
-      let group = groupsMap.get(c.gig_id);
-      if (!group) {
-        group = {
-          title: c.gig_title || 'Project Conversation',
-          gigId: c.gig_id,
-          data: [],
-        };
-        groupsMap.set(c.gig_id, group);
-      }
-      group.data.push(c);
-    }
-
-    return Array.from(groupsMap.values());
-  }, [conversations, selectedGigId, searchQuery]);
-
-  const keyExtractor = useCallback((item: ConversationSummary) => item.id, []);
-
-  const renderItem = useCallback(
-    ({ item }: { item: ConversationSummary }) => (
-      <ConversationCard item={item} theme={theme} onPress={handleConversationPress} />
-    ),
-    [theme, handleConversationPress]
+    },
+    [navigateToConversation]
   );
 
-  const renderSectionHeader = useCallback(
-    ({ section: { title, data } }: { section: { title: string; data: ConversationSummary[] } }) => (
-      <View
-        style={[
-          styles.sectionHeaderContainer,
-          { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
-        ]}
-      >
-        <View style={styles.sectionHeaderLeft}>
-          <Ionicons name="briefcase-outline" size={15} color={theme.colors.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]} numberOfLines={1}>
-            {title}
-          </Text>
-        </View>
-        <View style={[styles.sectionBadge, { backgroundColor: theme.colors.surfaceAlt }]}>
-          <Text style={[styles.sectionBadgeText, { color: theme.colors.muted }]}>
-            {data.length} {data.length === 1 ? 'applicant' : 'applicants'}
-          </Text>
-        </View>
-      </View>
+  const keyExtractor = useCallback((item: PartnerConversationGroup) => item.partner_id, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: PartnerConversationGroup }) => (
+      <PartnerCard item={item} theme={theme} onPress={handlePartnerPress} />
     ),
-    [theme]
+    [theme, handlePartnerPress]
   );
 
   return (
@@ -200,7 +205,7 @@ export default function MessagesScreen() {
         </Text>
 
         {/* Search bar */}
-        {conversations.length > 0 && (
+        {partnerGroups.length > 0 && (
           <View
             style={[
               styles.searchBox,
@@ -228,30 +233,6 @@ export default function MessagesScreen() {
             ) : null}
           </View>
         )}
-
-        {/* Project / Gig Filter Chips */}
-        {gigFilterList.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChipsRow}
-          >
-            <Chip
-              key="all"
-              label={`All Gigs (${conversations.length})`}
-              selected={selectedGigId === null}
-              onPress={() => setSelectedGigId(null)}
-            />
-            {gigFilterList.map((g) => (
-              <Chip
-                key={g.id}
-                label={`${g.title} (${g.count})`}
-                selected={selectedGigId === g.id}
-                onPress={() => setSelectedGigId(selectedGigId === g.id ? null : g.id)}
-              />
-            ))}
-          </ScrollView>
-        )}
       </View>
 
       {/* Body */}
@@ -261,30 +242,25 @@ export default function MessagesScreen() {
         </View>
       ) : error ? (
         <ErrorState message={error} onRetry={loadConversations} />
-      ) : conversations.length === 0 ? (
+      ) : partnerGroups.length === 0 ? (
         <EmptyState
           icon="chatbubbles-outline"
           title="No conversations yet"
           description="When you apply for a gig or receive proposals, real-time messaging starts here."
         />
-      ) : sections.length === 0 ? (
+      ) : filteredGroups.length === 0 ? (
         <EmptyState
           icon="search-outline"
           title="No conversations found"
-          description="Try clearing your search or selecting a different project."
-          actionTitle="Reset filters"
-          onAction={() => {
-            setSearchQuery('');
-            setSelectedGigId(null);
-          }}
+          description="Try checking for typos or searching with a different keyword."
+          actionTitle="Clear search"
+          onAction={() => setSearchQuery('')}
         />
       ) : (
-        <SectionList
-          sections={sections}
+        <FlatList
+          data={filteredGroups}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          renderSectionHeader={renderSectionHeader}
-          stickySectionHeadersEnabled={false}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
@@ -302,20 +278,145 @@ export default function MessagesScreen() {
           contentContainerStyle={styles.listContent}
         />
       )}
+
+      {/* Multi-thread selection modal when a contact has more than 1 project conversation */}
+      <Modal
+        visible={!!selectedPartnerGroup}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedPartnerGroup(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSelectedPartnerGroup(null)}
+        >
+          <Pressable
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              theme.shadow.card,
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <Avatar
+                name={selectedPartnerGroup?.partner_name}
+                imageUri={selectedPartnerGroup?.partner_avatar}
+                size={44}
+              />
+              <View style={styles.modalHeaderTitleCol}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                  {selectedPartnerGroup?.partner_name}
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: theme.colors.muted }]}>
+                  Select a project thread to view:
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedPartnerGroup(null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close-circle" size={24} color={theme.colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 320 }}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {selectedPartnerGroup?.threads.map((thread) => (
+                <TouchableOpacity
+                  key={thread.id}
+                  style={[
+                    styles.modalThreadCard,
+                    {
+                      backgroundColor: thread.is_unread
+                        ? theme.colors.surfaceAlt
+                        : theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    const partner = selectedPartnerGroup.partner_name;
+                    setSelectedPartnerGroup(null);
+                    navigateToConversation(thread, partner);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalThreadTop}>
+                    <View style={styles.modalThreadTitleRow}>
+                      <Ionicons
+                        name="briefcase-outline"
+                        size={14}
+                        color={theme.colors.primary}
+                      />
+                      <Text
+                        style={[styles.modalThreadTitle, { color: theme.colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {thread.gig_title}
+                      </Text>
+                    </View>
+                    {thread.last_message_created_at ? (
+                      <Text
+                        style={[styles.modalThreadTime, { color: theme.colors.muted }]}
+                      >
+                        {formatMessageTime(thread.last_message_created_at)}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.modalThreadMsg,
+                      {
+                        color: thread.is_unread
+                          ? theme.colors.text
+                          : theme.colors.muted,
+                        fontWeight: thread.is_unread ? '700' : '400',
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {thread.last_message_content || 'No messages yet.'}
+                  </Text>
+
+                  {thread.is_unread && (
+                    <View
+                      style={[
+                        styles.modalUnreadBadge,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    >
+                      <Text style={styles.modalUnreadText}>New message</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-const ConversationCard = React.memo(function ConversationCard({
+const PartnerCard = React.memo(function PartnerCard({
   item,
   theme,
   onPress,
 }: {
-  item: ConversationSummary;
+  item: PartnerConversationGroup;
   theme: any;
-  onPress: (item: ConversationSummary) => void;
+  onPress: (item: PartnerConversationGroup) => void;
 }) {
-  const formattedTime = formatMessageTime(item.last_message_created_at);
+  const formattedTime = formatMessageTime(
+    item.latest_thread.last_message_created_at || item.latest_thread.updated_at
+  );
+  const isMultiGig = item.threads.length > 1;
 
   return (
     <TouchableOpacity
@@ -330,7 +431,7 @@ const ConversationCard = React.memo(function ConversationCard({
       onPress={() => onPress(item)}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${item.partner_name}, regarding ${item.gig_title}`}
+      accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
     >
       <Avatar
         name={item.partner_name || 'U'}
@@ -350,6 +451,38 @@ const ConversationCard = React.memo(function ConversationCard({
           ) : null}
         </View>
 
+        {/* Project indicator pill */}
+        <View style={styles.projectPillRow}>
+          <View
+            style={[
+              styles.projectPill,
+              {
+                backgroundColor: isMultiGig
+                  ? theme.colors.primarySoft
+                  : theme.colors.surfaceAlt,
+              },
+            ]}
+          >
+            <Ionicons
+              name={isMultiGig ? 'layers-outline' : 'briefcase-outline'}
+              size={11}
+              color={isMultiGig ? theme.colors.primaryDark : theme.colors.muted}
+            />
+            <Text
+              style={[
+                styles.projectPillText,
+                { color: isMultiGig ? theme.colors.primaryDark : theme.colors.muted },
+              ]}
+              numberOfLines={1}
+            >
+              {isMultiGig
+                ? `${item.threads.length} Projects: ${item.threads.map((t) => t.gig_title).join(' · ')}`
+                : item.latest_thread.gig_title}
+            </Text>
+          </View>
+        </View>
+
+        {/* Message preview row */}
         <View style={styles.messageRow}>
           <Text
             style={[
@@ -361,7 +494,7 @@ const ConversationCard = React.memo(function ConversationCard({
             ]}
             numberOfLines={1}
           >
-            {item.last_message_content || 'No messages yet.'}
+            {item.latest_thread.last_message_content || 'No messages yet.'}
           </Text>
           {item.is_unread && (
             <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />
@@ -396,17 +529,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     height: 44,
-    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     height: '100%',
-  },
-  filterChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 2,
   },
   center: {
     flex: 1,
@@ -416,36 +543,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 32,
-  },
-  sectionHeaderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-    paddingRight: 8,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  sectionBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  sectionBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    gap: 10,
   },
   convCard: {
     flexDirection: 'row',
@@ -454,7 +552,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     gap: 14,
-    marginBottom: 8,
   },
   convDetails: {
     flex: 1,
@@ -473,6 +570,24 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
   },
+  projectPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  projectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    maxWidth: '95%',
+  },
+  projectPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,5 +602,82 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalHeaderTitleCol: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalScrollContent: {
+    gap: 8,
+    paddingVertical: 10,
+  },
+  modalThreadCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  modalThreadTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  modalThreadTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  modalThreadTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalThreadTime: {
+    fontSize: 11,
+  },
+  modalThreadMsg: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  modalUnreadBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  modalUnreadText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

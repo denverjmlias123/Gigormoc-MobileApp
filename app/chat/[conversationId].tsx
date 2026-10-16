@@ -9,11 +9,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
-import { chatService, MessageItem, ConversationItem } from '../../services/chat';
+import { chatService, MessageItem, ConversationItem, ConversationSummary } from '../../services/chat';
 import { applicationsService } from '../../services/applications';
 import { Button } from '../../components/ui/Button';
 import { showToast } from '../../components/ui/Toast';
@@ -31,6 +35,9 @@ export default function ChatScreen() {
   const [conversation, setConversation] = useState<ConversationItem | null>(null);
   const [linkedAgreementId, setLinkedAgreementId] = useState<string | null>(null);
   const [linkedGigId, setLinkedGigId] = useState<string | null>(null);
+  const [currentGigTitle, setCurrentGigTitle] = useState<string>('');
+  const [relatedThreads, setRelatedThreads] = useState<ConversationSummary[]>([]);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -67,6 +74,18 @@ export default function ChatScreen() {
         const matchingSummary = convSummaries.find((s) => s.id === conversationId);
         const gigId = matchingSummary?.gig_id || null;
         setLinkedGigId(gigId);
+        setCurrentGigTitle(matchingSummary?.gig_title || '');
+
+        const partnerId =
+          matchingSummary?.partner_id ||
+          (user?.id === convData?.client_id ? convData?.freelancer_id : convData?.client_id);
+
+        if (partnerId) {
+          const others = convSummaries.filter(
+            (s) => s.partner_id === partnerId && s.id !== conversationId
+          );
+          setRelatedThreads(others);
+        }
 
         if (gigId) {
           const matchingAgr = myAgreements.find((a) => a.gig_id === gigId);
@@ -175,9 +194,33 @@ export default function ChatScreen() {
         >
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
-          {partnerTitle}
-        </Text>
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
+            {partnerTitle}
+          </Text>
+          {currentGigTitle ? (
+            relatedThreads.length > 0 ? (
+              <TouchableOpacity
+                style={[styles.projectSwitchPill, { backgroundColor: theme.colors.primarySoft }]}
+                onPress={() => setShowProjectPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="briefcase-outline" size={11} color={theme.colors.primaryDark} />
+                <Text
+                  style={[styles.projectSwitchText, { color: theme.colors.primaryDark }]}
+                  numberOfLines={1}
+                >
+                  {currentGigTitle}
+                </Text>
+                <Ionicons name="chevron-down" size={11} color={theme.colors.primaryDark} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.topBarSubtitle, { color: theme.colors.muted }]}>
+                📁 {currentGigTitle}
+              </Text>
+            )
+          ) : null}
+        </View>
         <TouchableOpacity
           onPress={handleGoToStage}
           style={[styles.backButton, { backgroundColor: theme.colors.primarySoft, borderRadius: 8 }]}
@@ -316,6 +359,112 @@ export default function ChatScreen() {
           )}
         </TouchableOpacity>
       </View>}
+
+      {/* Switch Project Discussion Modal */}
+      <Modal
+        visible={showProjectPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProjectPicker(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowProjectPicker(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              theme.shadow.card,
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  Project Conversations
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: theme.colors.muted }]}>
+                  Switch discussion with {partnerTitle}:
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowProjectPicker(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close-circle" size={24} color={theme.colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: 280 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Current gig thread */}
+              <View
+                style={[
+                  styles.modalThreadCard,
+                  {
+                    backgroundColor: theme.colors.primarySoft,
+                    borderColor: theme.colors.primary,
+                  },
+                ]}
+              >
+                <View style={styles.modalThreadRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
+                  <Text
+                    style={[styles.modalThreadTitle, { color: theme.colors.primaryDark }]}
+                    numberOfLines={1}
+                  >
+                    {currentGigTitle} (Current)
+                  </Text>
+                </View>
+              </View>
+
+              {/* Other threads with this partner */}
+              {relatedThreads.map((thread) => (
+                <TouchableOpacity
+                  key={thread.id}
+                  style={[
+                    styles.modalThreadCard,
+                    {
+                      backgroundColor: theme.colors.surfaceAlt,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setShowProjectPicker(false);
+                    router.replace({
+                      pathname: '/chat/[conversationId]',
+                      params: {
+                        conversationId: thread.id,
+                        partnerName: partnerTitle,
+                      },
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalThreadRow}>
+                    <Ionicons name="briefcase-outline" size={14} color={theme.colors.primary} />
+                    <Text
+                      style={[styles.modalThreadTitle, { color: theme.colors.text }]}
+                      numberOfLines={1}
+                    >
+                      {thread.gig_title}
+                    </Text>
+                  </View>
+                  <Text style={[styles.modalThreadSnippet, { color: theme.colors.muted }]} numberOfLines={1}>
+                    {thread.last_message_content || 'No messages yet.'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -433,5 +582,81 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  topBarSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  projectSwitchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 2,
+    maxWidth: '90%',
+  },
+  projectSwitchText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalThreadCard: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  modalThreadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  modalThreadTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  modalThreadSnippet: {
+    fontSize: 12,
+    lineHeight: 16,
+    paddingLeft: 20,
   },
 });
