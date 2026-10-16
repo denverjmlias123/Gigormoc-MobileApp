@@ -17,7 +17,6 @@ import { clearSignupDraft, getSignupDraft, setSignupDraft } from '../../lib/sign
 import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 
 export default function SignUpStep1Screen() {
   const router = useRouter();
@@ -127,11 +126,10 @@ export default function SignUpStep1Screen() {
   };
 
   return (
-    <ScreenBackground style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>{strings.auth.signupStep1Indicator}</Text>
         <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step1Title}</Text>
@@ -304,7 +302,6 @@ export default function SignUpStep1Screen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
-    </ScreenBackground>
   );
 }
 

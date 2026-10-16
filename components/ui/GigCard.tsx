@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../../app/theme';
 import { Badge } from './Badge';
 import { strings } from '../../constants/strings';
@@ -79,18 +78,15 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
   const showStatus = theme.isClient || gig.status.toLowerCase() !== 'open';
 
   return (
-    <BlurView
-      intensity={Platform.OS === 'ios' ? 50 : 35}
-      tint="light"
+    <View
       style={[
         styles.card,
         theme.shadow.neoGlass,
         {
           backgroundColor: theme.glass.surface,
           borderColor: theme.glass.border,
-          borderWidth: StyleSheet.hairlineWidth,
+          borderWidth: 1,
           borderRadius: theme.radii.card,
-          overflow: 'hidden',
         },
       ]}
     >
@@ -155,7 +151,7 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
           <Text style={[styles.deleteText, { color: c.danger }]}>{deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}</Text>
         </Pressable>
       ) : null}
-    </BlurView>
+    </View>
   );
 });
 

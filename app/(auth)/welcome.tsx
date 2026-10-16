@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   // Preview cards
   abs: { position: 'absolute' },
   glassCard: {
-    backgroundColor: '#E5EEFA',
+    backgroundColor: '#FFFFFF',
     borderRadius: 22,
     padding: 18,
     ...(Platform.OS === 'web'

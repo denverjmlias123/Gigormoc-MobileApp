@@ -16,7 +16,6 @@ import { strings } from '../../constants/strings';
 import { clearSignupDraft, getSignupDraft } from '../../lib/signupDraft';
 import { DateOfBirthField } from '../../components/ui/DateOfBirthField';
 import { Button } from '../../components/ui/Button';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { isAtLeast18, parseIsoDate } from '../../utils/dateOfBirth';
 
 export default function SignUpStep2Screen() {
@@ -92,11 +91,10 @@ export default function SignUpStep2Screen() {
   const normalizedEmail = authService.normalizeEmail(draft?.email || '');
 
   return (
-    <ScreenBackground style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>{strings.auth.signupStep2Indicator}</Text>
         <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step2Title}</Text>
@@ -169,7 +167,6 @@ export default function SignUpStep2Screen() {
         />
       </ScrollView>
     </KeyboardAvoidingView>
-    </ScreenBackground>
   );
 }
 

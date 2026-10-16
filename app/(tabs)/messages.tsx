@@ -13,7 +13,6 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
@@ -24,7 +23,6 @@ import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonMessageList } from '../../components/ui/Skeleton';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 
 export interface PartnerConversationGroup {
   partner_id: string;
@@ -194,12 +192,12 @@ export default function MessagesScreen() {
   );
 
   return (
-    <ScreenBackground style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View
         style={[
           styles.header,
-          { backgroundColor: theme.glass.surface, borderBottomColor: theme.glass.border },
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
         ]}
       >
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Messages</Text>
@@ -401,7 +399,7 @@ export default function MessagesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ScreenBackground>
+    </View>
   );
 }
 
@@ -420,27 +418,21 @@ const PartnerCard = React.memo(function PartnerCard({
   const isMultiGig = item.threads.length > 1;
 
   return (
-    <BlurView
-      intensity={Platform.OS === 'ios' ? 50 : 35}
-      tint="light"
+    <TouchableOpacity
       style={[
         styles.convCard,
         {
           backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.glass.surface,
           borderColor: theme.glass.border,
-          borderWidth: StyleSheet.hairlineWidth,
-          overflow: 'hidden',
+          borderWidth: 1,
         },
         theme.shadow.neoGlass,
       ]}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
     >
-      <TouchableOpacity
-        onPress={() => onPress(item)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
-        style={styles.innerTouch}
-      >
       <Avatar
         name={item.partner_name || 'U'}
         imageUri={item.partner_avatar}
@@ -509,8 +501,7 @@ const PartnerCard = React.memo(function PartnerCard({
           )}
         </View>
       </View>
-      </TouchableOpacity>
-    </BlurView>
+    </TouchableOpacity>
   );
 });
 
@@ -555,15 +546,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   convCard: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  innerTouch: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
     gap: 14,
-    width: '100%',
   },
   convDetails: {
     flex: 1,

@@ -13,7 +13,6 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Skeleton, SkeletonGigList, SkeletonActivityList } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { profileService, FreelancerSummary, Category } from '../../services/profile';
 import { notificationsService } from '../../services/notifications';
@@ -110,7 +109,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <ScreenBackground style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Hero: smooth gradient with active mode personality */}
         <LinearGradient
@@ -178,7 +177,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <Pressable
-                style={[styles.heroCta, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border }]}
+                style={[styles.heroCta, { backgroundColor: '#FFFFFF' }]}
                 onPress={() => router.push('/gigs/post')}
                 accessibilityRole="button"
               >
@@ -197,8 +196,8 @@ export default function HomeScreen() {
                 accessibilityRole="search"
                 accessibilityLabel="Search gigs"
               >
-                <Ionicons name="search" size={18} color="rgba(255, 255, 255, 0.9)" />
-                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 15 }}>{strings.gigs.searchPlaceholder}</Text>
+                <Ionicons name="search" size={18} color={theme.colors.muted} />
+                <Text style={{ color: theme.colors.muted, fontSize: 15 }}>{strings.gigs.searchPlaceholder}</Text>
               </Pressable>
             </>
           )}
@@ -409,7 +408,7 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
-    </ScreenBackground>
+    </View>
   );
 }
 
@@ -479,9 +478,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginTop: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,

@@ -7,9 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Platform,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,7 +27,6 @@ import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonActivityList } from '../../components/ui/Skeleton';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
@@ -229,19 +226,12 @@ export default function ActivityScreen() {
           const isBusy = counterBusyId === app.id;
 
           return (
-            <BlurView
+            <View
               key={app.id}
-              intensity={Platform.OS === 'ios' ? 50 : 35}
-              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                {
-                  backgroundColor: theme.glass.surface,
-                  borderColor: theme.glass.border,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  overflow: 'hidden',
-                },
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
             >
               <TouchableOpacity
@@ -342,7 +332,7 @@ export default function ActivityScreen() {
                   {new Date(app.created_at).toLocaleDateString()}
                 </Text>
               </View>
-            </BlurView>
+            </View>
           );
         })}
       </View>
@@ -373,27 +363,18 @@ export default function ActivityScreen() {
           });
 
           return (
-            <BlurView
+            <TouchableOpacity
               key={gig.id}
-              intensity={Platform.OS === 'ios' ? 50 : 35}
-              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                {
-                  backgroundColor: theme.glass.surface,
-                  borderColor: theme.glass.border,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  overflow: 'hidden',
-                },
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
+              onPress={() => {
+                router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
+              }}
+              activeOpacity={0.7}
             >
-              <TouchableOpacity
-                onPress={() => {
-                  router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
-                }}
-                activeOpacity={0.7}
-              >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
                   {gig.title}
@@ -435,8 +416,7 @@ export default function ActivityScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
-          </BlurView>
-        );
+          );
         })}
       </View>
     );
@@ -473,27 +453,18 @@ export default function ActivityScreen() {
             });
 
           return (
-            <BlurView
+            <TouchableOpacity
               key={agr.id}
-              intensity={Platform.OS === 'ios' ? 50 : 35}
-              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                {
-                  backgroundColor: theme.glass.surface,
-                  borderColor: theme.glass.border,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  overflow: 'hidden',
-                },
+                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
               ]}
+              onPress={() => {
+                router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
+              }}
+              activeOpacity={0.7}
             >
-              <TouchableOpacity
-                onPress={() => {
-                  router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
-                }}
-                activeOpacity={0.7}
-              >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
                   {agr.gig?.title || 'Gig Agreement'}
@@ -547,17 +518,16 @@ export default function ActivityScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
-          </BlurView>
-        );
+          );
         })}
       </View>
     );
   };
 
   return (
-    <ScreenBackground style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.glass.surface, borderBottomColor: theme.glass.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
         <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
           {isFindWork
@@ -631,7 +601,7 @@ export default function ActivityScreen() {
           )}
         </ScrollView>
       )}
-    </ScreenBackground>
+    </View>
   );
 }
 
@@ -684,7 +654,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 18,
     padding: 18,
     gap: 8,

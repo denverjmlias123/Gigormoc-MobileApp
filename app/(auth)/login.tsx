@@ -9,7 +9,6 @@ import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
-import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { useNetworkStatus } from '../../components/ui/OfflineBanner';
 import { showToast } from '../../components/ui/Toast';
 import { SHOW_ACCOUNT_NOT_FOUND } from '../../constants/featureFlags';
@@ -157,11 +156,10 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScreenBackground style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Pressable
           onPress={() => {
@@ -315,7 +313,6 @@ export default function LoginScreen() {
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
-    </ScreenBackground>
   );
 }
 
