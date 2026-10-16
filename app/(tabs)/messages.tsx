@@ -13,6 +13,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
@@ -419,21 +420,27 @@ const PartnerCard = React.memo(function PartnerCard({
   const isMultiGig = item.threads.length > 1;
 
   return (
-    <TouchableOpacity
+    <BlurView
+      intensity={Platform.OS === 'ios' ? 50 : 35}
+      tint="light"
       style={[
         styles.convCard,
         {
           backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.glass.surface,
           borderColor: theme.glass.border,
-          borderWidth: 1,
+          borderWidth: StyleSheet.hairlineWidth,
+          overflow: 'hidden',
         },
         theme.shadow.neoGlass,
       ]}
-      onPress={() => onPress(item)}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
     >
+      <TouchableOpacity
+        onPress={() => onPress(item)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
+        style={styles.innerTouch}
+      >
       <Avatar
         name={item.partner_name || 'U'}
         imageUri={item.partner_avatar}
@@ -502,7 +509,8 @@ const PartnerCard = React.memo(function PartnerCard({
           )}
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </BlurView>
   );
 });
 
@@ -547,12 +555,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   convCard: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  innerTouch: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
     gap: 14,
+    width: '100%',
   },
   convDetails: {
     flex: 1,

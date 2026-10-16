@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useAppTheme } from '../../app/theme';
 import { Avatar } from './Avatar';
 import { FreelancerSummary } from '../../services/profile';
@@ -85,24 +86,28 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
       : 'Ormoc Freelancer');
 
   return (
-    <Pressable
-      style={({ pressed }) => [
+    <BlurView
+      intensity={Platform.OS === 'ios' ? 50 : 35}
+      tint="light"
+      style={[
         styles.card,
         compact ? styles.compactCard : styles.fullCard,
         {
           backgroundColor: theme.glass.surface,
           borderColor: theme.glass.border,
-          borderWidth: 1,
+          borderWidth: StyleSheet.hairlineWidth,
           borderRadius: theme.radii.card,
-          opacity: pressed ? 0.92 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
+          overflow: 'hidden',
         },
         theme.shadow.neoGlass,
       ]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${freelancer.display_name}, ${subtitle}`}
     >
+      <Pressable
+        style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1, transform: [{ scale: pressed ? 0.985 : 1 }] }]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${freelancer.display_name}, ${subtitle}`}
+      >
       {/* Top Header Row: Avatar, Info, and Availability */}
       <View style={styles.topRow}>
         <Avatar
@@ -230,7 +235,8 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
           )}
         </View>
       )}
-    </Pressable>
+      </Pressable>
+    </BlurView>
   );
 });
 

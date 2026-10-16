@@ -18,26 +18,19 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
   const theme = useAppTheme();
   const isClient = theme.isClient;
 
-  // Primary atmospheric gradient: seamless, soothing transition across slate, sky, and calm periwinkle
+  // Rich, calming tinted non-white aurora gradient baselines
   const baseGradient = isClient
-    ? (['#C6D6EA', '#D2E1F3', '#C2D4EB', '#C8D7EC'] as [string, string, string, string])
-    : (['#C9DAEF', '#D5E4F5', '#C8DCF0', '#CBDDF2'] as [string, string, string, string]);
+    ? (['#CAD7EB', '#D8E4F5', '#C2D3EC'] as [string, string, string])
+    : (['#CEDBF0', '#DCE8F7', '#C6D7EE'] as [string, string, string]);
 
-  // Ambient cross-wash: continuous GPU gradient interpolation with ZERO hard circular edges
-  const ambientWash = isClient
-    ? (['rgba(37, 99, 235, 0.12)', 'rgba(245, 158, 11, 0.06)', 'transparent', 'rgba(16, 185, 129, 0.10)'] as [string, string, string, string])
-    : (['rgba(79, 70, 229, 0.12)', 'rgba(245, 158, 11, 0.06)', 'transparent', 'rgba(16, 185, 129, 0.10)'] as [string, string, string, string]);
-
-  // Secondary soft ambient mist layer for depth
-  const mistWash = [
-    'transparent',
-    'rgba(195, 215, 240, 0.15)',
-    'rgba(175, 200, 230, 0.25)',
-  ] as [string, string, string];
+  // Vibrant aurora ambient glow spheres
+  const topGlowColor = isClient ? 'rgba(37, 99, 235, 0.22)' : 'rgba(79, 70, 229, 0.22)';
+  const bottomGlowColor = 'rgba(16, 185, 129, 0.18)'; // Subtle emerald glow for verified growth & wealth
+  const centerGlowColor = 'rgba(245, 158, 11, 0.14)'; // Soft warm amber sunset glow
 
   return (
     <View style={[styles.container, style]}>
-      {/* 1. Base Continuous Ambient Gradient */}
+      {/* 1. Base Rich Tinted Gradient Backdrop */}
       <LinearGradient
         colors={baseGradient}
         start={{ x: 0, y: 0 }}
@@ -46,24 +39,51 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
         pointerEvents="none"
       />
 
-      {/* 2. Soft Continuous Atmospheric Color Wash (Zero hard disks/edges) */}
+      {/* 2. Ambient Aurora Floating Light Spheres */}
       {aurora && (
-        <>
-          <LinearGradient
-            colors={ambientWash}
-            start={{ x: 1, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {/* Top-Right Soft Indigo/Cobalt Sphere */}
+          <View
+            style={[
+              styles.auroraSphere,
+              styles.topSphere,
+              {
+                backgroundColor: topGlowColor,
+                ...(Platform.OS === 'web'
+                  ? ({ filter: 'blur(70px)', WebkitFilter: 'blur(70px)' } as any)
+                  : { opacity: 0.75 }),
+              },
+            ]}
           />
-          <LinearGradient
-            colors={mistWash}
-            start={{ x: 0.5, y: 0.3 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
+
+          {/* Center-Right Warm Sunset Amber Sphere */}
+          <View
+            style={[
+              styles.auroraSphere,
+              styles.centerSphere,
+              {
+                backgroundColor: centerGlowColor,
+                ...(Platform.OS === 'web'
+                  ? ({ filter: 'blur(80px)', WebkitFilter: 'blur(80px)' } as any)
+                  : { opacity: 0.6 }),
+              },
+            ]}
           />
-        </>
+
+          {/* Bottom-Left Soft Mint/Emerald Sphere */}
+          <View
+            style={[
+              styles.auroraSphere,
+              styles.bottomSphere,
+              {
+                backgroundColor: bottomGlowColor,
+                ...(Platform.OS === 'web'
+                  ? ({ filter: 'blur(75px)', WebkitFilter: 'blur(75px)' } as any)
+                  : { opacity: 0.7 }),
+              },
+            ]}
+          />
+        </View>
       )}
 
       {/* 3. Screen Content */}
@@ -76,5 +96,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: 'relative',
+  },
+  auroraSphere: {
+    position: 'absolute',
+    borderRadius: 9999,
+  },
+  topSphere: {
+    top: -50,
+    right: -40,
+    width: 280,
+    height: 280,
+  },
+  centerSphere: {
+    top: '38%',
+    right: -60,
+    width: 250,
+    height: 250,
+  },
+  bottomSphere: {
+    bottom: 50,
+    left: -50,
+    width: 300,
+    height: 300,
   },
 });

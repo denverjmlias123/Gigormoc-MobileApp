@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -227,12 +229,19 @@ export default function ActivityScreen() {
           const isBusy = counterBusyId === app.id;
 
           return (
-            <View
+            <BlurView
               key={app.id}
+              intensity={Platform.OS === 'ios' ? 50 : 35}
+              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
+                {
+                  backgroundColor: theme.glass.surface,
+                  borderColor: theme.glass.border,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  overflow: 'hidden',
+                },
               ]}
             >
               <TouchableOpacity
@@ -333,7 +342,7 @@ export default function ActivityScreen() {
                   {new Date(app.created_at).toLocaleDateString()}
                 </Text>
               </View>
-            </View>
+            </BlurView>
           );
         })}
       </View>
@@ -364,18 +373,27 @@ export default function ActivityScreen() {
           });
 
           return (
-            <TouchableOpacity
+            <BlurView
               key={gig.id}
+              intensity={Platform.OS === 'ios' ? 50 : 35}
+              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
+                {
+                  backgroundColor: theme.glass.surface,
+                  borderColor: theme.glass.border,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  overflow: 'hidden',
+                },
               ]}
-              onPress={() => {
-                router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
-              }}
-              activeOpacity={0.7}
             >
+              <TouchableOpacity
+                onPress={() => {
+                  router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
+                }}
+                activeOpacity={0.7}
+              >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
                   {gig.title}
@@ -417,7 +435,8 @@ export default function ActivityScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
-          );
+          </BlurView>
+        );
         })}
       </View>
     );
@@ -454,18 +473,27 @@ export default function ActivityScreen() {
             });
 
           return (
-            <TouchableOpacity
+            <BlurView
               key={agr.id}
+              intensity={Platform.OS === 'ios' ? 50 : 35}
+              tint="light"
               style={[
                 styles.card,
                 theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
+                {
+                  backgroundColor: theme.glass.surface,
+                  borderColor: theme.glass.border,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  overflow: 'hidden',
+                },
               ]}
-              onPress={() => {
-                router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
-              }}
-              activeOpacity={0.7}
             >
+              <TouchableOpacity
+                onPress={() => {
+                  router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
+                }}
+                activeOpacity={0.7}
+              >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
                   {agr.gig?.title || 'Gig Agreement'}
@@ -519,7 +547,8 @@ export default function ActivityScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
-          );
+          </BlurView>
+        );
         })}
       </View>
     );
@@ -655,7 +684,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 18,
     padding: 18,
     gap: 8,
