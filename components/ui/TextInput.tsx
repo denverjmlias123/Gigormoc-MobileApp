@@ -83,7 +83,10 @@ export const TextInput: React.FC<Props> = ({
         )}
       </View>
       {error ? (
-        <Text style={[styles.error, { color: theme.colors.dangerText }]}>{error}</Text>
+        <View style={styles.errorRow}>
+          <Ionicons name="alert-circle" size={14} color={theme.colors.dangerText} style={{ marginTop: 1 }} />
+          <Text style={[styles.error, { color: theme.colors.dangerText }]}>{error}</Text>
+        </View>
       ) : helperText ? (
         <Text style={[styles.helper, { color: theme.colors.muted }]}>{helperText}</Text>
       ) : null}
@@ -102,7 +105,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   passwordInput: { paddingRight: 52 },
-  toggleBtn: { position: 'absolute', right: 14, top: 13 },
-  error: { fontSize: 12, marginTop: 4, fontWeight: '600' },
+  toggleBtn: {
+    position: 'absolute',
+    right: 6,
+    top: 5,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 5,
+  },
+  error: { fontSize: 12, fontWeight: '600', flex: 1, lineHeight: 16 },
   helper: { fontSize: 12, marginTop: 4 },
 });

@@ -26,6 +26,7 @@ import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
+import { SkeletonActivityList } from '../../components/ui/Skeleton';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
@@ -578,9 +579,7 @@ export default function ActivityScreen() {
 
       {/* Content */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <SkeletonActivityList count={3} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}

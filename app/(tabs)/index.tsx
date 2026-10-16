@@ -10,7 +10,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { Skeleton, SkeletonGigList, SkeletonActivityList } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { profileService, FreelancerSummary, Category } from '../../services/profile';
@@ -104,10 +104,7 @@ export default function HomeScreen() {
   }, [router]);
 
   const renderLoading = () => (
-    <View>
-      <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
-      <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
-    </View>
+    isHire ? <SkeletonActivityList count={2} /> : <SkeletonGigList count={3} />
   );
 
   return (

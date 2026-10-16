@@ -22,6 +22,7 @@ import { notificationsService } from '../../services/notifications';
 import { Avatar } from '../../components/ui/Avatar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
+import { SkeletonMessageList } from '../../components/ui/Skeleton';
 
 export interface PartnerConversationGroup {
   partner_id: string;
@@ -215,7 +216,7 @@ export default function MessagesScreen() {
             <Ionicons name="search" size={18} color={theme.colors.muted} />
             <RNTextInput
               style={[styles.searchInput, { color: theme.colors.text }]}
-              placeholder="Search by name, gig, or message..."
+              placeholder="Search by contact name, gig title, or message..."
               placeholderTextColor={theme.colors.muted}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -237,9 +238,7 @@ export default function MessagesScreen() {
 
       {/* Body */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <SkeletonMessageList count={4} />
       ) : error ? (
         <ErrorState message={error} onRetry={loadConversations} />
       ) : partnerGroups.length === 0 ? (

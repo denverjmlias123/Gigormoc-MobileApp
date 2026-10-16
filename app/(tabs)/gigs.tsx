@@ -19,7 +19,7 @@ import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { Skeleton } from '../../components/ui/Skeleton';
+import { Skeleton, SkeletonGigList } from '../../components/ui/Skeleton';
 import { Chip } from '../../components/ui/Chip';
 import { Button } from '../../components/ui/Button';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
@@ -258,8 +258,8 @@ export default function GigsScreen() {
                 style={[styles.searchInput, { color: theme.colors.text }]}
                 placeholder={
                   clientSegment === 'find_freelancers'
-                    ? 'Search freelancers by name or skill...'
-                    : strings.gigs.searchPlaceholder
+                    ? 'Search freelancers by name, skill (e.g. Graphic Design, Web)...'
+                    : 'Search gigs by title, skill, or keyword...'
                 }
                 placeholderTextColor={theme.colors.muted}
                 value={searchQuery}
@@ -342,11 +342,7 @@ export default function GigsScreen() {
         {error ? (
           <ErrorState message={error} onRetry={loadData} />
         ) : loading ? (
-          <View style={styles.skeletonContainer}>
-            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
-            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
-            <Skeleton height={150} borderRadius={20} style={{ marginBottom: 12 }} />
-          </View>
+          <SkeletonGigList count={3} />
         ) : isClient && clientSegment === 'my_gigs' ? (
           filteredMyGigs.length === 0 ? (
             <EmptyState

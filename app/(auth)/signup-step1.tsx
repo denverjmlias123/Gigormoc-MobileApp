@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
@@ -31,6 +32,13 @@ export default function SignUpStep1Screen() {
   const [error, setError] = useState<string | null>(null);
   const [isDuplicateEmail, setIsDuplicateEmail] = useState(params.duplicateEmail === '1');
 
+  // Field-level inline errors (where & why)
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
+  const [termsError, setTermsError] = useState<string | null>(null);
+
   useEffect(() => {
     const draft = getSignupDraft();
     if (draft) {
@@ -47,6 +55,7 @@ export default function SignUpStep1Screen() {
     if (params.duplicateEmail === '1') {
       setIsDuplicateEmail(true);
       setError(strings.auth.duplicateEmailMessage);
+      setEmailError(strings.auth.duplicateEmailMessage);
     }
   }, [params.duplicateEmail]);
 
@@ -54,36 +63,58 @@ export default function SignUpStep1Screen() {
     if (pending) return;
     setError(null);
     setIsDuplicateEmail(false);
+    setDisplayNameError(null);
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setTermsError(null);
+
+    let hasFieldError = false;
 
     if (!displayName.trim() || displayName.trim().length < 2) {
-      setError(strings.auth.signupDisplayNameRequired);
-      return;
-    }
-    if (displayName.trim().length > 50) {
-      setError('Display name cannot exceed 50 characters.');
-      return;
+      const msg = strings.auth.signupDisplayNameRequired;
+      setDisplayNameError(msg);
+      setError(msg);
+      hasFieldError = true;
+    } else if (displayName.trim().length > 50) {
+      const msg = 'Display name cannot exceed 50 characters.';
+      setDisplayNameError(msg);
+      setError(msg);
+      hasFieldError = true;
     }
 
     const normalizedEmail = authService.normalizeEmail(email);
     const emailValidation = authService.validateEmailInput(normalizedEmail);
     if (!emailValidation.valid) {
-      setError(emailValidation.message || strings.auth.invalidEmailFormat);
-      return;
+      const msg = emailValidation.message || strings.auth.invalidEmailFormat;
+      setEmailError(msg);
+      if (!hasFieldError) setError(msg);
+      hasFieldError = true;
     }
 
     const passwordCheck = authService.validatePassword(password, normalizedEmail, displayName);
     if (!passwordCheck.valid) {
-      setError(strings.auth.passwordInvalid);
-      return;
+      const msg = strings.auth.passwordInvalid;
+      setPasswordError(msg);
+      if (!hasFieldError) setError(msg);
+      hasFieldError = true;
     }
+
     if (!authService.validatePasswordConfirmation(password, confirmPassword)) {
-      setError(strings.auth.passwordMismatch);
-      return;
+      const msg = strings.auth.passwordMismatch;
+      setConfirmPasswordError(msg);
+      if (!hasFieldError) setError(msg);
+      hasFieldError = true;
     }
+
     if (!termsAccepted) {
-      setError(strings.auth.signupTermsRequired);
-      return;
+      const msg = strings.auth.signupTermsRequired;
+      setTermsError(msg);
+      if (!hasFieldError) setError(msg);
+      hasFieldError = true;
     }
+
+    if (hasFieldError) return;
 
     setPending(true);
     try {
@@ -149,10 +180,15 @@ export default function SignUpStep1Screen() {
           <TextInput
             label={strings.auth.signupDisplayNameLabel}
             value={displayName}
-            onChangeText={setDisplayName}
+            onChangeText={(val) => {
+              setDisplayName(val);
+              if (displayNameError) setDisplayNameError(null);
+            }}
             placeholder={strings.auth.signupDisplayNamePlaceholder}
             autoCapitalize="words"
             maxLength={50}
+            returnKeyType="next"
+            error={displayNameError}
           />
         </View>
 
@@ -166,11 +202,14 @@ export default function SignUpStep1Screen() {
                 setIsDuplicateEmail(false);
                 setError(null);
               }
+              if (emailError) setEmailError(null);
             }}
             placeholder={strings.auth.signupEmailPlaceholder}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
+            returnKeyType="next"
+            error={emailError}
           />
         </View>
 
@@ -178,11 +217,16 @@ export default function SignUpStep1Screen() {
           <TextInput
             label={strings.auth.signupPasswordLabel}
             value={password}
-            onChangeText={setPassword}
-            placeholder={strings.auth.passwordLengthRule}
+            onChangeText={(val) => {
+              setPassword(val);
+              if (passwordError) setPasswordError(null);
+            }}
+            placeholder="e.g. Min 8 chars, 1 uppercase, 1 symbol"
             isPassword
             autoCapitalize="none"
             autoComplete="new-password"
+            returnKeyType="next"
+            error={passwordError}
           />
           <PasswordPolicyChecklist password={password} email={email} displayName={displayName} />
         </View>
@@ -191,17 +235,25 @@ export default function SignUpStep1Screen() {
           <TextInput
             label={strings.auth.signupConfirmPasswordLabel}
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder={strings.auth.signupConfirmPasswordPlaceholder}
+            onChangeText={(val) => {
+              setConfirmPassword(val);
+              if (confirmPasswordError) setConfirmPasswordError(null);
+            }}
+            placeholder="e.g. Re-enter matching password"
             isPassword
             autoCapitalize="none"
             autoComplete="new-password"
+            returnKeyType="done"
+            error={confirmPasswordError}
           />
         </View>
 
         <TouchableOpacity
           style={styles.checkboxContainer}
-          onPress={() => setTermsAccepted(!termsAccepted)}
+          onPress={() => {
+            setTermsAccepted(!termsAccepted);
+            if (termsError) setTermsError(null);
+          }}
           activeOpacity={0.8}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: termsAccepted }}
@@ -210,16 +262,24 @@ export default function SignUpStep1Screen() {
           <View
             style={[
               styles.checkbox,
-              { borderColor: theme.colors.border },
+              { borderColor: termsError ? theme.colors.danger : theme.colors.border },
               termsAccepted && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
             ]}
           >
             {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={[styles.checkboxLabel, { color: theme.colors.text }]}>
+          <Text style={[styles.checkboxLabel, { color: termsError ? theme.colors.dangerText : theme.colors.text }]}>
             {strings.auth.signupTermsLabel}
           </Text>
         </TouchableOpacity>
+        {termsError ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 12, gap: 4 }}>
+            <Ionicons name="alert-circle" size={14} color={theme.colors.dangerText} />
+            <Text style={{ color: theme.colors.dangerText, fontSize: 12, fontWeight: '600' }}>
+              {termsError}
+            </Text>
+          </View>
+        ) : null}
 
         <Button
           title={strings.auth.signupContinue}
