@@ -141,6 +141,19 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  const handleCancel = async () => {
+    try {
+      await authService.signOut({ scope: 'local' });
+    } catch {
+      // safe fallback
+    }
+    setNewPassword('');
+    setConfirmPassword('');
+    setOtp('');
+    setStep('email');
+    router.replace('/(auth)/login');
+  };
+
   const normalizedEmail = authService.normalizeEmail(email);
   const emailError = error && (!normalizedEmail || !authService.validateEmailInput(normalizedEmail).valid)
     ? error
@@ -240,7 +253,7 @@ export default function ForgotPasswordScreen() {
               <Button
                 title={strings.auth.passwordResetReturnToLogin}
                 variant="ghost"
-                onPress={() => router.replace('/(auth)/login')}
+                onPress={handleCancel}
                 disabled={verifying}
               />
             </View>
@@ -296,7 +309,7 @@ export default function ForgotPasswordScreen() {
             <Button
               title={strings.common.cancel}
               variant="secondary"
-              onPress={() => router.replace('/(auth)/login')}
+              onPress={handleCancel}
               disabled={savingPassword}
             />
           </View>
