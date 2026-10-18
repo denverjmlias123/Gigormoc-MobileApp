@@ -341,6 +341,25 @@ export const authService = {
     }
   },
 
+  async verifyPasswordResetOtp(email: string, token: string) {
+    const normalizedEmail = normalizeEmail(email);
+    const cleanToken = token.replace(/\D/g, '').slice(0, 6);
+    if (!cleanToken || cleanToken.length !== 6) {
+      const err: any = new Error(strings.auth.otpCodeLength);
+      err.code = 'INVALID_OTP';
+      throw err;
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: cleanToken,
+      type: 'recovery',
+    });
+    if (error) {
+      throw error;
+    }
+    return data;
+  },
+
   async updatePassword({
     password,
     currentPassword,

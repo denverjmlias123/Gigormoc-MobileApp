@@ -85,6 +85,13 @@ export default function ResetPasswordScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      setReady(true);
+      setProcessing(false);
+    }
+  }, [user]);
+
   const handleExitToLogin = async () => {
     try {
       await supabase.auth.signOut({ scope: 'local' });

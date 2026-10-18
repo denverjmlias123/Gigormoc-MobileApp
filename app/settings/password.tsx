@@ -9,6 +9,7 @@ import { strings } from '../../constants/strings';
 import { showToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
+import { OtpInput } from '../../components/ui/OtpInput';
 import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
 
 export default function ChangePasswordScreen() {
@@ -110,14 +111,11 @@ export default function ChangePasswordScreen() {
         <TextInput label={strings.auth.confirmNewPassword} value={confirmation} onChangeText={setConfirmation} isPassword autoCapitalize="none" autoComplete="new-password" />
         {needsReauthentication ? (
           <>
-            <TextInput
+            <OtpInput
               label={strings.auth.passwordReauthCodeLabel}
               value={reauthCode}
               onChangeText={setReauthCode}
-              placeholder={strings.auth.passwordReauthCodePlaceholder}
-              keyboardType="number-pad"
-              autoCapitalize="none"
-              autoComplete="one-time-code"
+              disabled={requestingCode || saving}
             />
             <Button title={strings.auth.passwordReauthSendAgain} variant="secondary" onPress={async () => {
               if (requestingCode) return;
