@@ -2,25 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../theme';
+import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
 import { OtpInput } from '../../components/ui/OtpInput';
+import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
 import { showToast } from '../../components/ui/Toast';
+
+type ForgotPasswordStep = 'email' | 'otp' | 'new_password';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { profile } = useAuth();
   const params = useLocalSearchParams<{ email?: string }>();
 
+  const [step, setStep] = useState<ForgotPasswordStep>('email');
   const [email, setEmail] = useState(params.email || '');
   const [otp, setOtp] = useState('');
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -52,6 +61,7 @@ export default function ForgotPasswordScreen() {
     try {
       const res = await authService.resetPassword(normalizedEmail);
       setSent(true);
+      setStep('otp');
       setOtp('');
       setDevOtp(res?.devOtp || null);
       setCooldown(60);
@@ -97,11 +107,37 @@ export default function ForgotPasswordScreen() {
       const normalizedEmail = authService.normalizeEmail(email);
       await authService.verifyPasswordResetOtp(normalizedEmail, code);
       showToast(strings.auth.otpConfirmedSuccess, 'success');
-      router.replace('/(auth)/reset-password');
+      setStep('new_password');
     } catch (err: any) {
       setError(strings.auth.otpInvalidOrExpired);
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleSaveNewPassword = async () => {
+    if (savingPassword) return;
+    setError(null);
+    const normalizedEmail = authService.normalizeEmail(email);
+
+    if (!authService.validatePasswordConfirmation(newPassword, confirmPassword)) {
+      setError(strings.auth.passwordMismatch);
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await authService.updatePassword({
+        password: newPassword,
+        email: normalizedEmail,
+        displayName: profile?.display_name ?? '',
+      });
+      showToast(strings.toasts.passwordUpdated, 'success');
+      router.replace(profile?.onboarding_complete ? '/(tabs)' : '/(auth)/login');
+    } catch (err: any) {
+      setError(toAppError(err, strings.auth.passwordInvalid).message);
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -116,12 +152,16 @@ export default function ForgotPasswordScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.auth.forgotPasswordTitle}</Text>
+        <Text style={[theme.type.title, { color: theme.colors.text }]}>
+          {step === 'new_password' ? strings.auth.passwordResetReady : strings.auth.forgotPasswordTitle}
+        </Text>
         <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>
-          {strings.auth.passwordResetDescription}
+          {step === 'new_password'
+            ? strings.auth.passwordPolicyTitle
+            : strings.auth.passwordResetDescription}
         </Text>
 
-        {error && !emailError && !sent ? (
+        {error && !emailError && step === 'email' ? (
           <View
             accessibilityRole="alert"
             style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
@@ -130,7 +170,7 @@ export default function ForgotPasswordScreen() {
           </View>
         ) : null}
 
-        {sent ? (
+        {step === 'otp' ? (
           <View style={styles.otpSection}>
             <View
               accessibilityRole="summary"
@@ -205,6 +245,61 @@ export default function ForgotPasswordScreen() {
               />
             </View>
           </View>
+        ) : step === 'new_password' ? (
+          <View style={styles.actions}>
+            {error ? (
+              <View
+                accessibilityRole="alert"
+                style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
+              >
+                <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
+              </View>
+            ) : null}
+
+            <TextInput
+              label={strings.auth.newPassword}
+              value={newPassword}
+              onChangeText={(val) => {
+                setNewPassword(val);
+                if (error) setError(null);
+              }}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+
+            <PasswordPolicyChecklist
+              password={newPassword}
+              email={normalizedEmail}
+              displayName={profile?.display_name ?? ''}
+            />
+
+            <TextInput
+              label={strings.auth.confirmNewPassword}
+              value={confirmPassword}
+              onChangeText={(val) => {
+                setConfirmPassword(val);
+                if (error) setError(null);
+              }}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+
+            <Button
+              title={strings.common.save}
+              onPress={handleSaveNewPassword}
+              loading={savingPassword}
+              disabled={savingPassword || !newPassword || !confirmPassword}
+            />
+
+            <Button
+              title={strings.common.cancel}
+              variant="secondary"
+              onPress={() => router.replace('/(auth)/login')}
+              disabled={savingPassword}
+            />
+          </View>
         ) : (
           <>
             <TextInput
@@ -269,6 +364,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   otpSection: { width: '100%' },
-  actions: { gap: 10, marginTop: 14 },
+  actions: { gap: 12, marginTop: 14 },
   returnButton: { marginTop: 12 },
 });

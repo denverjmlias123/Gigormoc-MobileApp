@@ -22,7 +22,7 @@ function RootNavigation() {
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
     const inAdminGroup = segments[0] === 'admin';
-    const inPasswordReset = inAuthGroup && segments.includes('reset-password');
+    const inPasswordReset = inAuthGroup && (segments.includes('reset-password') || segments.includes('forgot-password'));
 
     // Recovery links establish a temporary authenticated session so the user can set a new password.
     if (inPasswordReset) return;
