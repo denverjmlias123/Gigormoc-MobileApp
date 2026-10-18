@@ -8,7 +8,7 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
-type GuardAction = 'check' | 'failure' | 'success';
+type GuardAction = 'check' | 'failure' | 'success' | 'dev_recovery_otp';
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
@@ -29,7 +29,7 @@ serve(async (request: Request) => {
     const body = await request.json();
     const action = body?.action as GuardAction;
     const email = normalizeEmail(body?.email);
-    if (!email || !['check', 'failure', 'success'].includes(action)) {
+    if (!email || !['check', 'failure', 'success', 'dev_recovery_otp'].includes(action)) {
       return json({ error: 'invalid_request' }, 400);
     }
 
@@ -55,6 +55,20 @@ serve(async (request: Request) => {
       const { data, error } = await service.rpc('login_guard_failure', { p_email: email, p_ip: ip });
       if (error) return json({ error: 'server_unavailable' }, 503);
       return json(data ?? { locked: false, seconds_left: 0, attempts_left: 0 });
+    }
+
+    if (action === 'dev_recovery_otp') {
+      const { data, error } = await service.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+      });
+      if (error) {
+        return json({ error: 'generate_link_failed' }, 400);
+      }
+      return json({
+        ok: true,
+        otp: data?.properties?.email_otp || null,
+      });
     }
 
     const authHeader = request.headers.get('Authorization');

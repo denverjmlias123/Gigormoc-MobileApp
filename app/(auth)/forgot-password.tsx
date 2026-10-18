@@ -17,6 +17,7 @@ export default function ForgotPasswordScreen() {
 
   const [email, setEmail] = useState(params.email || '');
   const [otp, setOtp] = useState('');
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -49,9 +50,10 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      await authService.resetPassword(normalizedEmail);
+      const res = await authService.resetPassword(normalizedEmail);
       setSent(true);
       setOtp('');
+      setDevOtp(res?.devOtp || null);
       setCooldown(60);
     } catch (err: any) {
       setError(toAppError(err, strings.auth.passwordResetSendFailed).message);
@@ -66,7 +68,8 @@ export default function ForgotPasswordScreen() {
     const normalizedEmail = authService.normalizeEmail(email);
     setResending(true);
     try {
-      await authService.resetPassword(normalizedEmail);
+      const res = await authService.resetPassword(normalizedEmail);
+      if (res?.devOtp) setDevOtp(res.devOtp);
       setCooldown(60);
       showToast(strings.auth.passwordReauthCodeSent, 'success');
     } catch (err: any) {
@@ -84,7 +87,7 @@ export default function ForgotPasswordScreen() {
       setError(strings.auth.otpCodeRequired);
       return;
     }
-    if (code.length !== 6) {
+    if (code.length < 6) {
       setError(strings.auth.otpCodeLength);
       return;
     }
@@ -141,6 +144,31 @@ export default function ForgotPasswordScreen() {
                 {strings.auth.otpCodeSentNotice(normalizedEmail)}
               </Text>
             </View>
+
+            {devOtp ? (
+              <View
+                style={[
+                  styles.devHelperCard,
+                  { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
+                ]}
+              >
+                <Text style={[styles.devHelperTitle, { color: theme.colors.primary }]}>
+                  {strings.auth.otpDevTestNotice}
+                </Text>
+                <Text style={[styles.devHelperCode, { color: theme.colors.text }]}>
+                  {devOtp}
+                </Text>
+                <Button
+                  title={strings.auth.otpDevCopyFillBtn}
+                  variant="secondary"
+                  onPress={() => {
+                    setOtp(devOtp);
+                    if (error) setError(null);
+                  }}
+                  style={styles.devHelperBtn}
+                />
+              </View>
+            ) : null}
 
             <OtpInput
               value={otp}
@@ -218,6 +246,28 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 8, marginBottom: 24 },
   message: { borderLeftWidth: 4, borderRadius: 12, padding: 14, marginBottom: 16, gap: 6 },
   messageTitle: { fontWeight: '700' },
+  devHelperCard: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  devHelperTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  devHelperCode: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 4,
+    marginVertical: 4,
+  },
+  devHelperBtn: {
+    width: '100%',
+  },
   otpSection: { width: '100%' },
   actions: { gap: 10, marginTop: 14 },
   returnButton: { marginTop: 12 },

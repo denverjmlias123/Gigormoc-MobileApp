@@ -28,13 +28,14 @@ export const OtpInput: React.FC<OtpInputProps> = ({
   const theme = useAppTheme();
   const inputRef = useRef<RNTextInput>(null);
 
-  const cleanValue = value.replace(/\D/g, '').slice(0, length);
-  const digits = Array.from({ length }, (_, i) => cleanValue[i] || '');
+  const activeLength = value.length > 6 ? Math.max(length, value.length) : length;
+  const cleanValue = value.replace(/\D/g, '').slice(0, activeLength);
+  const digits = Array.from({ length: activeLength }, (_, i) => cleanValue[i] || '');
 
   const handleChange = (rawText: string) => {
-    const cleaned = rawText.replace(/\D/g, '').slice(0, length);
+    const cleaned = rawText.replace(/\D/g, '').slice(0, activeLength);
     onChangeText(cleaned);
-    if (cleaned.length === length && onComplete) {
+    if (cleaned.length === activeLength && onComplete) {
       onComplete(cleaned);
     }
   };
@@ -44,11 +45,11 @@ export const OtpInput: React.FC<OtpInputProps> = ({
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
         const text = await navigator.clipboard.readText();
-        const extracted = text.replace(/\D/g, '').slice(0, length);
+        const extracted = text.replace(/\D/g, '').slice(0, 8);
         if (extracted) {
           onChangeText(extracted);
           onPasteSuccess?.();
-          if (extracted.length === length && onComplete) {
+          if (extracted.length >= 6 && onComplete) {
             onComplete(extracted);
           }
           return;
