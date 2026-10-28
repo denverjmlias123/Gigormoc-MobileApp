@@ -6,6 +6,8 @@ import { useAppTheme } from '../../app/theme';
 interface AvatarProps {
   name?: string | null;
   imageUri?: string | null;
+  uri?: string | null;
+  avatarPath?: string | null;
   size?: number;
   onHero?: boolean;
   onPress?: () => void;
@@ -16,17 +18,20 @@ interface AvatarProps {
 export const Avatar: React.FC<AvatarProps> = ({
   name,
   imageUri,
+  uri,
+  avatarPath,
   size = 44,
   onHero = false,
   onPress,
   editable = false,
 }) => {
   const theme = useAppTheme();
+  const resolvedUri = imageUri ?? uri ?? avatarPath;
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     setImgError(false);
-  }, [imageUri]);
+  }, [resolvedUri]);
 
   const initials = (name || '?')
     .trim()
@@ -37,10 +42,10 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const content = (
     <View style={{ width: size, height: size, position: 'relative' }}>
-      {imageUri && imageUri.trim() !== '' && !imgError ? (
+      {resolvedUri && resolvedUri.trim() !== '' && !imgError ? (
         <Image
-          key={imageUri}
-          source={{ uri: imageUri }}
+          key={resolvedUri}
+          source={{ uri: resolvedUri }}
           onError={() => setImgError(true)}
           style={{
             width: size,
@@ -80,12 +85,15 @@ export const Avatar: React.FC<AvatarProps> = ({
           style={[
             styles.cameraBadge,
             {
+              width: Math.max(22, Math.round(size * 0.36)),
+              height: Math.max(22, Math.round(size * 0.36)),
+              borderRadius: Math.max(11, Math.round(size * 0.18)),
               backgroundColor: theme.colors.primary,
               borderColor: theme.colors.surface,
             },
           ]}
         >
-          <Ionicons name="camera" size={14} color="#FFFFFF" />
+          <Ionicons name="camera" size={Math.max(12, Math.round(size * 0.2))} color={theme.colors.heroText} />
         </View>
       ) : null}
     </View>

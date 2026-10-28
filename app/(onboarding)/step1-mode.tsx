@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAppTheme, lightFreelancerTheme, clientTheme } from '../theme';
+import { useAppTheme, lightFreelancerTheme, clientTheme, useResponsiveLayout } from '../theme';
 import { Button } from '../../components/ui/Button';
+import { AlertBox } from '../../components/ui/Card';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
@@ -15,6 +16,7 @@ type ModeChoice = 'find_work' | 'hire';
 export default function OnboardingStep1ModeScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const { user, refreshProfile, signOut } = useAuth();
 
   const [selectedMode, setSelectedMode] = useState<ModeChoice | null>(null);
@@ -25,7 +27,7 @@ export default function OnboardingStep1ModeScreen() {
     if (loading) return;
     try {
       const confirmed = await runConfirmedLogout({
-      requestConfirmation: () => confirmDialog({
+        requestConfirmation: () => confirmDialog({
           title: strings.auth.logoutConfirmTitle,
           message: strings.auth.logoutConfirmMessage,
           confirmText: strings.auth.logoutConfirmYes,
@@ -62,7 +64,6 @@ export default function OnboardingStep1ModeScreen() {
       await refreshProfile();
       router.push('/(onboarding)/step2-skills');
     } catch (err: any) {
-      // If mode is already set, proceed forward
       if (err?.message?.includes('already been chosen')) {
         await refreshProfile();
         router.push('/(onboarding)/step2-skills');
@@ -78,116 +79,165 @@ export default function OnboardingStep1ModeScreen() {
     id: ModeChoice;
     title: string;
     desc: string;
+    badge: string;
+    bullets: string[];
     icon: React.ComponentProps<typeof Ionicons>['name'];
-    colors: { bg: string; fg: string; sub: string };
+    colors: { bg: string; fg: string; sub: string; accent: string };
   }[] = [
     {
       id: 'find_work',
       title: strings.modes.findWork,
       desc: strings.modes.findWorkDesc,
-      icon: 'search',
-      colors: { bg: lightFreelancerTheme.colors.heroBg, fg: '#FFFFFF', sub: lightFreelancerTheme.colors.heroMuted },
+      badge: 'Freelancer Workspace',
+      bullets: ['Apply to open Ormoc gigs', 'Showcase skills & portfolio', 'Get paid per milestone'],
+      icon: 'briefcase-outline',
+      colors: {
+        bg: lightFreelancerTheme.colors.heroBg,
+        fg: '#FFFFFF',
+        sub: lightFreelancerTheme.colors.heroMuted,
+        accent: lightFreelancerTheme.colors.roleAccent,
+      },
     },
     {
       id: 'hire',
       title: strings.modes.hire,
       desc: strings.modes.hireDesc,
-      icon: 'people',
-      colors: { bg: clientTheme.colors.heroBg, fg: '#FFFFFF', sub: clientTheme.colors.heroMuted },
+      badge: 'Client Workspace',
+      bullets: ['Post local jobs & budgets', 'Compare freelancer proposals', 'Approve milestones safely'],
+      icon: 'people-outline',
+      colors: {
+        bg: clientTheme.colors.heroBg,
+        fg: '#FFFFFF',
+        sub: clientTheme.colors.heroMuted,
+        accent: clientTheme.colors.roleAccent,
+      },
     },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <Text style={[theme.type.small, { color: theme.colors.muted }]}>Step 1 of 3</Text>
-          <Pressable onPress={handleSignOut} disabled={loading} hitSlop={8} accessibilityRole="button">
-            <Text style={[theme.type.small, { color: theme.colors.primary, fontWeight: '700' }]}>Log out</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
-          <View style={[styles.progressFill, { backgroundColor: theme.colors.primary }]} />
-        </View>
-        <Text style={[theme.type.display, { color: theme.colors.text }]}>How will you use Gigormoc?</Text>
-        <Text style={[theme.type.body, { color: theme.colors.muted, marginTop: 8 }]}>
-          Pick the side you'll use most. Your home screen is built around it.
-        </Text>
-      </View>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: isWide ? 48 : topSpace + 8, paddingBottom: isWide ? 48 : bottomSpace + 16 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.inner}>
+          <View style={styles.header}>
+            <View style={styles.headerTopRow}>
+              <Text style={[theme.type.small, { color: theme.colors.muted, fontWeight: '700' }]}>Step 1 of 3</Text>
+              <Button
+                title="Log out"
+                variant="ghost"
+                size="xs"
+                icon="log-out-outline"
+                onPress={handleSignOut}
+                disabled={loading}
+              />
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: theme.colors.primary }]} />
+            </View>
+            <Text style={[theme.type.display, { color: theme.colors.text }]}>How will you use Gigormoc?</Text>
+            <Text style={[theme.type.body, { color: theme.colors.muted, marginTop: 8 }]}>
+              Pick the side you'll use most. Your home screen is built around it.
+            </Text>
+          </View>
 
-      {error && (
-        <View style={[styles.errorBox, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}>
-          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+          {error && (
+            <AlertBox
+              tone="danger"
+              message={error}
+            />
+          )}
+
+          <View style={[styles.optionsList, isWide && styles.optionsListWide]}>
+            {options.map((opt) => {
+              const isSelected = selectedMode === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    setSelectedMode(opt.id);
+                    setError(null);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: isSelected }}
+                  style={({ hovered }: any) => [
+                    styles.card,
+                    isWide && { flex: 1 },
+                    {
+                      backgroundColor: opt.colors.bg,
+                      borderRadius: theme.radii.card,
+                      borderColor: isSelected ? opt.colors.accent : hovered ? 'rgba(255,255,255,0.35)' : 'transparent',
+                      opacity: selectedMode && !isSelected ? 0.65 : 1,
+                    },
+                    theme.shadow.raised,
+                    Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+                  ]}
+                >
+                  <View style={styles.cardTop}>
+                    <View style={styles.cardIcon}>
+                      <Ionicons name={opt.icon} size={22} color={opt.colors.fg} />
+                    </View>
+                    <View style={[styles.rolePill, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+                      <Text style={styles.rolePillText}>{opt.badge}</Text>
+                    </View>
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={26}
+                      color={isSelected ? opt.colors.accent : opt.colors.fg}
+                    />
+                  </View>
+                  <Text style={[styles.cardTitle, { color: opt.colors.fg }]}>{opt.title}</Text>
+                  <Text style={[styles.cardDesc, { color: opt.colors.sub }]}>{opt.desc}</Text>
+                  <View style={styles.bulletList}>
+                    {opt.bullets.map((b) => (
+                      <View key={b} style={styles.bulletRow}>
+                        <Ionicons name="checkmark" size={14} color={opt.colors.accent} />
+                        <Text style={[styles.bulletText, { color: opt.colors.sub }]}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <AlertBox
+            tone="info"
+            message={strings.modes.switchNote}
+          />
+
+          <View style={styles.footer}>
+            <Button
+              title="Continue"
+              onPress={handleContinue}
+              loading={loading}
+              disabled={!selectedMode}
+              rightIcon="arrow-forward"
+              fullWidth
+            />
+          </View>
         </View>
-      )}
-
-      <View style={styles.optionsList}>
-        {options.map((opt) => {
-          const isSelected = selectedMode === opt.id;
-          return (
-            <Pressable
-              key={opt.id}
-              onPress={() => {
-                setSelectedMode(opt.id);
-                setError(null);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: isSelected }}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: opt.colors.bg,
-                  borderRadius: theme.radii.card,
-                  borderColor: isSelected ? theme.colors.accent : 'transparent',
-                  opacity: selectedMode && !isSelected ? 0.55 : 1,
-                },
-              ]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardIcon}>
-                  <Ionicons name={opt.icon} size={22} color={opt.colors.fg} />
-                </View>
-                <Ionicons
-                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={26}
-                  color={opt.colors.fg}
-                />
-              </View>
-              <Text style={[styles.cardTitle, { color: opt.colors.fg }]}>{opt.title}</Text>
-              <Text style={[styles.cardDesc, { color: opt.colors.sub }]}>{opt.desc}</Text>
-            </Pressable>
-          );
-        })}
-
-        <View style={styles.noticeRow}>
-          <Ionicons name="information-circle-outline" size={16} color={theme.colors.muted} />
-          <Text style={[theme.type.small, { color: theme.colors.muted, flexShrink: 1 }]}>{strings.modes.switchNote}</Text>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <Button title="Continue" onPress={handleContinue} loading={loading} disabled={!selectedMode} />
-        <Pressable style={styles.switchAccountBtn} onPress={handleSignOut} disabled={loading}>
-          <Text style={{ color: theme.colors.muted, fontSize: 14 }}>
-            Wrong account? <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Log out</Text>
-          </Text>
-        </Pressable>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'space-between', paddingTop: 56 },
-  header: { marginBottom: 16 },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 20, justifyContent: 'center' },
+  inner: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 18 },
+  header: { marginBottom: 4 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  progressTrack: { height: 4, borderRadius: 2, marginBottom: 24, overflow: 'hidden' },
+  progressTrack: { height: 4, borderRadius: 2, marginBottom: 22, overflow: 'hidden' },
   progressFill: { width: '33%', height: 4, borderRadius: 2 },
-  errorBox: { padding: 12, borderRadius: 12, marginBottom: 12, borderLeftWidth: 4 },
-  errorText: { fontSize: 14, fontWeight: '600' },
-  optionsList: { gap: 14, flex: 1, justifyContent: 'center' },
-  card: { padding: 20, borderWidth: 3 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  optionsList: { gap: 16 },
+  optionsListWide: { flexDirection: 'row', alignItems: 'stretch', gap: 20 },
+  card: { padding: 20, borderWidth: 2 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8 },
   cardIcon: {
     width: 44,
     height: 44,
@@ -196,9 +246,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, marginBottom: 6 },
-  cardDesc: { fontSize: 14, lineHeight: 20 },
-  noticeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 4 },
-  footer: { marginTop: 20, marginBottom: 10, gap: 12 },
-  switchAccountBtn: { alignItems: 'center', paddingVertical: 8 },
+  rolePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    marginRight: 'auto',
+  },
+  rolePillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  cardTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3, marginBottom: 6 },
+  cardDesc: { fontSize: 14, lineHeight: 20, marginBottom: 14 },
+  bulletList: { gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.16)', paddingTop: 14 },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bulletText: { fontSize: 13, fontWeight: '500' },
+  footer: { marginTop: 12, maxWidth: 420, width: '100%', alignSelf: 'center' },
 });

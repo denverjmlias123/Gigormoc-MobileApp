@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { GigDetail } from '../../services/gigs';
-import { AppTheme } from '../../app/theme';
+import { AppTheme, useResponsiveLayout } from '../../app/theme';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { strings } from '../../constants/strings';
@@ -38,27 +37,34 @@ export function ManageGigModal({
   cancelTitle = strings.gigs.cancelGigBtn,
   deleteTitle = strings.gigs.deleteGigBtn,
 }: ManageGigModalProps) {
+  const { isWide, bottomSpace } = useResponsiveLayout();
   if (!gig) return null;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={isWide ? 'fade' : 'slide'}
       onRequestClose={onClose}
     >
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+      <Pressable
+        style={[styles.modalBackdrop, isWide && styles.modalBackdropWide]}
+        onPress={onClose}
+      >
         <Pressable
           style={[
             styles.sheetContainer,
-            { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
+            isWide ? styles.sheetContainerWide : { paddingBottom: bottomSpace },
+            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
           ]}
           onPress={(e) => e.stopPropagation()}
         >
-          {/* Visual Drag Handle */}
-          <View style={styles.dragHandleContainer}>
-            <View style={[styles.dragHandle, { backgroundColor: theme.colors.borderStrong }]} />
-          </View>
+          {/* Visual Drag Handle on mobile */}
+          {!isWide && (
+            <View style={styles.dragHandleContainer}>
+              <View style={[styles.dragHandle, { backgroundColor: theme.colors.borderStrong }]} />
+            </View>
+          )}
 
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1, marginRight: 12 }}>
@@ -118,6 +124,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(7, 11, 38, 0.55)',
     justifyContent: 'flex-end',
   },
+  modalBackdropWide: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   sheetContainer: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -125,6 +136,13 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     width: '100%',
+  },
+  sheetContainerWide: {
+    maxWidth: 460,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingBottom: 20,
+    alignSelf: 'center',
   },
   dragHandleContainer: {
     alignItems: 'center',
@@ -154,3 +172,4 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 });
+

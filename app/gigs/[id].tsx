@@ -1,16 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService, GigDetail } from '../../services/gigs';
 import {
@@ -27,6 +24,7 @@ import { Badge } from '../../components/ui/Badge';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
 import { Button } from '../../components/ui/Button';
+import { AlertBox, PageHeaderBox, StickyFooterBox } from '../../components/ui/Card';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import {
   Timeline,
@@ -42,6 +40,7 @@ import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 export default function GigDetailScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, isDesktop } = useResponsiveLayout();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, profile } = useAuth();
 
@@ -177,11 +176,17 @@ export default function GigDetailScreen() {
             <Button
               title={strings.gigs.openAgreement}
               onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })}
+              style={{ marginBottom: 10 }}
             />
           </>
         ) : null}
         {error ? (
-          <Button title={strings.common.retry} onPress={loadGigAndLoop} variant="secondary" />
+          <Button
+            title={strings.common.retry}
+            onPress={loadGigAndLoop}
+            variant="secondary"
+            style={{ marginBottom: 10 }}
+          />
         ) : null}
         <Button
           title={strings.common.back}
@@ -328,263 +333,259 @@ export default function GigDetailScreen() {
     }
   };
 
+  const bannerActionLabel = gigAgreement
+    ? 'Open Agreement ›'
+    : isOwner && gig.status === 'open'
+    ? 'View Applicants ›'
+    : isFreelancerMode && gig.status === 'open' && !myApplication
+    ? strings.gigs.applyBtn
+    : undefined;
+
+  const bannerActionPress =
+    gigAgreement || (isOwner && gig.status === 'open') || (isFreelancerMode && gig.status === 'open' && !myApplication)
+      ? handleApplyPress
+      : undefined;
+
   return (
     <ScreenBackground>
       <View style={styles.container}>
-        {/* Top Bar */}
-        <View
-          style={[
-            styles.topBar,
-            { backgroundColor: 'rgba(255, 255, 255, 0.85)', borderBottomColor: theme.colors.border },
-          ]}
-        >
-          <View style={styles.topBarInner}>
-            <TouchableOpacity
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace('/(tabs)/gigs');
-                }
-              }}
-              style={styles.backBtn}
-            >
-              <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-            </TouchableOpacity>
-            <Badge status={gig.status} />
-          </View>
-        </View>
+        <PageHeaderBox
+          title={gig.title}
+          subtitle={gig.category_name || 'Gig Details'}
+          onBack={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/gigs');
+            }
+          }}
+          rightAction={<Badge status={gig.status} />}
+        />
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Shared Next Step Banner & Relationship Timeline (Section 1) */}
-        {loopState && (
-          <View style={styles.loopSection}>
-            <NextStepBanner
-              loopState={loopState}
-              actionLabel={
-                gigAgreement
-                  ? 'Open Agreement ›'
-                  : isOwner && gig.status === 'open'
-                  ? 'View Applicants ›'
-                  : isFreelancerMode && gig.status === 'open' && !myApplication
-                  ? strings.gigs.applyBtn
-                  : undefined
-              }
-              onActionPress={
-                gigAgreement || (isOwner && gig.status === 'open') || (isFreelancerMode && gig.status === 'open' && !myApplication)
-                  ? handleApplyPress
-                  : undefined
-              }
-              onOpenChatPress={gigAgreement || myApplication ? handleOpenChat : undefined}
-            />
+          {/* NextStepBanner at top */}
+          {loopState && !isDesktop && (
+            <View style={{ marginBottom: 14 }}>
+              <NextStepBanner
+                loopState={loopState}
+                actionLabel={bannerActionLabel}
+                onActionPress={bannerActionPress}
+                onOpenChatPress={gigAgreement || myApplication ? handleOpenChat : undefined}
+              />
+            </View>
+          )}
 
-            <Timeline
-              currentStage={loopState.currentStage}
-              viewerRole={viewerRole}
-              loopState={loopState}
+          {gig.status === 'completed' || gig.status === 'cancelled' || gig.status === 'expired' ? (
+            <AlertBox
+              tone={gig.status === 'completed' ? 'success' : 'neutral'}
+              title={
+                gig.status === 'completed'
+                  ? strings.gigs.completedReadOnlyTitle
+                  : strings.gigs.closedReadOnlyTitle
+              }
+              message={
+                gig.status === 'completed'
+                  ? strings.gigs.completedReadOnlyDesc
+                  : strings.gigs.closedReadOnlyDesc
+              }
+              style={{ marginBottom: 14 }}
             />
+          ) : null}
+
+          <View style={isDesktop ? styles.desktopTwoCol : undefined}>
+            {/* Left Column: Main Gig Info, Description, Requirements, and Poster Profile */}
+            <View style={isDesktop ? styles.desktopLeftCol : undefined}>
+              <GigDetailInfo
+                gig={gig}
+                theme={theme}
+                onClientPress={() => {
+                  if (gig.client_id) {
+                    router.push({ pathname: '/profile/[id]', params: { id: gig.client_id } });
+                  }
+                }}
+              />
+            </View>
+
+            {/* Right Column on Desktop (or collapsible below GigDetailInfo on Mobile): Next Step & Relationship Timeline */}
+            {loopState && (
+              <View style={isDesktop ? styles.desktopRightCol : styles.loopSection}>
+                {isDesktop && (
+                  <NextStepBanner
+                    loopState={loopState}
+                    actionLabel={bannerActionLabel}
+                    onActionPress={bannerActionPress}
+                    onOpenChatPress={gigAgreement || myApplication ? handleOpenChat : undefined}
+                  />
+                )}
+                <Timeline
+                  currentStage={loopState.currentStage}
+                  viewerRole={viewerRole}
+                  loopState={loopState}
+                  collapsible={!isWide}
+                  defaultCollapsed={!isWide}
+                />
+              </View>
+            )}
           </View>
-        )}
+        </ScrollView>
 
-        {gig.status === 'completed' || gig.status === 'cancelled' || gig.status === 'expired' ? (
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {gig.status === 'completed'
-                ? strings.gigs.completedReadOnlyTitle
-                : strings.gigs.closedReadOnlyTitle}
-            </Text>
-            <Text style={[styles.bodyText, { color: theme.colors.muted }]}>
+        {/* Sticky Bottom Action Bar */}
+        <StickyFooterBox maxWidth={1120}>
+          {gigAgreement ? (
+            <View style={{ width: '100%', gap: 8 }}>
+              <Button
+                title={gig.status === 'completed' ? 'View Completed Agreement' : 'View Agreement'}
+                onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })}
+                variant="primary"
+              />
+              {isOwner && gig.status !== 'completed' ? (
+                <Button
+                  title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
+                  onPress={handleDeleteGig}
+                  variant="danger-soft"
+                  disabled={deleting || gigAgreement.status !== 'cancelled'}
+                  loading={deleting}
+                />
+              ) : null}
+              {isOwner && gig.status !== 'completed' && gigAgreement.status !== 'cancelled' ? (
+                <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                  {strings.gigs.alreadyHiredDeleteBlock}
+                </Text>
+              ) : null}
+            </View>
+          ) : isOwner && (gig.status === 'open' || gig.status === 'draft') ? (
+            <View style={styles.ownerActionBar}>
+              <View style={{ flex: 1 }}>
+                {gig.status === 'draft' ? (
+                  <Button
+                    title={strings.gigs.publishBtn}
+                    onPress={handlePublishDraft}
+                    variant="primary"
+                    loading={publishing}
+                    disabled={publishing || cancelling || deleting}
+                  />
+                ) : (
+                  <Button title="View Applicants" icon="people-outline" onPress={handleApplyPress} variant="primary" />
+                )}
+              </View>
+              <Button
+                title="Options"
+                icon="ellipsis-horizontal"
+                variant="secondary"
+                fullWidth={false}
+                onPress={() => setManageSheetVisible(true)}
+              />
+            </View>
+          ) : isOwner && gig.status !== 'completed' ? (
+            <View style={{ width: '100%', gap: 8 }}>
+              <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.closedReadOnlyDesc}</Text>
+              <Button
+                title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn}
+                onPress={handleDeleteGig}
+                variant="danger-soft"
+                loading={deleting}
+                disabled={deleting}
+              />
+            </View>
+          ) : isOwner ? (
+            <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
               {gig.status === 'completed'
                 ? strings.gigs.completedReadOnlyDesc
                 : strings.gigs.closedReadOnlyDesc}
             </Text>
-          </View>
-        ) : null}
-
-        {/* Modularized Main Gig Info, Description, Requirements, and Poster Profile */}
-        <GigDetailInfo
-          gig={gig}
-          theme={theme}
-          onClientPress={() => {
-            if (gig.client_id) {
-              router.push({ pathname: '/profile/[id]', params: { id: gig.client_id } });
-            }
-          }}
-        />
-      </ScrollView>
-
-      {/* Sticky Bottom Action Bar */}
-      <View
-        style={[
-          styles.bottomBar,
-          { backgroundColor: 'rgba(255, 255, 255, 0.95)', borderTopColor: theme.colors.border },
-        ]}
-      >
-        <View style={styles.bottomBarInner}>
-          {gigAgreement ? (
-          <View style={{ width: '100%', gap: 8 }}>
-            <Button
-              title={gig.status === 'completed' ? 'View Completed Agreement' : 'View Agreement'}
-              onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: gigAgreement.id } })}
-              variant="primary"
-            />
-            {isOwner && gig.status !== 'completed' ? <Button title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn} onPress={handleDeleteGig} variant="secondary" disabled={deleting || gigAgreement.status !== 'cancelled'} loading={deleting} /> : null}
-            {isOwner && gig.status !== 'completed' && gigAgreement.status !== 'cancelled' ? <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.alreadyHiredDeleteBlock}</Text> : null}
-          </View>
-        ) : isOwner && (gig.status === 'open' || gig.status === 'draft') ? (
-          <View style={styles.ownerActionBar}>
-            <View style={{ flex: 1 }}>
-              {gig.status === 'draft' ? (
-                <Button
-                  title={strings.gigs.publishBtn}
-                  onPress={handlePublishDraft}
-                  variant="primary"
-                  loading={publishing}
-                  disabled={publishing || cancelling || deleting}
-                />
+          ) : isFreelancerMode ? (
+            <View style={{ width: '100%' }}>
+              {myApplication ? (
+                <>
+                  <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                    You have already submitted a proposal ({myApplication.status}).
+                  </Text>
+                  <Button
+                    title="View My Proposal in Activity"
+                    onPress={() => router.push('/(tabs)/activity')}
+                    variant="secondary"
+                  />
+                </>
               ) : (
-                <Button title="View Applicants" onPress={handleApplyPress} variant="primary" />
+                <>
+                  {gig.status !== 'open' && (
+                    <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
+                      {gig.status === 'in_progress'
+                        ? 'This gig is already in progress.'
+                        : gig.status === 'completed'
+                        ? 'This gig has been completed.'
+                        : 'This gig is not open for applications.'}
+                    </Text>
+                  )}
+                  {gig.status === 'open' ? (
+                    <Button
+                      title={strings.gigs.applyBtn}
+                      onPress={handleApplyPress}
+                      variant="primary"
+                      rightIcon="arrow-forward"
+                    />
+                  ) : null}
+                </>
               )}
             </View>
-            <TouchableOpacity
-              style={[
-                styles.manageOptionsBtn,
-                { backgroundColor: theme.colors.surfaceAlt, borderColor: theme.colors.border },
-              ]}
-              onPress={() => setManageSheetVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Manage Gig Options"
-            >
-              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
-              <Text style={[styles.manageBtnText, { color: theme.colors.text }]}>Options</Text>
-            </TouchableOpacity>
-          </View>
-        ) : isOwner && gig.status !== 'completed' ? (
-          <View style={{ width: '100%', gap: 8 }}>
-          <Text style={[styles.reasonText, { color: theme.colors.muted }]}>{strings.gigs.closedReadOnlyDesc}</Text>
-            <Button title={deleting ? strings.gigs.deletingGig : strings.gigs.deleteGigBtn} onPress={handleDeleteGig} variant="secondary" loading={deleting} disabled={deleting} />
-          </View>
-        ) : isOwner ? (
-          <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-            {gig.status === 'completed'
-              ? strings.gigs.completedReadOnlyDesc
-              : strings.gigs.closedReadOnlyDesc}
-          </Text>
-        ) : isFreelancerMode ? (
-          <View style={{ width: '100%' }}>
-            {myApplication ? (
-              <>
-                <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-                  You have already submitted a proposal ({myApplication.status}).
-                </Text>
-                <Button
-                  title="View My Proposal in Activity"
-                  onPress={() => router.push('/(tabs)/activity')}
-                  variant="secondary"
-                />
-              </>
-            ) : (
-              <>
-                {gig.status !== 'open' && (
+          ) : (
+            <View style={{ width: '100%' }}>
+              {gig.status === 'open' ? (
+                <>
                   <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-                    {gig.status === 'in_progress'
-                      ? 'This gig is already in progress.'
-                      : gig.status === 'completed'
-                      ? 'This gig has been completed.'
-                      : 'This gig is not open for applications.'}
+                    Switch to Find Work mode in your Profile settings to apply.
                   </Text>
-                )}
-                {gig.status === 'open' ? (
                   <Button
-                    title={strings.gigs.applyBtn}
+                    title="Apply for this Gig"
                     onPress={handleApplyPress}
-                    variant="primary"
+                    variant="secondary"
+                    disabled={true}
                   />
-                ) : null}
-              </>
-            )}
-          </View>
-        ) : (
-          <View style={{ width: '100%' }}>
-            {gig.status === 'open' ? (
-              <>
+                </>
+              ) : (
                 <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-                  Switch to Find Work mode in your Profile settings to apply.
+                  {gig.status === 'completed'
+                    ? strings.gigs.completedReadOnlyDesc
+                    : strings.gigs.closedReadOnlyDesc}
                 </Text>
-                <Button
-                  title="Apply for this Gig"
-                  onPress={handleApplyPress}
-                  variant="secondary"
-                  disabled={true}
-                />
-              </>
-            ) : (
-              <Text style={[styles.reasonText, { color: theme.colors.muted }]}>
-                {gig.status === 'completed'
-                  ? strings.gigs.completedReadOnlyDesc
-                  : strings.gigs.closedReadOnlyDesc}
-              </Text>
-            )}
-          </View>
-        )}
-        </View>
-      </View>
+              )}
+            </View>
+          )}
+        </StickyFooterBox>
 
-      {/* Modularized Manage Gig Bottom Sheet Modal */}
-      <ManageGigModal
-        visible={manageSheetVisible}
-        onClose={() => setManageSheetVisible(false)}
-        gig={gig}
-        theme={theme}
-        editTitle={strings.gigs.editGig}
-        cancelTitle={strings.gigs.cancelGigBtn}
-        deleteTitle={strings.gigs.deleteGigBtn}
-        onEdit={() => {
-          setManageSheetVisible(false);
-          router.push({ pathname: '/gigs/post', params: { editGigId: gig?.id } });
-        }}
-        onCancel={async () => {
-          setManageSheetVisible(false);
-          await handleCancelGig();
-        }}
-        onDelete={async () => {
-          setManageSheetVisible(false);
-          await handleDeleteGig();
-        }}
-        publishing={publishing}
-        cancelling={cancelling}
-        deleting={deleting}
-      />
-    </View>
-  </ScreenBackground>
+        {/* Modularized Manage Gig Bottom Sheet Modal */}
+        <ManageGigModal
+          visible={manageSheetVisible}
+          onClose={() => setManageSheetVisible(false)}
+          gig={gig}
+          theme={theme}
+          editTitle={strings.gigs.editGig}
+          cancelTitle={strings.gigs.cancelGigBtn}
+          deleteTitle={strings.gigs.deleteGigBtn}
+          onEdit={() => {
+            setManageSheetVisible(false);
+            router.push({ pathname: '/gigs/post', params: { editGigId: gig?.id } });
+          }}
+          onCancel={async () => {
+            setManageSheetVisible(false);
+            await handleCancelGig();
+          }}
+          onDelete={async () => {
+            setManageSheetVisible(false);
+            await handleDeleteGig();
+          }}
+          publishing={publishing}
+          cancelling={cancelling}
+          deleting={deleting}
+        />
+      </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  topBar: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  topBarInner: {
-    maxWidth: 960,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backBtn: {
-    paddingVertical: 6,
   },
   centerContainer: {
     flex: 1,
@@ -604,63 +605,31 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 140,
-    maxWidth: 960,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
+  },
+  desktopTwoCol: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  desktopLeftCol: {
+    flex: 1.55,
+  },
+  desktopRightCol: {
+    flex: 1,
+    gap: 12,
   },
   loopSection: {
     gap: 12,
     marginBottom: 14,
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  bodyText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  bottomBarInner: {
-    maxWidth: 960,
-    width: '100%',
-    alignSelf: 'center',
   },
   ownerActionBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     width: '100%',
-  },
-  manageOptionsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 54,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    justifyContent: 'center',
-  },
-  manageBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   reasonText: {
     fontSize: 12,

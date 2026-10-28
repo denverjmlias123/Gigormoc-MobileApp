@@ -18,22 +18,20 @@ export const ScreenBackground: React.FC<ScreenBackgroundProps> = ({
   const theme = useAppTheme();
   const isClient = theme.isClient;
 
-  // Primary atmospheric gradient: seamless, soothing transition across slate, sky, and calm periwinkle
+  // Primary atmospheric gradient: distinct role mood for Client (steady slate-navy) vs Freelancer (energetic sky-cobalt)
   const baseGradient = isClient
-    ? (['#C6D6EA', '#D2E1F3', '#C2D4EB', '#C8D7EC'] as [string, string, string, string])
-    : (['#C9DAEF', '#D5E4F5', '#C8DCF0', '#CBDDF2'] as [string, string, string, string]);
+    ? (['#DCE5F2', '#E8EEF7', '#DFE7F4', '#E4ECF7'] as [string, string, string, string])
+    : (['#DCEBFA', '#E6F1FC', '#DDF0FA', '#E3EFFB'] as [string, string, string, string]);
 
   // Ambient cross-wash: continuous GPU gradient interpolation with ZERO hard circular edges
   const ambientWash = isClient
-    ? (['rgba(37, 99, 235, 0.12)', 'rgba(245, 158, 11, 0.06)', 'transparent', 'rgba(16, 185, 129, 0.10)'] as [string, string, string, string])
-    : (['rgba(79, 70, 229, 0.12)', 'rgba(245, 158, 11, 0.06)', 'transparent', 'rgba(16, 185, 129, 0.10)'] as [string, string, string, string]);
+    ? (['rgba(30, 58, 138, 0.12)', 'rgba(245, 158, 11, 0.08)', 'transparent', 'rgba(217, 119, 6, 0.07)'] as [string, string, string, string])
+    : (['rgba(37, 99, 235, 0.12)', 'rgba(16, 185, 129, 0.09)', 'transparent', 'rgba(59, 130, 246, 0.08)'] as [string, string, string, string]);
 
   // Secondary soft ambient mist layer for depth
-  const mistWash = [
-    'transparent',
-    'rgba(195, 215, 240, 0.15)',
-    'rgba(175, 200, 230, 0.25)',
-  ] as [string, string, string];
+  const mistWash = isClient
+    ? (['transparent', 'rgba(203, 213, 225, 0.18)', 'rgba(186, 200, 224, 0.26)'] as [string, string, string])
+    : (['transparent', 'rgba(191, 219, 254, 0.18)', 'rgba(167, 243, 208, 0.18)'] as [string, string, string]);
 
   return (
     <View style={[styles.container, style]}>

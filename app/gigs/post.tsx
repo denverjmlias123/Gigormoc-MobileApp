@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Category } from '../../services/profile';
 import {
@@ -18,14 +19,21 @@ import {
 import { aiService } from '../../services/ai';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../components/ui/Card';
+import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { showToast } from '../../components/ui/Toast';
+import { confirmDialog } from '../../lib/dialog';
 import { strings } from '../../constants/strings';
 import { GigCategoryPicker } from '../../components/gigs/GigCategoryPicker';
 import { GigTermsForm, WorkType } from '../../components/gigs/GigTermsForm';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isValidUuid = (val?: string | null): boolean => Boolean(val && UUID_REGEX.test(val.trim()));
+
 export default function PostGigScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isDesktop } = useResponsiveLayout();
   const { profile } = useAuth();
   const { editGigId } = useLocalSearchParams<{ editGigId?: string }>();
 
@@ -65,7 +73,7 @@ export default function PostGigScreen() {
       .then((data) => {
         if (mounted) {
           setCategories(data);
-          if (data.length > 0) {
+          if (data.length > 0 && !selectedCategoryId) {
             setSelectedCategoryId(data[0].id);
           }
         }
@@ -97,6 +105,22 @@ export default function PostGigScreen() {
         setExistingGigStatus(g.status as any);
         if (g.category_id) {
           setSelectedCategoryId(g.category_id);
+        }
+        // Populate application & completion days from existing deadlines
+        const nowMs = Date.now();
+        if (g.application_deadline) {
+          const diffApp = Math.max(
+            1,
+            Math.ceil((new Date(g.application_deadline).getTime() - nowMs) / (24 * 60 * 60 * 1000))
+          );
+          setAppDays(String(diffApp));
+        }
+        if (g.deadline) {
+          const diffComp = Math.max(
+            1,
+            Math.ceil((new Date(g.deadline).getTime() - nowMs) / (24 * 60 * 60 * 1000))
+          );
+          setCompletionDays(String(diffComp));
         }
       })
       .catch(() => {});
@@ -166,9 +190,54 @@ export default function PostGigScreen() {
   }, [categoryQuery, categories]);
 
   const handleSelectExistingCategory = (catId: string) => {
-    setSelectedCategoryId(catId);
-    setCustomCategoryName('');
-    setError(null);
+    // 1. Direct match in loaded categories
+    const exactCat = categories.find((c) => c.id === catId);
+    if (exactCat) {
+      setSelectedCategoryId(exactCat.id);
+      setCustomCategoryName('');
+      setError(null);
+      return;
+    }
+
+    // 2. Check suggested categories
+    const sug = suggestedCategories.find((s) => s.id === catId);
+    if (sug) {
+      const nameMatch = categories.find(
+        (c) => c.name.trim().toLowerCase() === sug.name.trim().toLowerCase()
+      );
+      if (nameMatch && isValidUuid(nameMatch.id)) {
+        setSelectedCategoryId(nameMatch.id);
+        setCustomCategoryName('');
+        setError(null);
+        return;
+      }
+      if (isValidUuid(sug.id)) {
+        setSelectedCategoryId(sug.id);
+        setCustomCategoryName('');
+        setError(null);
+        return;
+      }
+      handleSelectCustomCategory(sug.name);
+      return;
+    }
+
+    // 3. Fallback
+    if (isValidUuid(catId)) {
+      setSelectedCategoryId(catId);
+      setCustomCategoryName('');
+      setError(null);
+    } else {
+      const nameMatch = categories.find(
+        (c) => c.name.trim().toLowerCase() === catId.trim().toLowerCase()
+      );
+      if (nameMatch && isValidUuid(nameMatch.id)) {
+        setSelectedCategoryId(nameMatch.id);
+        setCustomCategoryName('');
+        setError(null);
+      } else {
+        handleSelectCustomCategory(catId);
+      }
+    }
   };
 
   const handleSelectCustomCategory = (name: string) => {
@@ -224,11 +293,45 @@ export default function PostGigScreen() {
     }
 
     const trimmedCustomCat = customCategoryName.trim();
-    if (!selectedCategoryId && !trimmedCustomCat) {
+    let finalCategoryId: string | null = null;
+    let finalCategoryName: string | null = null;
+
+    if (selectedCategoryId) {
+      if (isValidUuid(selectedCategoryId)) {
+        finalCategoryId = selectedCategoryId;
+      } else {
+        const cat =
+          categories.find((c) => c.id === selectedCategoryId) ||
+          suggestedCategories.find((s) => s.id === selectedCategoryId);
+        if (cat) {
+          const matchInDb = categories.find(
+            (c) => c.name.trim().toLowerCase() === cat.name.trim().toLowerCase()
+          );
+          if (matchInDb && isValidUuid(matchInDb.id)) {
+            finalCategoryId = matchInDb.id;
+          } else {
+            finalCategoryName = cat.name.trim();
+          }
+        } else {
+          finalCategoryName = selectedCategoryId;
+        }
+      }
+    } else if (trimmedCustomCat) {
+      const matchInDb = categories.find(
+        (c) => c.name.trim().toLowerCase() === trimmedCustomCat.toLowerCase()
+      );
+      if (matchInDb && isValidUuid(matchInDb.id)) {
+        finalCategoryId = matchInDb.id;
+      } else {
+        finalCategoryName = trimmedCustomCat;
+      }
+    }
+
+    if (!finalCategoryId && !finalCategoryName) {
       throw new Error('Please select an existing category or enter a new category name (3–40 characters).');
     }
 
-    if (!selectedCategoryId && (trimmedCustomCat.length < 3 || trimmedCustomCat.length > 40)) {
+    if (!finalCategoryId && finalCategoryName && (finalCategoryName.length < 3 || finalCategoryName.length > 40)) {
       throw new Error('New category name must be between 3 and 40 characters.');
     }
 
@@ -261,8 +364,8 @@ export default function PostGigScreen() {
       title: trimmedTitle,
       description: trimmedDesc,
       requirements: requirements.trim(),
-      category_id: selectedCategoryId || null,
-      category_name: selectedCategoryId ? null : trimmedCustomCat,
+      category_id: finalCategoryId,
+      category_name: finalCategoryName,
       price_min: Math.round(pMin * 100),
       price_max: Math.round(pMax * 100),
       work_type: workType,
@@ -288,6 +391,25 @@ export default function PostGigScreen() {
 
   const inFlightRef = React.useRef(false);
   const [submitted, setSubmitted] = useState(false);
+
+  const handleBackPress = async () => {
+    const hasUnsaved = Boolean(title.trim() || description.trim() || priceMinStr.trim());
+    if (hasUnsaved && !submitted && !editGigId) {
+      const discard = await confirmDialog({
+        title: 'Discard Gig Draft?',
+        message: 'You have unsaved changes. Would you like to leave without saving?',
+        confirmText: 'Leave',
+        cancelText: 'Keep Editing',
+        destructive: true,
+      });
+      if (!discard) return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/gigs');
+    }
+  };
 
   const handleSaveDraft = async () => {
     if (inFlightRef.current || loading || submitted) return;
@@ -320,6 +442,18 @@ export default function PostGigScreen() {
     setError(null);
     try {
       const params = validateAndBuildParams();
+
+      const confirmed = await confirmDialog({
+        title: 'Confirm Post Gig',
+        message:
+          editGigId && existingGigStatus === 'open'
+            ? 'Are you sure you want to update and publish these changes?'
+            : 'Are you sure you want to publish this gig? Freelancers in Ormoc will be able to view and apply immediately.',
+        confirmText: strings.gigs.publishDraftConfirm,
+        cancelText: strings.common.cancel,
+      });
+      if (!confirmed) return;
+
       inFlightRef.current = true;
       setLoading(true);
       if (editGigId) {
@@ -364,7 +498,8 @@ export default function PostGigScreen() {
           style={{ marginTop: 16, marginBottom: 8 }}
         />
         <Button
-          title="← Go Back"
+          title="Go Back"
+          icon="arrow-back"
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
@@ -378,104 +513,153 @@ export default function PostGigScreen() {
     );
   }
 
+  const activeCategoryName =
+    customCategoryName.trim() ||
+    categories.find((c) => c.id === selectedCategoryId)?.name ||
+    suggestedCategories.find((s) => s.id === selectedCategoryId)?.name ||
+    'General Category';
+
+  const previewMin = Math.max(0, Math.round((parseFloat(priceMinStr) || 0) * 100));
+  const previewMax = Math.max(previewMin, Math.round((parseFloat(priceMaxStr || priceMinStr) || 0) * 100));
+  const previewDays = Math.max(1, parseInt(completionDays, 10) || 14);
+  const previewAppDays = Math.max(1, parseInt(appDays, 10) || 7);
+  const previewGig: GigSummary = {
+    id: 'preview',
+    title: title.trim() || 'Your Gig Title Preview',
+    category_name: activeCategoryName,
+    price_min: previewMin || 50000,
+    price_max: previewMax || 150000,
+    work_type: workType,
+    area: area.trim() || 'Ormoc City',
+    status: existingGigStatus || 'open',
+    application_deadline: new Date(Date.now() + previewAppDays * 24 * 60 * 60 * 1000).toISOString(),
+    deadline: new Date(Date.now() + previewDays * 24 * 60 * 60 * 1000).toISOString(),
+    client: {
+      display_name: profile?.display_name || 'You',
+      client_rating_avg: profile?.client_rating_avg || 5.0,
+      client_rating_count: profile?.client_rating_count || 1,
+    },
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/gigs');
-            }
-          }}
-          style={styles.backBtn}
-        >
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {editGigId ? 'Edit Gig' : strings.gigs.postGigTitle}
-        </Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title={editGigId ? 'Edit Gig' : strings.gigs.postGigTitle}
+        subtitle="Describe your task, set a fair PHP budget, and publish to Ormoc freelancers"
+        onBack={handleBackPress}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.contentInner, isDesktop && styles.desktopTwoCol]}>
+          <View style={isDesktop ? styles.desktopFormCol : undefined}>
+            {error && (
+              <AlertBox tone="danger" message={error} style={{ marginBottom: 16 }} />
+            )}
+
+            <Card
+              tone="neo-glass"
+              padding="md"
+              headerTitle="Gig Overview"
+              headerSubtitle="Clear titles and structured descriptions attract better proposals"
+              headerIcon="document-text-outline"
+              style={{ marginBottom: 16 }}
+            >
+              <TextInput
+                label="Gig Title *"
+                placeholder="e.g. Need experienced tutor for Grade 10 Math"
+                value={title}
+                onChangeText={setTitle}
+                maxLength={80}
+                showCharCount
+              />
+
+              <TextInput
+                label="Description *"
+                placeholder="Detailed explanation of the project or task..."
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                style={{ minHeight: 90 }}
+                maxLength={2000}
+                showCharCount
+              />
+
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+                <Button
+                  title={polishing ? 'Polishing...' : 'Polish with AI'}
+                  variant="ai"
+                  size="sm"
+                  fullWidth={false}
+                  loading={polishing}
+                  disabled={polishing || !description.trim()}
+                  onPress={handlePolishDescription}
+                />
+              </View>
+            </Card>
+
+            {/* Unlocked Category Picker (features: strings.gigs.didYouMeanLabel, strings.gigs.confirmCreateNewCategoryPrefix) */}
+            <GigCategoryPicker
+              categories={categories}
+              catsLoading={catsLoading}
+              selectedCategoryId={selectedCategoryId}
+              customCategoryName={customCategoryName}
+              setCustomCategoryName={setCustomCategoryName}
+              categoryQuery={categoryQuery}
+              setCategoryQuery={setCategoryQuery}
+              suggestedCategories={suggestedCategories}
+              aiProposedCategory={aiProposedCategory}
+              similarCategories={similarCategories}
+              suggestLoading={suggestLoading}
+              onAiSuggestCategory={handleAiSuggestCategory}
+              onSelectExistingCategory={handleSelectExistingCategory}
+              onSelectCustomCategory={handleSelectCustomCategory}
+            />
+
+            {/* Terms, Budget & Deadlines */}
+            <GigTermsForm
+              requirements={requirements}
+              setRequirements={setRequirements}
+              priceMinStr={priceMinStr}
+              setPriceMinStr={setPriceMinStr}
+              priceMaxStr={priceMaxStr}
+              setPriceMaxStr={setPriceMaxStr}
+              workType={workType}
+              setWorkType={setWorkType}
+              area={area}
+              setArea={setArea}
+              appDays={appDays}
+              setAppDays={setAppDays}
+              completionDays={completionDays}
+              setCompletionDays={setCompletionDays}
+              editGigId={editGigId}
+              existingGigStatus={existingGigStatus}
+              loading={loading}
+              onPublish={handlePublish}
+              onSaveDraft={handleSaveDraft}
+            />
           </View>
-        )}
 
-        <TextInput
-          label="Gig Title *"
-          placeholder="e.g. Need experienced tutor for Grade 10 Math"
-          value={title}
-          onChangeText={setTitle}
-        />
-
-        <TextInput
-          label="Description *"
-          placeholder="Detailed explanation of the project or task..."
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={4}
-          style={{ minHeight: 90 }}
-        />
-
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={handlePolishDescription}
-            disabled={polishing || !description.trim()}
-            style={[styles.aiSuggestBtn, { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary }]}
-          >
-            <Text style={[styles.aiSuggestBtnText, { color: theme.colors.primary }]}>
-              {polishing ? '✨ Polishing...' : '✨ Polish with AI'}
-            </Text>
-          </TouchableOpacity>
+          {isDesktop && (
+            <View style={styles.desktopPreviewCol}>
+              <Text style={[styles.previewTitle, { color: theme.colors.muted }]}>
+                LIVE GIG CARD PREVIEW
+              </Text>
+              <GigCard gig={previewGig} />
+              <AlertBox
+                tone="info"
+                icon="bulb-outline"
+                title="Tips for Fast Proposals"
+                message={'• Clear deliverables & budget ranges attract 2× more Ormoc freelancers.\n• Use "Polish with AI" to structure your scope clearly.'}
+              />
+            </View>
+          )}
         </View>
-
-        {/* Unlocked Category Picker (features: strings.gigs.didYouMeanLabel, strings.gigs.confirmCreateNewCategoryPrefix) */}
-        <GigCategoryPicker
-          categories={categories}
-          catsLoading={catsLoading}
-          selectedCategoryId={selectedCategoryId}
-          customCategoryName={customCategoryName}
-          setCustomCategoryName={setCustomCategoryName}
-          categoryQuery={categoryQuery}
-          setCategoryQuery={setCategoryQuery}
-          suggestedCategories={suggestedCategories}
-          aiProposedCategory={aiProposedCategory}
-          similarCategories={similarCategories}
-          suggestLoading={suggestLoading}
-          onAiSuggestCategory={handleAiSuggestCategory}
-          onSelectExistingCategory={handleSelectExistingCategory}
-          onSelectCustomCategory={handleSelectCustomCategory}
-        />
-
-        {/* Terms, Budget & Deadlines */}
-        <GigTermsForm
-          requirements={requirements}
-          setRequirements={setRequirements}
-          priceMinStr={priceMinStr}
-          setPriceMinStr={setPriceMinStr}
-          priceMaxStr={priceMaxStr}
-          setPriceMaxStr={setPriceMaxStr}
-          workType={workType}
-          setWorkType={setWorkType}
-          area={area}
-          setArea={setArea}
-          appDays={appDays}
-          setAppDays={setAppDays}
-          completionDays={completionDays}
-          setCompletionDays={setCompletionDays}
-          editGigId={editGigId}
-          existingGigStatus={existingGigStatus}
-          loading={loading}
-          onPublish={handlePublish}
-          onSaveDraft={handleSaveDraft}
-        />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -483,44 +667,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: {
-    marginBottom: 6,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
   scrollContent: {
     padding: 20,
     paddingBottom: 60,
   },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
+  contentInner: {
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
   },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
+  desktopTwoCol: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 28,
   },
-  aiSuggestBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
+  desktopFormCol: {
+    flex: 1.5,
   },
-  aiSuggestBtnText: {
+  desktopPreviewCol: {
+    flex: 1,
+    gap: 12,
+  },
+  previewTitle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
   blockedContainer: {
     alignItems: 'center',

@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createRequestId } from '../../lib/errors';
+import { theme } from '../../app/theme';
 import { Button } from './Button';
 
 interface ErrorBoundaryProps {
@@ -42,16 +44,38 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render(): React.ReactNode {
     if (this.state.hasError) {
       return (
-        <View style={styles.container} accessibilityRole="alert">
-          <View style={styles.card}>
-            <Text style={styles.title}>Something went wrong</Text>
-            <Text style={styles.subtitle}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]} accessibilityRole="alert">
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+              theme.shadow.raised,
+            ]}
+          >
+            <View style={[styles.iconBadge, { backgroundColor: theme.colors.dangerSoft }]}>
+              <Ionicons name="warning-outline" size={28} color={theme.colors.danger} />
+            </View>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Something went wrong</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
               We ran into an unexpected display issue. Your data is safe—please reload to continue.
             </Text>
             {Boolean(this.state.requestId) && (
-              <Text style={styles.refCode}>Support ID: {this.state.requestId}</Text>
+              <View style={[styles.refPill, { backgroundColor: theme.colors.surfaceAlt }]}>
+                <Text style={[styles.refCode, { color: theme.colors.muted }]}>
+                  Support ID: {this.state.requestId}
+                </Text>
+              </View>
             )}
-            <Button title="Something went wrong. Reload" onPress={this.handleReload} variant="primary" />
+            <Button
+              title="Something went wrong. Reload"
+              onPress={this.handleReload}
+              variant="primary"
+              icon="refresh"
+              fullWidth
+            />
           </View>
         </View>
       );
@@ -67,35 +91,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: '#F8FAFC',
   },
   card: {
     maxWidth: 420,
     width: '100%',
-    padding: 24,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    padding: 26,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     alignItems: 'center',
+  },
+  iconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#475569',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  refPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 20,
   },
   refCode: {
     fontSize: 12,
-    color: '#64748B',
-    marginBottom: 20,
+    fontWeight: '600',
   },
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { toAppError } from '../../lib/errors';
@@ -17,6 +17,7 @@ type ForgotPasswordStep = 'email' | 'otp' | 'new_password';
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const { profile } = useAuth();
   const params = useLocalSearchParams<{ email?: string }>();
 
@@ -32,7 +33,6 @@ export default function ForgotPasswordScreen() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -60,7 +60,6 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       const res = await authService.resetPassword(normalizedEmail);
-      setSent(true);
       setStep('otp');
       setOtp('');
       setDevOtp(res?.devOtp || null);
@@ -159,190 +158,226 @@ export default function ForgotPasswordScreen() {
     ? error
     : null;
 
+  const stepNumber = step === 'email' ? 1 : step === 'otp' ? 2 : 3;
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={[theme.type.title, { color: theme.colors.text }]}>
-          {step === 'new_password' ? strings.auth.passwordResetReady : strings.auth.forgotPasswordTitle}
-        </Text>
-        <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>
-          {step === 'new_password'
-            ? strings.auth.passwordPolicyTitle
-            : strings.auth.passwordResetDescription}
-        </Text>
-
-        {error && !emailError && step === 'email' ? (
-          <View
-            accessibilityRole="alert"
-            style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
-          >
-            <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
-          </View>
-        ) : null}
-
-        {step === 'otp' ? (
-          <View style={styles.otpSection}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: isWide ? 48 : topSpace + 12, paddingBottom: isWide ? 48 : bottomSpace + 16 },
+          isWide && styles.contentWide,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View
+          style={[
+            styles.formCard,
+            isWide && [
+              styles.formCardWide,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radii.card,
+              },
+              theme.shadow.card,
+            ],
+          ]}
+        >
+          <Text style={[theme.type.small, { color: theme.colors.muted, marginBottom: 6 }]}>
+            Step {stepNumber} of 3
+          </Text>
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
             <View
-              accessibilityRole="summary"
-              style={[styles.message, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}
-            >
-              <Text style={[theme.type.body, styles.messageTitle, { color: theme.colors.successText }]}>
-                {strings.auth.passwordResetSentTitle}
-              </Text>
-              <Text style={[theme.type.body, { color: theme.colors.successText }]}>{strings.auth.passwordResetSent}</Text>
-              <Text style={[theme.type.small, { color: theme.colors.successText, marginTop: 4 }]}>
-                {strings.auth.otpCodeSentNotice(normalizedEmail)}
-              </Text>
-            </View>
+              style={[
+                styles.progressFill,
+                { width: `${Math.round((stepNumber / 3) * 100)}%`, backgroundColor: theme.colors.primary },
+              ]}
+            />
+          </View>
 
-            {devOtp ? (
+          <Text style={[theme.type.title, { color: theme.colors.text }]}>
+            {step === 'new_password' ? strings.auth.passwordResetReady : strings.auth.forgotPasswordTitle}
+          </Text>
+          <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>
+            {step === 'new_password'
+              ? strings.auth.passwordPolicyTitle
+              : strings.auth.passwordResetDescription}
+          </Text>
+
+          {error && !emailError && step === 'email' ? (
+            <View
+              accessibilityRole="alert"
+              style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
+            >
+              <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
+            </View>
+          ) : null}
+
+          {step === 'otp' ? (
+            <View style={styles.otpSection}>
               <View
-                style={[
-                  styles.devHelperCard,
-                  { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
-                ]}
+                accessibilityRole="summary"
+                style={[styles.message, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}
               >
-                <Text style={[styles.devHelperTitle, { color: theme.colors.primary }]}>
-                  {strings.auth.otpDevTestNotice}
+                <Text style={[theme.type.body, styles.messageTitle, { color: theme.colors.successText }]}>
+                  {strings.auth.passwordResetSentTitle}
                 </Text>
-                <Text style={[styles.devHelperCode, { color: theme.colors.text }]}>
-                  {devOtp}
+                <Text style={[theme.type.body, { color: theme.colors.successText }]}>{strings.auth.passwordResetSent}</Text>
+                <Text style={[theme.type.small, { color: theme.colors.successText, marginTop: 4 }]}>
+                  {strings.auth.otpCodeSentNotice(normalizedEmail)}
                 </Text>
+              </View>
+
+              {devOtp ? (
+                <View
+                  style={[
+                    styles.devHelperCard,
+                    { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
+                  ]}
+                >
+                  <Text style={[styles.devHelperTitle, { color: theme.colors.primary }]}>
+                    {strings.auth.otpDevTestNotice}
+                  </Text>
+                  <Text style={[styles.devHelperCode, { color: theme.colors.text }]}>
+                    {devOtp}
+                  </Text>
+                  <Button
+                    title={strings.auth.otpDevCopyFillBtn}
+                    variant="secondary"
+                    onPress={() => {
+                      setOtp(devOtp);
+                      if (error) setError(null);
+                    }}
+                    style={styles.devHelperBtn}
+                  />
+                </View>
+              ) : null}
+
+              <OtpInput
+                value={otp}
+                onChangeText={(val) => {
+                  setOtp(val);
+                  if (error) setError(null);
+                }}
+                error={error}
+                disabled={verifying}
+                onComplete={(completedCode) => handleVerifyOtp(completedCode)}
+              />
+
+              <View style={styles.actions}>
                 <Button
-                  title={strings.auth.otpDevCopyFillBtn}
+                  title={verifying ? strings.auth.otpVerifying : strings.auth.otpVerifyButton}
+                  onPress={() => handleVerifyOtp()}
+                  loading={verifying}
+                  disabled={verifying || otp.length < 6}
+                />
+
+                <Button
+                  title={cooldown > 0 ? strings.auth.otpResendIn(cooldown) : strings.auth.otpResendNow}
                   variant="secondary"
-                  onPress={() => {
-                    setOtp(devOtp);
-                    if (error) setError(null);
-                  }}
-                  style={styles.devHelperBtn}
+                  onPress={handleResendOtp}
+                  loading={resending}
+                  disabled={resending || cooldown > 0 || verifying}
+                />
+
+                <Button
+                  title={strings.auth.passwordResetReturnToLogin}
+                  variant="ghost"
+                  onPress={handleCancel}
+                  disabled={verifying}
                 />
               </View>
-            ) : null}
-
-            <OtpInput
-              value={otp}
-              onChangeText={(val) => {
-                setOtp(val);
-                if (error) setError(null);
-              }}
-              error={error}
-              disabled={verifying}
-              onComplete={(completedCode) => handleVerifyOtp(completedCode)}
-            />
-
+            </View>
+          ) : step === 'new_password' ? (
             <View style={styles.actions}>
-              <Button
-                title={verifying ? strings.auth.otpVerifying : strings.auth.otpVerifyButton}
-                onPress={() => handleVerifyOtp()}
-                loading={verifying}
-                disabled={verifying || otp.length < 6}
+              {error ? (
+                <View
+                  accessibilityRole="alert"
+                  style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
+                >
+                  <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TextInput
+                label={strings.auth.newPassword}
+                value={newPassword}
+                onChangeText={(val) => {
+                  setNewPassword(val);
+                  if (error) setError(null);
+                }}
+                isPassword
+                autoCapitalize="none"
+                autoComplete="new-password"
+              />
+
+              <PasswordPolicyChecklist
+                password={newPassword}
+                email={normalizedEmail}
+                displayName={profile?.display_name ?? ''}
+              />
+
+              <TextInput
+                label={strings.auth.confirmNewPassword}
+                value={confirmPassword}
+                onChangeText={(val) => {
+                  setConfirmPassword(val);
+                  if (error) setError(null);
+                }}
+                isPassword
+                autoCapitalize="none"
+                autoComplete="new-password"
               />
 
               <Button
-                title={cooldown > 0 ? strings.auth.otpResendIn(cooldown) : strings.auth.otpResendNow}
+                title={strings.common.save}
+                onPress={handleSaveNewPassword}
+                loading={savingPassword}
+                disabled={savingPassword || !newPassword || !confirmPassword}
+              />
+
+              <Button
+                title={strings.common.cancel}
                 variant="secondary"
-                onPress={handleResendOtp}
-                loading={resending}
-                disabled={resending || cooldown > 0 || verifying}
+                onPress={handleCancel}
+                disabled={savingPassword}
               />
-
+            </View>
+          ) : (
+            <>
+              <TextInput
+                label={strings.auth.passwordResetEmailLabel}
+                value={email}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  if (error) setError(null);
+                }}
+                placeholder={strings.auth.passwordResetEmailPlaceholder}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={emailError}
+              />
+              <Button
+                title={strings.auth.passwordResetSend}
+                onPress={handleReset}
+                loading={loading}
+                disabled={loading}
+              />
               <Button
                 title={strings.auth.passwordResetReturnToLogin}
                 variant="ghost"
-                onPress={handleCancel}
-                disabled={verifying}
+                onPress={() => router.replace('/(auth)/login')}
+                disabled={loading}
+                style={styles.returnButton}
               />
-            </View>
-          </View>
-        ) : step === 'new_password' ? (
-          <View style={styles.actions}>
-            {error ? (
-              <View
-                accessibilityRole="alert"
-                style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
-              >
-                <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
-              </View>
-            ) : null}
-
-            <TextInput
-              label={strings.auth.newPassword}
-              value={newPassword}
-              onChangeText={(val) => {
-                setNewPassword(val);
-                if (error) setError(null);
-              }}
-              isPassword
-              autoCapitalize="none"
-              autoComplete="new-password"
-            />
-
-            <PasswordPolicyChecklist
-              password={newPassword}
-              email={normalizedEmail}
-              displayName={profile?.display_name ?? ''}
-            />
-
-            <TextInput
-              label={strings.auth.confirmNewPassword}
-              value={confirmPassword}
-              onChangeText={(val) => {
-                setConfirmPassword(val);
-                if (error) setError(null);
-              }}
-              isPassword
-              autoCapitalize="none"
-              autoComplete="new-password"
-            />
-
-            <Button
-              title={strings.common.save}
-              onPress={handleSaveNewPassword}
-              loading={savingPassword}
-              disabled={savingPassword || !newPassword || !confirmPassword}
-            />
-
-            <Button
-              title={strings.common.cancel}
-              variant="secondary"
-              onPress={handleCancel}
-              disabled={savingPassword}
-            />
-          </View>
-        ) : (
-          <>
-            <TextInput
-              label={strings.auth.passwordResetEmailLabel}
-              value={email}
-              onChangeText={(value) => {
-                setEmail(value);
-                if (error) setError(null);
-              }}
-              placeholder={strings.auth.passwordResetEmailPlaceholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              error={emailError}
-            />
-            <Button
-              title={strings.auth.passwordResetSend}
-              onPress={handleReset}
-              loading={loading}
-              disabled={loading}
-            />
-            <Button
-              title={strings.auth.passwordResetReturnToLogin}
-              variant="ghost"
-              onPress={() => router.replace('/(auth)/login')}
-              disabled={loading}
-              style={styles.returnButton}
-            />
-          </>
-        )}
+            </>
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -350,7 +385,20 @@ export default function ForgotPasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flexGrow: 1, padding: 24, paddingTop: 48, justifyContent: 'center' },
+  content: { flexGrow: 1, paddingHorizontal: 24 },
+  contentWide: { justifyContent: 'center', alignItems: 'center' },
+  formCard: { width: '100%', maxWidth: 480, alignSelf: 'center' },
+  formCardWide: { padding: 36, borderWidth: 1 },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
   subtitle: { marginTop: 8, marginBottom: 24 },
   message: { borderLeftWidth: 4, borderRadius: 12, padding: 14, marginBottom: 16, gap: 6 },
   messageTitle: { fontWeight: '700' },

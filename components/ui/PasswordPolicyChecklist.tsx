@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useAppTheme } from '../../app/theme';
+import { useAppTheme, useResponsiveLayout } from '../../app/theme';
 import { strings } from '../../constants/strings';
 import { getPasswordChecks } from '../../utils/passwordPolicy';
 
@@ -23,6 +23,8 @@ const checkLabels = [
 
 export function PasswordPolicyChecklist({ password, email, displayName }: Props) {
   const theme = useAppTheme();
+  const { width } = useResponsiveLayout();
+  const isVeryNarrow = width > 0 && width < 360;
   const checks = getPasswordChecks(password, email, displayName);
   const totalCount = checkLabels.filter(([key]) => checks[key]).length;
   const allPassed = checkLabels.every(([key]) => checks[key]);
@@ -40,11 +42,11 @@ export function PasswordPolicyChecklist({ password, email, displayName }: Props)
       </View>
       <View style={styles.grid}>
         {checkLabels.map(([key, label]) => (
-          <View key={key} style={styles.rule}>
+          <View key={key} style={[styles.rule, isVeryNarrow && { width: '100%' }]}>
             <Text style={{ color: checks[key] ? theme.colors.success : theme.colors.muted }}>
               {checks[key] ? '✓' : '○'}
             </Text>
-            <Text style={[theme.type.caption, { color: checks[key] ? theme.colors.text : theme.colors.muted }]}>{label}</Text>
+            <Text style={[theme.type.caption, { color: checks[key] ? theme.colors.text : theme.colors.muted, flex: 1 }]}>{label}</Text>
           </View>
         ))}
       </View>

@@ -14,20 +14,18 @@ describe('In-App Dialogs & Transaction Loop Verification', () => {
     assert.ok(dialogSrc.includes('export function showConfirmDialog'), 'Must export showConfirmDialog');
     assert.ok(dialogSrc.includes('export const ConfirmDialog'), 'Must export ConfirmDialog');
     assert.ok(dialogSrc.includes('export const ConfirmDialogProvider'), 'Must export ConfirmDialogProvider');
-    assert.ok(dialogSrc.includes('export const useConfirmDialog'), 'Must export useConfirmDialog');
 
     const layoutPath = path.join(ROOT, 'app', '_layout.tsx');
     const layoutSrc = fs.readFileSync(layoutPath, 'utf8');
     assert.ok(layoutSrc.includes('ConfirmDialogProvider'), 'app/_layout.tsx must mount ConfirmDialogProvider');
   });
 
-  it('2. lib/dialog.ts delegates confirmDialog to in-app ConfirmDialog and notify to showToast', () => {
+  it('2. lib/dialog.ts delegates confirmDialog to in-app ConfirmDialog', () => {
     const libDialogPath = path.join(ROOT, 'lib', 'dialog.ts');
     assert.ok(fs.existsSync(libDialogPath), 'lib/dialog.ts must exist');
     const src = fs.readFileSync(libDialogPath, 'utf8');
 
     assert.ok(src.includes('showConfirmDialog'), 'confirmDialog must delegate to showConfirmDialog');
-    assert.ok(src.includes('showToast'), 'notify must delegate to showToast');
     assert.ok(!src.includes('window.confirm'), 'lib/dialog.ts must not call window.confirm');
     assert.ok(!src.includes('window.alert'), 'lib/dialog.ts must not call window.alert');
     assert.ok(!src.includes('Alert.alert'), 'lib/dialog.ts must not call Alert.alert');

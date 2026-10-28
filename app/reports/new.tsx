@@ -4,17 +4,20 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import {
   reportsService,
   ReportTargetType,
   ReportReasonCategory,
 } from '../../services/reports';
 import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../components/ui/Card';
+import { Chip } from '../../components/ui/Chip';
+import { TextInput } from '../../components/ui/TextInput';
 import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
@@ -31,6 +34,7 @@ const REASON_CATEGORIES: { label: string; value: ReportReasonCategory }[] = [
 export default function NewReportScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { insets } = useResponsiveLayout();
   const { targetType, targetId, targetTitle } = useLocalSearchParams<{
     targetType: ReportTargetType;
     targetId: string;
@@ -44,6 +48,14 @@ export default function NewReportScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = React.useRef(false);
+
+  const safeNavigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
   const handleSubmit = async () => {
     if (!targetId || !targetType || inFlightRef.current || submitting || submitted) return;
@@ -66,7 +78,11 @@ export default function NewReportScreen() {
       });
       setSubmitted(true);
       showToast(strings.toasts.reportSubmitted);
-      router.replace('/(tabs)');
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       const msg = err?.message || 'Failed to submit report.';
       setError(msg);
@@ -78,160 +94,110 @@ export default function NewReportScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)');
-            }
-          }}
-          style={styles.backButton}
-        >
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
-        </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Submit a Report</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title="Submit a Report"
+        subtitle="Flag an issue for moderation review"
+        onBack={safeNavigateBack}
+        maxWidth={600}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Target Header */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.muted }]}>Reporting Target</Text>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            {targetTitle || `${targetType?.toUpperCase()} (${targetId?.slice(0, 8)})`}
-          </Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.centeredBlock, { gap: 16 }]}>
+          {/* Target Header */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <Text style={[styles.label, { color: theme.colors.muted }]}>Reporting Target</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>
+              {targetTitle || `${targetType?.toUpperCase()} (${targetId?.slice(0, 8)})`}
+            </Text>
+          </Card>
 
-        {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
-            <Text style={styles.errorText}>{error}</Text>
+          {error && <AlertBox tone="danger" message={error} />}
+
+          {/* Reason Category */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Reason Category *</Text>
+            <View style={styles.categoryGrid}>
+              {REASON_CATEGORIES.map((c) => {
+                const isSelected = category === c.value;
+                return (
+                  <Chip
+                    key={c.value}
+                    label={c.label}
+                    selected={isSelected}
+                    tone="danger"
+                    onPress={() => setCategory(c.value)}
+                  />
+                );
+              })}
+            </View>
+          </Card>
+
+          {/* Details Textarea */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <TextInput
+              label="Explanation & Evidence *"
+              placeholder="Explain what happened, what went wrong, and any relevant dates or communication context..."
+              multiline
+              numberOfLines={5}
+              value={details}
+              onChangeText={setDetails}
+              maxLength={2000}
+              helperText={`${details.length}/2000 characters (min 10)`}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Evidence Link */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <TextInput
+              label="Evidence Link / Storage Path (Optional)"
+              placeholder="e.g. Screenshot link, cloud folder URL, or chat reference"
+              value={evidencePath}
+              onChangeText={setEvidencePath}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Submit */}
+          <View style={styles.submitContainer}>
+            <Button
+              title={submitting ? 'Submitting Report...' : 'Submit Report for Moderation'}
+              variant="danger"
+              icon="flag-outline"
+              onPress={handleSubmit}
+              disabled={details.trim().length < 10 || submitting}
+              loading={submitting}
+            />
           </View>
-        )}
-
-        {/* Reason Category */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Reason Category *</Text>
-          <View style={styles.categoryGrid}>
-            {REASON_CATEGORIES.map((c) => {
-              const isSelected = category === c.value;
-              return (
-                <TouchableOpacity
-                  key={c.value}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: isSelected ? theme.colors.danger : theme.colors.border,
-                      backgroundColor: isSelected ? '#FDE8EA' : theme.colors.surface,
-                    },
-                  ]}
-                  onPress={() => setCategory(c.value)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      { color: isSelected ? '#b91c1c' : theme.colors.text },
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Details Textarea */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Explanation & Evidence *
-          </Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="Explain what happened, what went wrong, and any relevant dates or communication context..."
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            numberOfLines={5}
-            value={details}
-            onChangeText={setDetails}
-            maxLength={2000}
-          />
-          <Text style={[styles.charCount, { color: theme.colors.muted }]}>
-            {details.length}/2000 characters (min 10)
-          </Text>
-        </View>
-
-        {/* Evidence Link */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Evidence Link / Storage Path (Optional)
-          </Text>
-          <TextInput
-            style={[
-              styles.textInput,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="e.g. Screenshot link, cloud folder URL, or chat reference"
-            placeholderTextColor={theme.colors.muted}
-            value={evidencePath}
-            onChangeText={setEvidencePath}
-          />
-        </View>
-
-        {/* Submit */}
-        <View style={styles.submitContainer}>
-          <Button
-            title={submitting ? 'Submitting Report...' : 'Submit Report for Moderation'}
-            variant="danger"
-            onPress={handleSubmit}
-            disabled={details.trim().length < 10 || submitting}
-            loading={submitting}
-          />
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  centeredBlock: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 16,
   },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+  cardGap: {
     gap: 8,
   },
   label: {
@@ -247,45 +213,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 110,
-    textAlignVertical: 'top',
-  },
-  charCount: {
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  errorCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

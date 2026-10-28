@@ -4,8 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { strings } from '../../constants/strings';
 import { formatPrice } from './GigCard';
+import { Button } from './Button';
 
-export type LoopStageKey =
+type LoopStageKey =
   | 'posted'
   | 'applied'
   | 'accepted'
@@ -17,7 +18,7 @@ export type LoopStageKey =
   | 'done'
   | 'reviewed';
 
-export const LOOP_STAGE_ORDER: LoopStageKey[] = [
+const LOOP_STAGE_ORDER: LoopStageKey[] = [
   'posted',
   'applied',
   'accepted',
@@ -30,7 +31,7 @@ export const LOOP_STAGE_ORDER: LoopStageKey[] = [
   'reviewed',
 ];
 
-export type NextActorRole = 'client' | 'freelancer' | 'both' | 'none';
+type NextActorRole = 'client' | 'freelancer' | 'both' | 'none';
 
 export interface LoopStageState {
   currentStage: LoopStageKey;
@@ -44,7 +45,7 @@ export interface LoopStageState {
   nextStepDescription: string;
 }
 
-export interface ComputeAgreementLoopParams {
+interface ComputeAgreementLoopParams {
   viewerRole: 'client' | 'freelancer';
   agreementStatus: 'active' | 'completed' | 'cancelled' | 'disputed';
   agreedPriceCentavos: number;
@@ -481,6 +482,8 @@ export const NextStepBanner: React.FC<NextStepBannerProps> = ({
         {
           backgroundColor: isTurn ? theme.colors.primarySoft : theme.colors.surfaceAlt,
           borderColor: isTurn ? theme.colors.primary : theme.colors.border,
+          borderLeftWidth: 4,
+          borderLeftColor: isTurn ? theme.colors.primary : theme.colors.borderStrong,
         },
       ]}
       accessibilityRole="summary"
@@ -497,12 +500,12 @@ export const NextStepBanner: React.FC<NextStepBannerProps> = ({
           <Ionicons
             name={isTurn ? 'flash' : 'time-outline'}
             size={12}
-            color={isTurn ? '#ffffff' : theme.colors.text}
+            color={isTurn ? theme.colors.heroText : theme.colors.text}
           />
           <Text
             style={[
               styles.turnPillText,
-              { color: isTurn ? '#ffffff' : theme.colors.text },
+              { color: isTurn ? theme.colors.heroText : theme.colors.text },
             ]}
           >
             {isTurn ? strings.loop.yourTurnBadge : strings.loop.waitingBadge}
@@ -532,31 +535,23 @@ export const NextStepBanner: React.FC<NextStepBannerProps> = ({
       {(onActionPress || onOpenChatPress) && (
         <View style={styles.bannerActionsRow}>
           {onActionPress && actionLabel && (
-            <TouchableOpacity
-              style={[styles.bannerPrimaryBtn, { backgroundColor: theme.colors.primary }]}
+            <Button
+              title={actionLabel}
               onPress={onActionPress}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.bannerPrimaryBtnText}>{actionLabel}</Text>
-            </TouchableOpacity>
+              variant="primary"
+              size="sm"
+              rightIcon="arrow-forward"
+            />
           )}
 
           {onOpenChatPress && (
-            <TouchableOpacity
-              style={[
-                styles.bannerChatBtn,
-                {
-                  borderColor: theme.colors.primary,
-                  backgroundColor: theme.colors.surface,
-                },
-              ]}
+            <Button
+              title={strings.loop.openChatBtn}
               onPress={onOpenChatPress}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.bannerChatBtnText, { color: theme.colors.primary }]}>
-                {strings.loop.openChatBtn}
-              </Text>
-            </TouchableOpacity>
+              variant="secondary"
+              size="sm"
+              icon="chatbubble-ellipses-outline"
+            />
           )}
         </View>
       )}
@@ -569,6 +564,8 @@ interface TimelineProps {
   viewerRole: 'client' | 'freelancer';
   loopState?: LoopStageState;
   compact?: boolean;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 export const Timeline: React.FC<TimelineProps> = ({
@@ -576,9 +573,12 @@ export const Timeline: React.FC<TimelineProps> = ({
   viewerRole,
   loopState,
   compact = false,
+  collapsible = false,
+  defaultCollapsed = false,
 }) => {
   const theme = useAppTheme();
   const activeIdx = LOOP_STAGE_ORDER.indexOf(currentStage);
+  const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
   const getStageRoleHint = (stage: LoopStageKey): string => {
     const isClient = viewerRole === 'client';
@@ -659,15 +659,71 @@ export const Timeline: React.FC<TimelineProps> = ({
         { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
       ]}
     >
-      <View style={styles.timelineHeaderRow}>
+      <TouchableOpacity
+        disabled={!collapsible}
+        activeOpacity={0.75}
+        onPress={() => setCollapsed((prev) => !prev)}
+        style={[styles.timelineHeaderRow, collapsed && { marginBottom: 6 }]}
+      >
         <Text style={[styles.timelineTitle, { color: theme.colors.text }]}>
           {strings.loop.timelineTitle}
         </Text>
-        <Text style={[styles.timelineStepCounter, { color: theme.colors.muted }]}>
-          Stage {activeIdx + 1} of {LOOP_STAGE_ORDER.length}
-        </Text>
-      </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[styles.timelineStepCounter, { color: theme.colors.muted }]}>
+            Stage {activeIdx + 1} of {LOOP_STAGE_ORDER.length}
+          </Text>
+          {collapsible ? (
+            <Ionicons
+              name={collapsed ? 'chevron-down' : 'chevron-up'}
+              size={16}
+              color={theme.colors.primary}
+            />
+          ) : null}
+        </View>
+      </TouchableOpacity>
 
+      {collapsible && collapsed ? (
+        <View style={styles.compactTimelineWrap}>
+          <View style={styles.compactDotsRow}>
+            {LOOP_STAGE_ORDER.map((stage, index) => {
+              const isDone = index < activeIdx;
+              const isCurrent = index === activeIdx;
+              return (
+                <React.Fragment key={stage}>
+                  <View
+                    style={[
+                      styles.compactDot,
+                      {
+                        backgroundColor: isDone
+                          ? theme.colors.success
+                          : isCurrent
+                          ? theme.colors.primary
+                          : theme.colors.border,
+                        transform: [{ scale: isCurrent ? 1.25 : 1 }],
+                      },
+                    ]}
+                  />
+                  {index < LOOP_STAGE_ORDER.length - 1 && (
+                    <View
+                      style={[
+                        styles.compactLine,
+                        {
+                          backgroundColor: isDone ? theme.colors.success : theme.colors.border,
+                        },
+                      ]}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+          <View style={styles.compactLabelRow}>
+            <Text style={[styles.compactCurrentStage, { color: theme.colors.primary }]}>
+              ● {strings.loop.youAreHereBadge}: {strings.loop.stages[currentStage]} — Tap to view all stages
+            </Text>
+          </View>
+        </View>
+      ) : (
       <View style={styles.stagesList}>
         {LOOP_STAGE_ORDER.map((stage, index) => {
           const isCompleted = index < activeIdx;
@@ -696,13 +752,13 @@ export const Timeline: React.FC<TimelineProps> = ({
                   ]}
                 >
                   {isCompleted ? (
-                    <Ionicons name="checkmark" size={12} color="#ffffff" />
+                    <Ionicons name="checkmark" size={12} color={theme.colors.heroText} />
                   ) : (
                     <Text
                       style={[
                         styles.stageNumberText,
                         {
-                          color: isCurrent ? '#ffffff' : theme.colors.muted,
+                          color: isCurrent ? theme.colors.heroText : theme.colors.muted,
                         },
                       ]}
                     >
@@ -746,7 +802,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                         { backgroundColor: theme.colors.primary },
                       ]}
                     >
-                      <Text style={styles.youAreHereText}>
+                      <Text style={[styles.youAreHereText, { color: theme.colors.heroText }]}>
                         {strings.loop.youAreHereBadge}
                       </Text>
                     </View>
@@ -773,20 +829,21 @@ export const Timeline: React.FC<TimelineProps> = ({
           );
         })}
       </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   bannerContainer: {
-    borderWidth: 1.5,
-    borderRadius: 14,
-    padding: 14,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
     gap: 6,
   },
   bannerCompact: {
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     gap: 4,
   },
   bannerTopRow: {
@@ -833,29 +890,9 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 6,
   },
-  bannerPrimaryBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  bannerPrimaryBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  bannerChatBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  bannerChatBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
   timelineCard: {
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
   },
   timelineHeaderRow: {
@@ -924,7 +961,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   youAreHereText: {
-    color: '#ffffff',
     fontSize: 10,
     fontWeight: '800',
   },

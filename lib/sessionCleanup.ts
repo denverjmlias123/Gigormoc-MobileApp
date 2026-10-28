@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
-export interface CleanupOptions {
+interface CleanupOptions {
   /**
    * When true (logout), also removes Supabase session tokens from storage.
    * When false (mode switch), keeps the auth session token while clearing all user/role caches,
@@ -10,42 +10,11 @@ export interface CleanupOptions {
   clearAuthStorage?: boolean;
 }
 
-type CacheResetter = () => void;
-const registeredCacheResetters = new Set<CacheResetter>();
 const privateImageUrlCache = new Map<string, { url: string; expiresAt: number }>();
 let cachedUnreadBadgeCount = 0;
 
-export function registerCacheResetter(fn: CacheResetter): () => void {
-  registeredCacheResetters.add(fn);
-  return () => {
-    registeredCacheResetters.delete(fn);
-  };
-}
-
-export function setPrivateImageCacheEntry(path: string, url: string, ttlMs = 300000): void {
-  privateImageUrlCache.set(path, { url, expiresAt: Date.now() + ttlMs });
-}
-
-export function getPrivateImageCacheEntry(path: string): string | null {
-  const entry = privateImageUrlCache.get(path);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    privateImageUrlCache.delete(path);
-    return null;
-  }
-  return entry.url;
-}
-
-export function clearPrivateImageCache(): void {
+function clearPrivateImageCache(): void {
   privateImageUrlCache.clear();
-}
-
-export function setUnreadBadgeCache(count: number): void {
-  cachedUnreadBadgeCount = Math.max(0, count);
-}
-
-export function getUnreadBadgeCache(): number {
-  return cachedUnreadBadgeCount;
 }
 
 /**
@@ -61,13 +30,7 @@ export async function performSharedCleanup(options: CleanupOptions = {}): Promis
   // 1. Reset in-memory caches, private signed image URLs, and badge counts
   clearPrivateImageCache();
   cachedUnreadBadgeCount = 0;
-  registeredCacheResetters.forEach((reset) => {
-    try {
-      reset();
-    } catch {
-      // Ignore individual cache resetter errors
-    }
-  });
+  void cachedUnreadBadgeCount;
 
   // 2. Unsubscribe and remove all Realtime channels
   try {

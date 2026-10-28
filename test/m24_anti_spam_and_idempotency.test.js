@@ -11,7 +11,6 @@ describe('Milestone 24 — Anti-Spam Clicks and Two-Device Idempotency (v5.4 Sec
     const sfSrc = fs.readFileSync(path.join(ROOT, 'lib/singleFlight.ts'), 'utf8');
 
     assert.ok(sfSrc.includes('export function runOnce'), 'Must export runOnce');
-    assert.ok(sfSrc.includes('export function useAction'), 'Must export useAction');
     assert.ok(
       sfSrc.includes('export function getOrCreateAttemptRequestId'),
       'Must export getOrCreateAttemptRequestId'

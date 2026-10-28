@@ -1,4 +1,4 @@
-export type LoginFailurePresentation = {
+type LoginFailurePresentation = {
   kind: 'account_not_found' | 'credentials' | 'locked';
   message: string;
   secondsLeft?: number;

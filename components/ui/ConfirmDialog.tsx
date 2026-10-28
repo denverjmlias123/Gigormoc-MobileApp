@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState, useRef } from 'react';
+import React, { createContext, useCallback, useState } from 'react';
 import {
   Modal,
   View,
@@ -6,8 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Pressable,
-  Animated,
-  Platform,
 } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 
@@ -19,7 +17,7 @@ export interface ConfirmDialogOptions {
   destructive?: boolean;
 }
 
-export interface ConfirmDialogProps extends ConfirmDialogOptions {
+interface ConfirmDialogProps extends ConfirmDialogOptions {
   visible: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -114,7 +112,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 styles.button,
                 styles.confirmButton,
                 {
-                  backgroundColor: destructive ? '#DC2626' : theme.colors.primary,
+                  backgroundColor: destructive ? theme.colors.danger : theme.colors.primary,
                 },
               ]}
               onPress={onConfirm}
@@ -141,15 +139,12 @@ const ConfirmDialogContext = createContext<{
   confirm: showConfirmDialog,
 });
 
-export const useConfirmDialog = () => useContext(ConfirmDialogContext);
-
 /**
  * ConfirmDialogProvider wraps the application to enable app-wide in-app dialogs
  */
 export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const theme = useAppTheme();
   const [dialogState, setDialogState] = useState<DialogState>({
     visible: false,
     title: '',
@@ -241,10 +236,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   button: {
-    paddingVertical: 10,
+    flex: 1,
+    minHeight: 46,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    minWidth: 90,
+    borderRadius: 12,
+    minWidth: 96,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -253,12 +250,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   confirmButton: {},
   confirmButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

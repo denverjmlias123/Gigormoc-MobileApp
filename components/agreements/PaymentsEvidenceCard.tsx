@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 import { PaymentItem } from '../../services/payments';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { Card, AlertBox } from '../ui/Card';
 import { formatPrice } from '../ui/GigCard';
 
 interface PaymentsEvidenceCardProps {
@@ -34,35 +35,49 @@ export const PaymentsEvidenceCard: React.FC<PaymentsEvidenceCardProps> = ({
   onDisputePayment,
 }) => {
   const theme = useAppTheme();
+  const c = theme.colors;
+
+  const progressPct =
+    agreedPrice > 0 ? Math.min(100, Math.round((confirmedPaymentsCentavos / agreedPrice) * 100)) : 0;
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-      ]}
+    <Card
+      headerTitle="Payments"
+      headerSubtitle={`Confirmed: ${formatPrice(confirmedPaymentsCentavos)} / ${formatPrice(agreedPrice)} (${progressPct}%)`}
+      headerIcon="wallet-outline"
+      headerRight={
+        isClient && agreementStatus === 'active' ? (
+          <Button
+            title="Report Payment"
+            variant="primary"
+            size="sm"
+            icon="add-circle-outline"
+            onPress={onReportPayment}
+          />
+        ) : undefined
+      }
     >
-      <View style={styles.sectionHeaderRow}>
-        <View>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Payments</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
-            Confirmed: {formatPrice(confirmedPaymentsCentavos)} / {formatPrice(agreedPrice)}
-          </Text>
-        </View>
-
-        {isClient && agreementStatus === 'active' && (
-          <Button title="Report Payment" variant="primary" onPress={onReportPayment} />
-        )}
+      {/* Visual Payment Progress Bar */}
+      <View style={[styles.progressBarTrack, { backgroundColor: c.surfaceAlt }]}>
+        <View
+          style={[
+            styles.progressBarFill,
+            {
+              width: `${progressPct}%` as any,
+              backgroundColor: progressPct >= 100 ? c.success : c.primary,
+            },
+          ]}
+        />
       </View>
 
       {payments.length === 0 ? (
-        <View style={styles.emptyMilestonesBox}>
-          <Text style={[styles.emptyMilestonesText, { color: theme.colors.muted }]}>
+        <Card tone="inset" padding="md" style={styles.emptyMilestonesBox}>
+          <Text style={[styles.emptyMilestonesText, { color: c.muted }]}>
             {isClient
               ? 'No external payments reported yet. After sending funds (GCash, Maya, cash), tap "Report Payment" above.'
               : 'No payment reports recorded yet by the client.'}
           </Text>
-        </View>
+        </Card>
       ) : (
         <View style={styles.milestonesList}>
           {payments.map((p) => {
@@ -72,26 +87,27 @@ export const PaymentsEvidenceCard: React.FC<PaymentsEvidenceCardProps> = ({
             const canAct = isFreelancer && isReported;
 
             return (
-              <View
+              <Card
                 key={p.id}
+                tone="inset"
+                padding="md"
+                accentPosition="left"
+                accentColor={
+                  isDisputed ? c.danger : isConfirmed ? c.success : c.warning
+                }
                 style={[
                   styles.paymentRowCard,
                   {
-                    borderColor: isDisputed
-                      ? '#F3A6AE'
-                      : isConfirmed
-                      ? '#9BD9BE'
-                      : theme.colors.border,
                     backgroundColor: isDisputed
-                      ? '#FDE8EA'
+                      ? c.dangerSoft
                       : isConfirmed
-                      ? '#DDF5EA'
-                      : theme.colors.surface,
+                      ? c.successSoft
+                      : c.insetBg || c.surfaceAlt,
                   },
                 ]}
               >
                 <View style={styles.paymentRowTop}>
-                  <Text style={[styles.paymentAmount, { color: theme.colors.text }]}>
+                  <Text style={[styles.paymentAmount, { color: c.text }]}>
                     {formatPrice(p.amount)}
                   </Text>
 
@@ -104,32 +120,36 @@ export const PaymentsEvidenceCard: React.FC<PaymentsEvidenceCardProps> = ({
                   </View>
                 </View>
 
-                <Text style={[styles.paymentMethod, { color: theme.colors.muted }]}>
+                <Text style={[styles.paymentMethod, { color: c.muted }]}>
                   Channel: {p.payment_method.toUpperCase()}
                   {p.reference_number ? ` • Ref: ${p.reference_number}` : ''}
+                  {p.created_at ? ` • ${new Date(p.created_at).toLocaleDateString()}` : ''}
                 </Text>
 
                 {p.receipt_path ? (
-                  <TouchableOpacity
-                    onPress={() => onOpenReceipt(p.receipt_path!)}
-                    style={{ marginTop: 4 }}
-                  >
-                    <Text style={[styles.linkText, { color: theme.colors.primary }]}>
-                      🧾 View Payment Receipt ›
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ alignItems: 'flex-start', marginTop: 8 }}>
+                    <Button
+                      title="View Payment Receipt"
+                      variant="soft"
+                      size="xs"
+                      icon="receipt-outline"
+                      onPress={() => onOpenReceipt(p.receipt_path!)}
+                    />
+                  </View>
                 ) : null}
 
                 {p.notes ? (
-                  <Text style={[styles.paymentNotes, { color: theme.colors.muted }]}>
+                  <Text style={[styles.paymentNotes, { color: c.muted }]}>
                     Notes: {p.notes}
                   </Text>
                 ) : null}
 
                 {isDisputed && p.dispute_reason ? (
-                  <Text style={styles.disputeReasonText}>
-                    Dispute reason: {p.dispute_reason}
-                  </Text>
+                  <AlertBox
+                    tone="danger"
+                    message={`Dispute reason: ${p.dispute_reason}`}
+                    style={{ marginTop: 8, marginBottom: 0 }}
+                  />
                 ) : null}
 
                 {/* Freelancer Action Buttons */}
@@ -137,52 +157,45 @@ export const PaymentsEvidenceCard: React.FC<PaymentsEvidenceCardProps> = ({
                   <View style={styles.paymentActionButtons}>
                     <Button
                       title="Confirm Receipt"
-                      variant="primary"
+                      variant="success"
+                      size="sm"
+                      icon="checkmark-circle-outline"
                       onPress={() => onConfirmPayment(p.id)}
                       disabled={confirmingPaymentId === p.id}
                       loading={confirmingPaymentId === p.id}
                     />
                     <Button
                       title="Dispute"
-                      variant="danger"
+                      variant="danger-soft"
+                      size="sm"
+                      icon="alert-circle-outline"
                       onPress={() => onDisputePayment(p)}
                     />
                   </View>
                 )}
-              </View>
+              </Card>
             );
           })}
         </View>
       )}
-    </View>
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
+  progressBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 14,
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
   },
   emptyMilestonesBox: {
-    padding: 16,
-    borderRadius: 8,
     alignItems: 'center',
+    marginBottom: 0,
   },
   emptyMilestonesText: {
     fontSize: 13,
@@ -193,9 +206,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   paymentRowCard: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
+    marginBottom: 0,
   },
   paymentRowTop: {
     flexDirection: 'row',
@@ -204,8 +215,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   paymentAmount: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
   badgeWrapper: {
     flexDirection: 'row',
@@ -213,25 +224,16 @@ const styles = StyleSheet.create({
   },
   paymentMethod: {
     fontSize: 13,
+    fontWeight: '600',
     marginBottom: 2,
   },
-  linkText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   paymentNotes: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  disputeReasonText: {
-    color: '#D92D3E',
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
+    fontSize: 12.5,
+    marginTop: 6,
   },
   paymentActionButtons: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
+    gap: 10,
+    marginTop: 12,
   },
 });

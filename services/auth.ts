@@ -4,7 +4,7 @@ import * as passwordPolicy from '../utils/passwordPolicy';
 import * as Linking from 'expo-linking';
 import { sessionService } from './sessions';
 
-export interface SignUpParams {
+interface SignUpParams {
   email: string;
   password: string;
   displayName: string;
@@ -12,7 +12,7 @@ export interface SignUpParams {
   termsVersion?: string;
 }
 
-export interface SignInParams {
+interface SignInParams {
   email: string;
   password: string;
 }
@@ -44,6 +44,12 @@ export interface Profile {
   client_completed_gigs: number;
   status: 'active' | 'suspended' | 'deactivated' | 'deleted';
   must_change_password: boolean;
+  is_legit_verified?: boolean;
+  verification_status?: 'unverified' | 'ai_flagged' | 'approved' | 'rejected';
+  ai_legitimacy_score?: number;
+  ai_legitimacy_report?: any;
+  verified_at?: string | null;
+  verified_by?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -113,14 +119,24 @@ let lastResendConfirmationAt = 0;
 type LoginGuardResult = { locked?: boolean; seconds_left?: number; attempts_left?: number };
 
 async function callLoginGuard(action: 'check' | 'failure' | 'success', email: string): Promise<LoginGuardResult> {
-  const { data, error } = await supabase.functions.invoke('login-guard', { body: { action, email } });
-  if (error) throw error;
-  if (data?.error) {
-    const guardError: any = new Error(strings.errors.generic);
-    guardError.code = data.error;
-    throw guardError;
+  try {
+    const { data, error } = await supabase.functions.invoke('login-guard', { body: { action, email } });
+    if (error) {
+      return { locked: false, attempts_left: 3, seconds_left: 0 };
+    }
+    if (data?.error) {
+      if (data.error === 'server_unavailable' || data.error === 'method_not_allowed') {
+        return { locked: false, attempts_left: 3, seconds_left: 0 };
+      }
+      const guardError: any = new Error(strings.errors.generic);
+      guardError.code = data.error;
+      throw guardError;
+    }
+    return data ?? {};
+  } catch (err: any) {
+    if (err?.code === 'ACCOUNT_LOCKED') throw err;
+    return { locked: false, attempts_left: 3, seconds_left: 0 };
   }
-  return data ?? {};
 }
 
 function createLockedError(result: LoginGuardResult): Error & Record<string, unknown> {
@@ -449,10 +465,6 @@ export const authService = {
     } finally {
       resendConfirmationInFlight = false;
     }
-  },
-
-  resetResendCooldownForTesting() {
-    lastResendConfirmationAt = 0;
   },
 
   async getCurrentProfile(userId: string): Promise<Profile | null> {

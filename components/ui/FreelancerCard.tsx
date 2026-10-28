@@ -9,6 +9,7 @@ interface FreelancerCardProps {
   freelancer: FreelancerSummary;
   onPress: () => void;
   compact?: boolean;
+  style?: any;
 }
 
 const formatAvailability = (
@@ -62,6 +63,7 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
   freelancer,
   onPress,
   compact = false,
+  style,
 }) {
   const theme = useAppTheme();
 
@@ -86,18 +88,20 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
 
   return (
     <Pressable
-      style={({ pressed }) => [
+      style={(state: any) => [
         styles.card,
         compact ? styles.compactCard : styles.fullCard,
         {
           backgroundColor: theme.glass.surface,
-          borderColor: theme.glass.border,
+          borderColor: state.hovered ? theme.colors.primary : theme.glass.border,
           borderWidth: 1,
           borderRadius: theme.radii.card,
-          opacity: pressed ? 0.92 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
+          opacity: state.pressed ? 0.92 : 1,
+          transform: [{ scale: state.pressed ? 0.985 : 1 }],
+          ...({ cursor: 'pointer' } as any),
         },
         theme.shadow.neoGlass,
+        style,
       ]}
       onPress={onPress}
       accessibilityRole="button"

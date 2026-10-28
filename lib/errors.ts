@@ -1,7 +1,7 @@
 import { strings, mapSqlErrorToFriendlyMessage } from '../constants/strings';
 import * as Crypto from 'expo-crypto';
 
-export type AppErrorKind =
+type AppErrorKind =
   | 'offline'
   | 'timeout'
   | 'unauthorized'
@@ -321,5 +321,3 @@ export function toAppError(err: unknown, fallbackMessage: string = strings.error
     requestId,
   };
 }
-
-export const mapError = toAppError;

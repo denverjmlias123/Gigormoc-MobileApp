@@ -1,61 +1,130 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput as RNTextInput, StyleSheet, Pressable, TextInputProps, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput as RNTextInput,
+  StyleSheet,
+  Pressable,
+  TextInputProps,
+  Platform,
+  ViewStyle,
+  StyleProp,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { strings } from '../../constants/strings';
 
 interface Props extends TextInputProps {
-  label: string;
+  label?: string;
   error?: string | null;
   helperText?: string;
   isPassword?: boolean;
+  prefixText?: string;
+  leftIcon?: React.ComponentProps<typeof Ionicons>['name'];
+  onClear?: () => void;
+  showCharCount?: boolean;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
-export const TextInput: React.FC<Props> = ({
-  label,
-  error,
-  helperText,
-  isPassword = false,
-  style,
-  onFocus,
-  onBlur,
-  ...props
-}) => {
+export const TextInput = React.forwardRef<RNTextInput, Props>(function TextInput(
+  {
+    label = '',
+    error,
+    helperText,
+    isPassword = false,
+    prefixText,
+    leftIcon,
+    onClear,
+    showCharCount = false,
+    containerStyle,
+    style,
+    onFocus,
+    onBlur,
+    ...props
+  },
+  ref
+) {
   const theme = useAppTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  const borderColor = error ? theme.colors.danger : focused ? theme.colors.primary : theme.colors.border;
+  const borderColor = error
+    ? theme.colors.danger
+    : focused
+    ? theme.colors.primary
+    : theme.colors.border;
 
-  // Auto-generate safe id and name from label if not explicitly provided (fixes DevTools form field issue)
-  const safeId = (props as any).id || props.nativeID || `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-  const safeName = (props as any).name || label.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const baseKey = (label || props.placeholder || 'input').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const safeId = (props as any).id || props.nativeID || `field-${baseKey}`;
+  const safeName = (props as any).name || baseKey.replace(/-/g, '_');
 
-  // Normalize autoComplete for web standards (fixes non-standard autocomplete attribute warning)
   let normalizedAutoComplete = props.autoComplete;
   if (Platform.OS === 'web' && normalizedAutoComplete === ('password' as any)) {
     normalizedAutoComplete = 'current-password';
   }
 
+  const currentLen = typeof props.value === 'string' ? props.value.length : 0;
+
   return (
-    <View style={styles.container}>
-      <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
-      <View style={styles.inputContainer}>
+    <View style={[styles.container, containerStyle]}>
+      {label || (showCharCount && props.maxLength) ? (
+        <View style={styles.labelRow}>
+          {label ? <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text> : <View />}
+          {showCharCount && props.maxLength ? (
+            <Text style={[styles.charCount, { color: theme.colors.muted }]}>
+              {currentLen}/{props.maxLength}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      <View
+        style={[
+          styles.inputBox,
+          {
+            borderColor,
+            borderWidth: focused || error ? 2 : 1,
+            backgroundColor: focused ? theme.colors.surface : theme.colors.surfaceAlt,
+            borderRadius: theme.radii.input,
+            ...(Platform.OS === 'web' && focused
+              ? ({ boxShadow: `0 0 0 3px ${theme.colors.focusRing}` } as any)
+              : null),
+          },
+        ]}
+      >
+        {leftIcon ? (
+          <View style={styles.leftAdornment}>
+            <Ionicons
+              name={leftIcon}
+              size={18}
+              color={focused ? theme.colors.primary : theme.colors.muted}
+            />
+          </View>
+        ) : null}
+        {prefixText ? (
+          <View
+            style={[
+              styles.prefixPill,
+              { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.border },
+            ]}
+          >
+            <Text style={[styles.prefixText, { color: theme.colors.primary }]}>{prefixText}</Text>
+          </View>
+        ) : null}
         <RNTextInput
+          ref={ref}
           nativeID={safeId}
-          accessibilityLabel={label}
+          accessibilityLabel={label || props.placeholder}
           autoComplete={normalizedAutoComplete}
           {...(Platform.OS === 'web' ? { id: safeId, name: safeName } : null)}
           style={[
             styles.input,
             {
-              borderColor,
-              borderWidth: focused || error ? 2 : 1,
-              backgroundColor: focused ? theme.colors.surface : theme.colors.surfaceAlt,
               color: theme.colors.text,
-              borderRadius: theme.radii.input,
+              ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
             },
-            isPassword && styles.passwordInput,
+            Boolean(leftIcon) && { paddingLeft: 6 },
+            Boolean(prefixText) && { paddingLeft: 10 },
+            (isPassword || Boolean(onClear && props.value)) && styles.passwordInput,
             style,
           ]}
           placeholderTextColor={theme.colors.muted}
@@ -70,7 +139,18 @@ export const TextInput: React.FC<Props> = ({
           }}
           {...props}
         />
-        {isPassword && (
+        {!isPassword && onClear && Boolean(props.value) ? (
+          <Pressable
+            style={styles.toggleBtn}
+            onPress={onClear}
+            accessibilityRole="button"
+            accessibilityLabel="Clear text"
+            hitSlop={8}
+          >
+            <Ionicons name="close-circle" size={19} color={theme.colors.muted} />
+          </Pressable>
+        ) : null}
+        {isPassword ? (
           <Pressable
             style={styles.toggleBtn}
             onPress={() => setShowPassword(!showPassword)}
@@ -78,13 +158,22 @@ export const TextInput: React.FC<Props> = ({
             accessibilityLabel={showPassword ? strings.auth.passwordHide : strings.auth.passwordShow}
             hitSlop={8}
           >
-            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={theme.colors.muted} />
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={theme.colors.muted}
+            />
           </Pressable>
-        )}
+        ) : null}
       </View>
       {error ? (
         <View style={styles.errorRow}>
-          <Ionicons name="alert-circle" size={14} color={theme.colors.dangerText} style={{ marginTop: 1 }} />
+          <Ionicons
+            name="alert-circle"
+            size={14}
+            color={theme.colors.dangerText}
+            style={{ marginTop: 1 }}
+          />
           <Text style={[styles.error, { color: theme.colors.dangerText }]}>{error}</Text>
         </View>
       ) : helperText ? (
@@ -92,14 +181,44 @@ export const TextInput: React.FC<Props> = ({
       ) : null}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 13.5, fontWeight: '700', marginBottom: 7, letterSpacing: 0.1 },
-  inputContainer: { position: 'relative' },
-  input: {
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 7,
+  },
+  label: { fontSize: 13.5, fontWeight: '700', letterSpacing: 0.1 },
+  charCount: { fontSize: 11.5, fontWeight: '600' },
+  inputBox: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: 54,
+  },
+  leftAdornment: {
+    paddingLeft: 14,
+    paddingRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  prefixPill: {
+    marginLeft: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  prefixText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  input: {
+    flex: 1,
+    minHeight: 52,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
@@ -108,7 +227,7 @@ const styles = StyleSheet.create({
   toggleBtn: {
     position: 'absolute',
     right: 6,
-    top: 5,
+    top: 4,
     width: 44,
     height: 44,
     justifyContent: 'center',

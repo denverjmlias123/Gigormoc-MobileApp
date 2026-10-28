@@ -1,5 +1,3 @@
-import * as ImagePicker from 'expo-image-picker';
-import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { runOnce } from '../lib/singleFlight';
 import { pickImagesUniversal } from '../utils/imageUpload';
@@ -7,7 +5,7 @@ import { pickImagesUniversal } from '../utils/imageUpload';
 let receiptUploadSeq = 0;
 
 export type PaymentMethod = 'gcash' | 'maya' | 'bank_transfer' | 'cash' | 'other';
-export type PaymentStatus = 'reported_sent' | 'confirmed_received' | 'disputed';
+type PaymentStatus = 'reported_sent' | 'confirmed_received' | 'disputed';
 
 export interface PaymentItem {
   id: string;
@@ -37,7 +35,7 @@ export interface PaymentItem {
   };
 }
 
-export interface ReportPaymentParams {
+interface ReportPaymentParams {
   agreementId: string;
   milestoneId?: string;
   amount: number; // in centavos

@@ -54,7 +54,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   );
 };
 
-export const SkeletonGigCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
+const SkeletonGigCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
   const theme = useAppTheme();
   return (
     <View
@@ -93,7 +93,7 @@ export const SkeletonGigList: React.FC<{ count?: number }> = ({ count = 3 }) => 
   );
 };
 
-export const SkeletonMessageCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
+const SkeletonMessageCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
   const theme = useAppTheme();
   return (
     <View
@@ -129,7 +129,7 @@ export const SkeletonMessageList: React.FC<{ count?: number }> = ({ count = 4 })
   );
 };
 
-export const SkeletonActivityCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
+const SkeletonActivityCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
   const theme = useAppTheme();
   return (
     <View
@@ -166,37 +166,6 @@ export const SkeletonActivityList: React.FC<{ count?: number }> = ({ count = 3 }
       {Array.from({ length: count }).map((_, index) => (
         <SkeletonActivityCard key={`skeleton-act-${index}`} />
       ))}
-    </View>
-  );
-};
-
-export const SkeletonFreelancerCard: React.FC<{ style?: ViewStyle }> = ({ style }) => {
-  const theme = useAppTheme();
-  return (
-    <View
-      style={[
-        styles.cardContainer,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
-        },
-        theme.shadow.card,
-        style,
-      ]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Skeleton width={52} height={52} borderRadius={26} />
-        <View style={{ flex: 1, gap: 6 }}>
-          <Skeleton width="60%" height={18} borderRadius={4} />
-          <Skeleton width="40%" height={14} borderRadius={4} />
-        </View>
-      </View>
-      <Skeleton width="90%" height={14} borderRadius={4} style={{ marginTop: 12 }} />
-      <View style={[styles.chipRow, { marginTop: 10 }]}>
-        <Skeleton width={60} height={20} borderRadius={10} />
-        <Skeleton width={70} height={20} borderRadius={10} />
-        <Skeleton width={55} height={20} borderRadius={10} />
-      </View>
     </View>
   );
 };

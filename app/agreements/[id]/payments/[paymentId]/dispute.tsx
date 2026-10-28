@@ -4,20 +4,23 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../../../../theme';
+import { useAppTheme, useResponsiveLayout } from '../../../../theme';
 import { paymentsService } from '../../../../../services/payments';
 import { formatPrice } from '../../../../../components/ui/GigCard';
 import { Button } from '../../../../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../../../../components/ui/Card';
+import { TextInput } from '../../../../../components/ui/TextInput';
 import { showToast } from '../../../../../components/ui/Toast';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../../../../constants/strings';
 
 export default function DisputePaymentScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { insets } = useResponsiveLayout();
   const { id, paymentId, amount, method } = useLocalSearchParams<{
     id: string;
     paymentId: string;
@@ -78,105 +81,83 @@ export default function DisputePaymentScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Dispute Payment</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title="Dispute Payment"
+        subtitle="Report discrepancy on recorded payment"
+        onBack={safeNavigateBack}
+        maxWidth={600}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Payment Summary */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.muted }]}>Reported Payment</Text>
-          <Text style={[styles.amountText, { color: theme.colors.text }]}>
-            {formatPrice(amountCentavos)}
-          </Text>
-          <Text style={[styles.metaText, { color: theme.colors.muted }]}>
-            Channel: {method || 'External Transfer'}
-          </Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.centeredBlock, { gap: 16 }]}>
+          {/* Payment Summary */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <Text style={[styles.label, { color: theme.colors.muted }]}>Reported Payment</Text>
+            <Text style={[styles.amountText, { color: theme.colors.text }]}>
+              {formatPrice(amountCentavos)}
+            </Text>
+            <Text style={[styles.metaText, { color: theme.colors.muted }]}>
+              Channel: {method || 'External Transfer'}
+            </Text>
+          </Card>
 
-        {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
-            <Text style={styles.errorText}>{error}</Text>
+          {error && <AlertBox tone="danger" message={error} />}
+
+          {/* Dispute Reason */}
+          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <TextInput
+              label="Reason for Dispute *"
+              placeholder="Explain why this payment could not be confirmed (e.g. transfer did not reflect in bank account, amount differs from invoice)..."
+              multiline
+              numberOfLines={5}
+              value={reason}
+              onChangeText={setReason}
+              maxLength={1000}
+              helperText={`${reason.length}/1000 characters (min 5)`}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Action */}
+          <View style={styles.submitContainer}>
+            <Button
+              title={submitting ? 'Recording Dispute...' : 'Submit Payment Dispute'}
+              variant="danger"
+              icon="warning-outline"
+              onPress={handleSubmit}
+              disabled={reason.trim().length < 5 || submitting}
+              loading={submitting}
+            />
           </View>
-        )}
-
-        {/* Dispute Reason */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Reason for Dispute *
-          </Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="Explain why this payment could not be confirmed (e.g. transfer did not reflect in bank account, amount differs from invoice)..."
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            numberOfLines={5}
-            value={reason}
-            onChangeText={setReason}
-            maxLength={1000}
-          />
-          <Text style={[styles.charCount, { color: theme.colors.muted }]}>
-            {reason.length}/1000 characters (min 5)
-          </Text>
-        </View>
-
-        {/* Action */}
-        <View style={styles.submitContainer}>
-          <Button
-            title={submitting ? 'Recording Dispute...' : 'Submit Payment Dispute'}
-            variant="danger"
-            onPress={handleSubmit}
-            disabled={reason.trim().length < 5 || submitting}
-            loading={submitting}
-          />
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  centeredBlock: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 16,
   },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+  cardGap: {
     gap: 8,
   },
   label: {
@@ -190,28 +171,6 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 14,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  charCount: {
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  errorCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

@@ -4,16 +4,18 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from './theme';
+import { useAppTheme, useResponsiveLayout } from './theme';
 import { useAuth } from '../hooks/useAuth';
 import { notificationsService, NotificationItem } from '../services/notifications';
+import { Button } from '../components/ui/Button';
+import { Card, PageHeaderBox } from '../components/ui/Card';
+import { SegmentedControl } from '../components/ui/Chip';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
 import { showToast } from '../components/ui/Toast';
@@ -22,9 +24,11 @@ import { strings } from '../constants/strings';
 export default function NotificationsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { bottomPad } = useResponsiveLayout();
   const { user, profile } = useAuth();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [filterMode, setFilterMode] = useState<'all' | 'unread'>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,7 +200,7 @@ export default function NotificationsScreen() {
     ) {
       router.push('/(tabs)/profile');
     }
-  }, [router, loadNotifications]);
+  }, [router, loadNotifications, profile?.active_mode]);
 
   const handleMarkAllRead = async () => {
     setNotifications((prev) =>
@@ -251,6 +255,8 @@ export default function NotificationsScreen() {
   };
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
+  const visibleNotifications =
+    filterMode === 'unread' ? notifications.filter((n) => !n.read_at) : notifications;
 
   const keyExtractor = useCallback((item: NotificationItem) => item.id, []);
 
@@ -268,67 +274,86 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)');
-              }
-            }}
-            style={styles.backBtn}
-            accessibilityRole="button"
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Notifications</Text>
-        </View>
+      <PageHeaderBox
+        title="Notifications"
+        subtitle="Stay updated on your gigs, milestones, and messages"
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/(tabs)');
+          }
+        }}
+        maxWidth={760}
+        rightAction={
+          unreadCount > 0 ? (
+            <Button
+              title="Mark all read"
+              variant="ghost"
+              size="xs"
+              fullWidth={false}
+              onPress={handleMarkAllRead}
+            />
+          ) : undefined
+        }
+      />
 
-        {unreadCount > 0 && (
-          <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn}>
-            <Text style={[styles.markAllText, { color: theme.colors.primary }]}>Mark all read</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Filter Bar */}
+      {!loading && !error && notifications.length > 0 ? (
+        <View style={styles.filterBarWrap}>
+          <View style={styles.filterBarInner}>
+            <SegmentedControl
+              options={[
+                { value: 'all', label: 'All', count: notifications.length },
+                { value: 'unread', label: 'Unread', count: unreadCount },
+              ]}
+              value={filterMode}
+              onChange={(val) => setFilterMode(val as 'all' | 'unread')}
+            />
+          </View>
+        </View>
+      ) : null}
 
       {/* Body */}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : error ? (
-        <ErrorState message={error} onRetry={loadNotifications} />
-      ) : notifications.length === 0 ? (
-        <EmptyState
-          icon="notifications-off-outline"
-          title="You're all caught up"
-          description="When clients or freelancers respond to your gigs and milestones, you'll see notifications here."
-        />
-      ) : (
-        <FlatList
-          data={notifications}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={7}
-          removeClippedSubviews={Platform.OS === 'android'}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadNotifications();
-              }}
-              tintColor={theme.colors.primary}
-            />
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <View style={styles.bodyWrap}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadNotifications} />
+        ) : visibleNotifications.length === 0 ? (
+          <EmptyState
+            icon="notifications-off-outline"
+            title={filterMode === 'unread' ? 'No unread notifications' : "You're all caught up"}
+            description="When clients or freelancers respond to your gigs and milestones, you'll see notifications here."
+          />
+        ) : (
+          <FlatList
+            data={visibleNotifications}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === 'android'}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  loadNotifications();
+                }}
+                tintColor={theme.colors.primary}
+              />
+            }
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: Math.max(bottomPad, 32) },
+            ]}
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -346,22 +371,17 @@ const NotificationCard = React.memo(function NotificationCard({
 }) {
   const isUnread = !item.read_at;
   return (
-    <TouchableOpacity
-      style={[
-        styles.notificationCard,
-        {
-          backgroundColor: isUnread ? theme.colors.surfaceAlt : theme.colors.surface,
-          borderColor: theme.colors.border,
-        },
-      ]}
+    <Card
+      tone={isUnread ? 'tinted-primary' : 'neo-glass'}
+      padding="md"
       onPress={() => onPress(item)}
-      activeOpacity={0.7}
+      style={styles.notificationCard}
     >
       <View
         style={[
           styles.iconCircle,
           {
-            backgroundColor: isUnread ? theme.colors.primarySoft : theme.colors.surfaceAlt,
+            backgroundColor: isUnread ? theme.colors.surface : theme.colors.surfaceAlt,
           },
         ]}
       >
@@ -389,40 +409,26 @@ const NotificationCard = React.memo(function NotificationCard({
           })}
         </Text>
       </View>
-    </TouchableOpacity>
+    </Card>
   );
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingTop: 52,
+  filterBarWrap: {
     paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingTop: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  filterBarInner: {
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
   },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  markAllBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  markAllText: {
-    fontSize: 13,
-    fontWeight: '600',
+  bodyWrap: {
+    flex: 1,
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
   },
   center: {
     flex: 1,
@@ -431,14 +437,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 32,
     gap: 10,
   },
   notificationCard: {
     flexDirection: 'row',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
     gap: 12,
   },
   iconCircle: {

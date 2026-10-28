@@ -1,15 +1,4 @@
-import { showToast } from '../components/ui/Toast';
-import { showConfirmDialog, ConfirmDialogOptions } from '../components/ui/ConfirmDialog';
-
-/**
- * Universal in-app notification helper.
- * Uses in-app Toast across all platforms.
- */
-export function notify(title: string, message?: string): Promise<void> {
-  const fullText = message ? `${title}: ${message}` : title;
-  showToast(fullText, 'info');
-  return Promise.resolve();
-}
+import { showConfirmDialog } from '../components/ui/ConfirmDialog';
 
 /**
  * Universal in-app confirmation modal.

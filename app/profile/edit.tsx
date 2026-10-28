@@ -3,16 +3,14 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import {
   ProfileCompleteBadge,
@@ -25,6 +23,9 @@ import {
   ProfileCompleteness,
   CompletenessMissingItem,
 } from '../../services/profile';
+import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox, StickyFooterBox } from '../../components/ui/Card';
+import { Chip } from '../../components/ui/Chip';
 import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 import { PhotoUploadCard } from '../../components/profile/PhotoUploadCard';
@@ -36,6 +37,7 @@ const MAX_HIRING_INTERESTS = 8;
 export default function EditProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isDesktop } = useResponsiveLayout();
   const params = useLocalSearchParams<{ focus?: string }>();
   const { user, profile, refreshProfile } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
@@ -167,6 +169,7 @@ export default function EditProfileScreen() {
   const handleBackPress = () => {
     if (isDirty && !loading) {
       setShowDiscardConfirm(true);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     navigateBack();
@@ -326,6 +329,7 @@ export default function EditProfileScreen() {
 
     if (!validateFields()) {
       setError('Please fix the highlighted fields below.');
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -371,374 +375,366 @@ export default function EditProfileScreen() {
     }
   };
 
+  const renderCoreIdentityFields = () => (
+    <Card tone="neo-glass" padding="lg" style={styles.sectionCard}>
+      <Text style={[styles.sectionCardTitle, { color: theme.colors.text }]}>
+        Core Profile Details
+      </Text>
+
+      {/* Display Name */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>
+          Display Name (2–50 characters)
+        </Text>
+        <TextInput
+          ref={nameInputRef}
+          style={[
+            styles.input,
+            {
+              borderColor: fieldErrors.displayName ? theme.colors.danger : theme.colors.border,
+              color: theme.colors.text,
+              backgroundColor: theme.colors.surfaceAlt,
+            },
+          ]}
+          value={displayName}
+          onChangeText={setDisplayName}
+          placeholder="e.g. Maria Santos"
+          placeholderTextColor={theme.colors.muted}
+          maxLength={50}
+        />
+        {fieldErrors.displayName ? (
+          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+            {fieldErrors.displayName}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Bio */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>
+          Bio (20–500 characters)
+        </Text>
+        <TextInput
+          ref={bioInputRef}
+          style={[
+            styles.input,
+            styles.textArea,
+            {
+              borderColor: fieldErrors.bio ? theme.colors.danger : theme.colors.border,
+              color: theme.colors.text,
+              backgroundColor: theme.colors.surfaceAlt,
+            },
+          ]}
+          value={bio}
+          onChangeText={setBio}
+          placeholder={
+            isHire
+              ? 'Tell freelancers in Ormoc about yourself or what projects you post...'
+              : 'Tell clients in Ormoc about your skills and experience (at least 20 characters)...'
+          }
+          placeholderTextColor={theme.colors.muted}
+          multiline
+          numberOfLines={4}
+          maxLength={500}
+          textAlignVertical="top"
+        />
+        <Text style={[styles.helperText, { color: theme.colors.muted }]}>
+          {bio.trim().length}/500 characters
+        </Text>
+        {fieldErrors.bio ? (
+          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+            {fieldErrors.bio}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Area */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Barangay / Area in Ormoc</Text>
+        {areasList.length > 0 ? (
+          <View style={styles.chipsWrap}>
+            {areasList.map((a) => {
+              const selected = area.toLowerCase() === a.name.toLowerCase();
+              return (
+                <Chip
+                  key={a.id}
+                  label={a.name}
+                  selected={selected}
+                  size="sm"
+                  onPress={() => setArea(a.name)}
+                />
+              );
+            })}
+          </View>
+        ) : null}
+        <TextInput
+          ref={areaInputRef}
+          style={[
+            styles.input,
+            {
+              borderColor: fieldErrors.area ? theme.colors.danger : theme.colors.border,
+              color: theme.colors.text,
+              backgroundColor: theme.colors.surfaceAlt,
+            },
+          ]}
+          value={area}
+          onChangeText={setArea}
+          placeholder="e.g. Cogon, Ormoc City"
+          placeholderTextColor={theme.colors.muted}
+          maxLength={80}
+        />
+        {fieldErrors.area ? (
+          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+            {fieldErrors.area}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Languages */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Languages Spoken</Text>
+        <View style={styles.chipsWrap}>
+          {strings.profile.languagesList.map((lang) => {
+            const selected = languages.includes(lang);
+            return (
+              <Chip
+                key={lang}
+                label={lang}
+                selected={selected}
+                size="sm"
+                onPress={() => toggleLanguage(lang)}
+              />
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Preferred Contact Note */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>
+          Preferred Contact Method Note
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              borderColor: fieldErrors.preferredContact
+                ? theme.colors.danger
+                : theme.colors.border,
+              color: theme.colors.text,
+              backgroundColor: theme.colors.surfaceAlt,
+            },
+          ]}
+          value={preferredContact}
+          onChangeText={setPreferredContact}
+          placeholder="In-app chat"
+          placeholderTextColor={theme.colors.muted}
+          maxLength={120}
+        />
+        {fieldErrors.preferredContact ? (
+          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+            {fieldErrors.preferredContact}
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Private Phone */}
+      <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+        <View style={styles.privateLabelRow}>
+          <Ionicons name="lock-closed" size={14} color={theme.colors.muted} />
+          <Text style={[styles.label, { color: theme.colors.text, marginBottom: 0 }]}>
+            Phone Number (Optional)
+          </Text>
+        </View>
+        <Text style={[styles.helperText, { color: theme.colors.muted, marginBottom: 6 }]}>
+          {strings.profile.privateFieldNote}
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              borderColor: fieldErrors.phone ? theme.colors.danger : theme.colors.border,
+              color: theme.colors.text,
+              backgroundColor: theme.colors.surfaceAlt,
+            },
+          ]}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="e.g. 0917 123 4567"
+          placeholderTextColor={theme.colors.muted}
+          keyboardType="phone-pad"
+          maxLength={20}
+        />
+        {fieldErrors.phone ? (
+          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
+            {fieldErrors.phone}
+          </Text>
+        ) : null}
+      </View>
+    </Card>
+  );
+
+  const renderRoleSpecificSection = () =>
+    !isHire ? (
+      <FreelancerWorkSection
+        headline={headline}
+        setHeadline={setHeadline}
+        headlineInputRef={headlineInputRef}
+        startingRateNote={startingRateNote}
+        setStartingRateNote={setStartingRateNote}
+        workTypes={workTypes}
+        toggleWorkType={toggleWorkType}
+        availability={availability}
+        setAvailability={setAvailability}
+        experienceYears={experienceYears}
+        setExperienceYears={setExperienceYears}
+        onNavigatePortfolio={() => router.push('/profile/portfolio')}
+        onNavigateSkills={() => router.push('/profile/skills')}
+        fieldErrors={fieldErrors}
+      />
+    ) : (
+      /* Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS}) */
+      <ClientHiringProfileSection
+        clientType={clientType}
+        setClientType={setClientType}
+        businessName={businessName}
+        setBusinessName={setBusinessName}
+        aboutHiring={aboutHiring}
+        setAboutHiring={setAboutHiring}
+        categoriesList={categoriesList}
+        selectedCategoryIds={selectedCategoryIds}
+        toggleHiringCategory={toggleHiringCategory}
+        customCategories={customCategories}
+        removeCustomCategory={removeCustomCategory}
+        customCategoryInput={customCategoryInput}
+        setCustomCategoryInput={setCustomCategoryInput}
+        onAddCustomCategory={handleAddCustomCategory}
+        customCategoryInputRef={customCategoryInputRef}
+        totalSelectedInterests={totalSelectedInterests}
+        maxHiringInterests={MAX_HIRING_INTERESTS}
+        fieldErrors={fieldErrors}
+      />
+    );
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
+      <PageHeaderBox
+        title="Edit Profile"
+        subtitle="Manage your core identity, contact details, and role preferences"
+        onBack={handleBackPress}
+        rightAction={completeness?.complete ? <ProfileCompleteBadge /> : undefined}
+        maxWidth={960}
+      />
+
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backBtn}>
-            <Text style={{ color: theme.colors.primary, fontSize: 16 }}>
-              {strings.common.back}
-            </Text>
-          </TouchableOpacity>
-          <View style={styles.titleRow}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Edit Profile</Text>
-            {completeness?.complete ? <ProfileCompleteBadge /> : null}
-          </View>
-        </View>
+        <View style={styles.innerWrap}>
+          {showDiscardConfirm ? (
+            <AlertBox
+              tone="warning"
+              title={strings.profile.unsavedChangesTitle}
+              message={strings.profile.unsavedChangesBody}
+              style={{ marginBottom: 16 }}
+              action={
+                <View style={styles.discardActions}>
+                  <Button
+                    title={strings.profile.keepEditingBtn}
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    onPress={() => setShowDiscardConfirm(false)}
+                  />
+                  <Button
+                    title={strings.profile.discardBtn}
+                    variant="danger"
+                    size="sm"
+                    fullWidth={false}
+                    onPress={navigateBack}
+                  />
+                </View>
+              }
+            />
+          ) : null}
 
-        {showDiscardConfirm ? (
-          <View
-            style={[
-              styles.discardBox,
-              { backgroundColor: theme.colors.warningSoft, borderColor: theme.colors.warning },
-            ]}
-          >
-            <Text style={[styles.discardTitle, { color: theme.colors.warning }]}>
-              {strings.profile.unsavedChangesTitle}
-            </Text>
-            <Text style={[styles.discardBody, { color: theme.colors.text }]}>
-              {strings.profile.unsavedChangesBody}
-            </Text>
-            <View style={styles.discardActions}>
-              <TouchableOpacity
-                style={[styles.discardBtn, { borderColor: theme.colors.border }]}
-                onPress={() => setShowDiscardConfirm(false)}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: '600' }}>
-                  {strings.profile.keepEditingBtn}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.discardBtn, { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger }]}
-                onPress={navigateBack}
-              >
-                <Text style={{ color: '#ffffff', fontWeight: '700' }}>
-                  {strings.profile.discardBtn}
-                </Text>
-              </TouchableOpacity>
+          {error ? (
+            <AlertBox
+              tone="danger"
+              message={error}
+              style={{ marginBottom: 16 }}
+              action={
+                <Button
+                  title={strings.common.retry}
+                  variant="ghost"
+                  size="xs"
+                  fullWidth={false}
+                  onPress={loadData}
+                />
+              }
+            />
+          ) : null}
+
+          {successMsg ? (
+            <AlertBox tone="success" message={successMsg} style={{ marginBottom: 16 }} />
+          ) : null}
+
+          {isDesktop ? (
+            <View style={styles.desktopGrid}>
+              <View style={styles.desktopLeftCol}>
+                <PhotoUploadCard
+                  displayName={displayName || profile?.display_name || ''}
+                  avatarPath={profile?.avatar_path}
+                  photoBusy={photoBusy}
+                  onPickLibrary={() => handlePickAvatar('library')}
+                  onPickCamera={() => handlePickAvatar('camera')}
+                  onRemovePhoto={handleRemoveAvatar}
+                />
+                <ProfileCompletenessCard
+                  completeness={completeness}
+                  onSelectMissingItem={handleMissingItemTap}
+                />
+              </View>
+              <View style={styles.desktopRightCol}>
+                {renderCoreIdentityFields()}
+                {renderRoleSpecificSection()}
+              </View>
             </View>
-          </View>
-        ) : null}
-
-        <ProfileCompletenessCard
-          completeness={completeness}
-          onSelectMissingItem={handleMissingItemTap}
-        />
-
-        {error ? (
-          <View
-            style={[
-              styles.errorBox,
-              { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger },
-            ]}
-          >
-            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
-            <TouchableOpacity onPress={loadData} accessibilityRole="button">
-              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>{strings.common.retry}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {successMsg ? (
-          <View
-            style={[
-              styles.successBox,
-              { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success },
-            ]}
-          >
-            <Text style={[styles.successText, { color: theme.colors.success }]}>
-              {successMsg}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Photo Section */}
-        <PhotoUploadCard
-          displayName={displayName || profile?.display_name || ''}
-          avatarPath={profile?.avatar_path}
-          photoBusy={photoBusy}
-          onPickLibrary={() => handlePickAvatar('library')}
-          onPickCamera={() => handlePickAvatar('camera')}
-          onRemovePhoto={handleRemoveAvatar}
-        />
-
-        {/* Display Name */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Display Name (2–50 characters)</Text>
-          <TextInput
-            ref={nameInputRef}
-            style={[
-              styles.input,
-              {
-                borderColor: fieldErrors.displayName ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="e.g. Maria Santos"
-            placeholderTextColor={theme.colors.muted}
-            maxLength={50}
-          />
-          {fieldErrors.displayName ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.displayName}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Bio */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Bio (20–500 characters)
-          </Text>
-          <TextInput
-            ref={bioInputRef}
-            style={[
-              styles.input,
-              styles.textArea,
-              {
-                borderColor: fieldErrors.bio ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder={
-              isHire
-                ? 'Tell freelancers in Ormoc about yourself or what projects you post...'
-                : 'Tell clients in Ormoc about your skills and experience (at least 20 characters)...'
-            }
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-            textAlignVertical="top"
-          />
-          <Text style={[styles.helperText, { color: theme.colors.muted }]}>
-            {bio.trim().length}/500 characters
-          </Text>
-          {fieldErrors.bio ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.bio}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Area */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Barangay / Area in Ormoc</Text>
-          {areasList.length > 0 ? (
-            <View style={styles.chipsWrap}>
-              {areasList.map((a) => {
-                const selected = area.toLowerCase() === a.name.toLowerCase();
-                return (
-                  <TouchableOpacity
-                    key={a.id}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: selected ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: selected ? theme.colors.primarySoft : theme.colors.surface,
-                      },
-                    ]}
-                    onPress={() => setArea(a.name)}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? theme.colors.primary : theme.colors.text,
-                        fontWeight: selected ? '700' : '500',
-                        fontSize: 13,
-                      }}
-                    >
-                      {a.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          ) : (
+            <View>
+              <ProfileCompletenessCard
+                completeness={completeness}
+                onSelectMissingItem={handleMissingItemTap}
+              />
+              <PhotoUploadCard
+                displayName={displayName || profile?.display_name || ''}
+                avatarPath={profile?.avatar_path}
+                photoBusy={photoBusy}
+                onPickLibrary={() => handlePickAvatar('library')}
+                onPickCamera={() => handlePickAvatar('camera')}
+                onRemovePhoto={handleRemoveAvatar}
+              />
+              {renderCoreIdentityFields()}
+              {renderRoleSpecificSection()}
             </View>
-          ) : null}
-          <TextInput
-            ref={areaInputRef}
-            style={[
-              styles.input,
-              {
-                borderColor: fieldErrors.area ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={area}
-            onChangeText={setArea}
-            placeholder="e.g. Cogon, Ormoc City"
-            placeholderTextColor={theme.colors.muted}
-            maxLength={80}
-          />
-          {fieldErrors.area ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.area}
-            </Text>
-          ) : null}
+          )}
         </View>
+      </ScrollView>
 
-        {/* Languages */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Languages Spoken</Text>
-          <View style={styles.chipsWrap}>
-            {strings.profile.languagesList.map((lang) => {
-              const selected = languages.includes(lang);
-              return (
-                <TouchableOpacity
-                  key={lang}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: selected ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: selected ? theme.colors.primarySoft : theme.colors.surface,
-                    },
-                  ]}
-                  onPress={() => toggleLanguage(lang)}
-                >
-                  <Text
-                    style={{
-                      color: selected ? theme.colors.primary : theme.colors.text,
-                      fontWeight: selected ? '700' : '500',
-                      fontSize: 13,
-                    }}
-                  >
-                    {lang}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Preferred Contact Note */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Preferred Contact Method Note
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: fieldErrors.preferredContact
-                  ? theme.colors.danger
-                  : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={preferredContact}
-            onChangeText={setPreferredContact}
-            placeholder="In-app chat"
-            placeholderTextColor={theme.colors.muted}
-            maxLength={120}
-          />
-          {fieldErrors.preferredContact ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.preferredContact}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Private Phone */}
-        <View style={styles.inputGroup}>
-          <View style={styles.privateLabelRow}>
-            <Ionicons name="lock-closed" size={14} color={theme.colors.muted} />
-            <Text style={[styles.label, { color: theme.colors.text, marginBottom: 0 }]}>
-              Phone Number (Optional)
-            </Text>
-          </View>
-          <Text style={[styles.helperText, { color: theme.colors.muted, marginBottom: 6 }]}>
-            {strings.profile.privateFieldNote}
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: fieldErrors.phone ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="e.g. 0917 123 4567"
-            placeholderTextColor={theme.colors.muted}
-            keyboardType="phone-pad"
-            maxLength={20}
-          />
-          {fieldErrors.phone ? (
-            <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-              {fieldErrors.phone}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Role-specific section */}
-        {!isHire ? (
-          <FreelancerWorkSection
-            headline={headline}
-            setHeadline={setHeadline}
-            headlineInputRef={headlineInputRef}
-            startingRateNote={startingRateNote}
-            setStartingRateNote={setStartingRateNote}
-            workTypes={workTypes}
-            toggleWorkType={toggleWorkType}
-            availability={availability}
-            setAvailability={setAvailability}
-            experienceYears={experienceYears}
-            setExperienceYears={setExperienceYears}
-            onNavigatePortfolio={() => router.push('/profile/portfolio')}
-            fieldErrors={fieldErrors}
-          />
-        ) : (
-          /* Hiring Interests ({totalSelectedInterests}/{MAX_HIRING_INTERESTS}) */
-          <ClientHiringProfileSection
-            clientType={clientType}
-            setClientType={setClientType}
-            businessName={businessName}
-            setBusinessName={setBusinessName}
-            aboutHiring={aboutHiring}
-            setAboutHiring={setAboutHiring}
-            categoriesList={categoriesList}
-            selectedCategoryIds={selectedCategoryIds}
-            toggleHiringCategory={toggleHiringCategory}
-            customCategories={customCategories}
-            removeCustomCategory={removeCustomCategory}
-            customCategoryInput={customCategoryInput}
-            setCustomCategoryInput={setCustomCategoryInput}
-            onAddCustomCategory={handleAddCustomCategory}
-            customCategoryInputRef={customCategoryInputRef}
-            totalSelectedInterests={totalSelectedInterests}
-            maxHiringInterests={MAX_HIRING_INTERESTS}
-            fieldErrors={fieldErrors}
-          />
-        )}
-
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: theme.colors.primary },
-            loading && { opacity: 0.7 },
-          ]}
+      {/* Sticky Save Footer */}
+      <StickyFooterBox maxWidth={960}>
+        <Button
+          title="Save Changes"
+          icon="checkmark-circle-outline"
           onPress={handleSave}
           disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+          loading={loading}
+        />
+      </StickyFooterBox>
     </KeyboardAvoidingView>
   );
 }
@@ -748,73 +744,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-    paddingBottom: 48,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 100,
   },
-  header: {
-    marginBottom: 16,
+  innerWrap: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
   },
-  backBtn: {
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-  },
-  titleRow: {
+  desktopGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 24,
   },
-  title: {
-    fontSize: 26,
+  desktopLeftCol: {
+    width: 340,
+  },
+  desktopRightCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionCard: {
+    marginBottom: 20,
+  },
+  sectionCardTitle: {
+    fontSize: 16,
     fontWeight: '700',
-  },
-  discardBox: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  discardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  discardBody: {
-    fontSize: 13,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   discardActions: {
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'flex-end',
-  },
-  discardBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  errorBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  successBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-  },
-  successText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   inputGroup: {
     marginBottom: 16,
@@ -825,8 +787,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderRadius: 12,
     padding: 12,
     fontSize: 14,
   },
@@ -850,22 +812,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    marginBottom: 8,
   },
 });

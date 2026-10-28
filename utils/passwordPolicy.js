@@ -29,7 +29,6 @@ function validatePasswordConfirmation(password, confirmation) {
 }
 
 module.exports = {
-  PASSWORD_MAX_LENGTH,
   getPasswordChecks,
   validatePassword,
   validatePasswordConfirmation,

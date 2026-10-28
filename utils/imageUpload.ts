@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
-export interface PickedImageFile {
+interface PickedImageFile {
   bytes: Uint8Array;
   fileName: string;
   mimeType: string;
@@ -10,7 +10,7 @@ export interface PickedImageFile {
   uri: string;
 }
 
-export interface PickImageOptions {
+interface PickImageOptions {
   source?: 'library' | 'camera';
   allowsMultipleSelection?: boolean;
   selectionLimit?: number;
@@ -432,7 +432,7 @@ function pickFilesOnWebDom(options: PickImageOptions): Promise<PickedImageFile[]
  * Converts an Expo ImagePickerAsset into a PickedImageFile with guaranteed Uint8Array bytes
  * across iOS, Android, and Web.
  */
-export async function assetToPickedImageFile(
+async function assetToPickedImageFile(
   asset: ImagePicker.ImagePickerAsset,
   options: { cropSquare?: boolean; maxDimension?: number; quality?: number } = {}
 ): Promise<PickedImageFile> {

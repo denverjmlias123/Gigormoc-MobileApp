@@ -11,7 +11,7 @@ export type ReportReasonCategory =
   | 'cancellation_request'
   | 'other';
 
-export interface ReportItem {
+interface ReportItem {
   id: string;
   reporter_id: string;
   target_type: ReportTargetType;
@@ -25,7 +25,7 @@ export interface ReportItem {
   resolved_at: string | null;
 }
 
-export interface SubmitReportParams {
+interface SubmitReportParams {
   targetType: ReportTargetType;
   targetId: string;
   reasonCategory: ReportReasonCategory;

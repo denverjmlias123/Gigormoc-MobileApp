@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,21 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  useWindowDimensions,
   Platform,
   Modal,
   Share,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '../../components/ui/Avatar';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
+import { Card, StickyFooterBox } from '../../components/ui/Card';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { ProfileCompleteBadge } from '../../components/ui/ProfileCompleteness';
 import { showToast } from '../../components/ui/Toast';
-import { profileService, PublicProfileData, PortfolioItem } from '../../services/profile';
+import { profileService, PublicProfileData } from '../../services/profile';
 import { reviewsService, ReviewItem } from '../../services/reviews';
 import { chatService, ConversationSummary } from '../../services/chat';
 import { strings } from '../../constants/strings';
@@ -30,8 +29,7 @@ import { strings } from '../../constants/strings';
 export default function PublicProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 860;
+  const { isDesktop, topPad } = useResponsiveLayout();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
 
@@ -40,7 +38,6 @@ export default function PublicProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [myConversations, setMyConversations] = useState<ConversationSummary[]>([]);
   const [activePhotoModal, setActivePhotoModal] = useState<string | null>(null);
   const [messagingBusy, setMessagingBusy] = useState(false);
 
@@ -119,7 +116,7 @@ export default function PublicProfileScreen() {
 
     setMessagingBusy(true);
     try {
-      let existingConv = null;
+      let existingConv: ConversationSummary | undefined;
       try {
         const convList = await chatService.getUserConversations();
         existingConv = convList.find(
@@ -170,7 +167,7 @@ export default function PublicProfileScreen() {
     return (
       <ScreenBackground>
         <View style={styles.centerContainer}>
-          <View style={[styles.errorCard, { backgroundColor: '#FFFFFF', borderColor: theme.colors.border }]}>
+          <Card tone="neo-glass" padding="lg" style={styles.errorCard}>
             <Ionicons name="alert-circle-outline" size={48} color={theme.colors.danger} />
             <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Unable to load profile</Text>
             <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'Profile not found.'}</Text>
@@ -179,12 +176,13 @@ export default function PublicProfileScreen() {
                 <Button
                   title={strings.common.retry}
                   variant="primary"
+                  fullWidth={false}
                   onPress={() => setLoadAttempt((attempt) => attempt + 1)}
                 />
               ) : null}
-              <Button title="← Go back" variant="secondary" onPress={handleBack} />
+              <Button title="← Go back" variant="secondary" fullWidth={false} onPress={handleBack} />
             </View>
-          </View>
+          </Card>
         </View>
       </ScreenBackground>
     );
@@ -203,31 +201,21 @@ export default function PublicProfileScreen() {
     (o) => o.value === profile.client_type
   )?.label;
 
-  const roleAccentColor = isHire ? '#2563EB' : '#059669';
+  const roleAccentColor = isHire ? theme.colors.primary : theme.colors.success;
   const roleBadgeText = isHire ? 'Client / Hiring' : 'Freelancer / Talent';
   const roleBadgeIcon = isHire ? 'briefcase' : 'person-circle-outline';
 
   // Left Identity Column Content (Desktop Sidebar or Mobile Hero)
   const renderIdentityCard = () => (
-    <View
-      style={[
-        styles.card,
-        styles.identityCard,
-        {
-          backgroundColor: '#FFFFFF',
-          borderColor: theme.colors.border,
-          shadowColor: theme.shadow.card.shadowColor,
-        },
-      ]}
-    >
+    <Card tone="neo-glass" padding="lg" style={styles.identityCard}>
       {/* Top Banner / Role Status Header */}
       <View style={styles.identityHeader}>
         <View
           style={[
             styles.roleBadgePill,
             {
-              backgroundColor: isHire ? '#EFF6FF' : '#ECFDF5',
-              borderColor: isHire ? '#BFDBFE' : '#A7F3D0',
+              backgroundColor: isHire ? theme.colors.primarySoft : theme.colors.successSoft,
+              borderColor: isHire ? theme.colors.primary : theme.colors.success,
             },
           ]}
         >
@@ -242,7 +230,9 @@ export default function PublicProfileScreen() {
                 styles.statusDot,
                 {
                   backgroundColor:
-                    profile.availability === 'available_now' ? '#10B981' : '#F59E0B',
+                    profile.availability === 'available_now'
+                      ? theme.colors.success
+                      : theme.colors.warning,
                 },
               ]}
             />
@@ -294,7 +284,12 @@ export default function PublicProfileScreen() {
       </View>
 
       {/* Key Stats Grid */}
-      <View style={[styles.statsGrid, { borderTopColor: '#F1F5F9', borderBottomColor: '#F1F5F9' }]}>
+      <View
+        style={[
+          styles.statsGrid,
+          { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border },
+        ]}
+      >
         {isHire ? (
           <>
             <View style={styles.statBox}>
@@ -306,16 +301,17 @@ export default function PublicProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.statBoxDivider} />
+            <View style={[styles.statBoxDivider, { backgroundColor: theme.colors.border }]} />
 
+            {/* gigs posted */}
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
                 {gigsPostedCount || 0}
               </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Gigs Posted</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.muted }]}>gigs posted</Text>
             </View>
 
-            <View style={styles.statBoxDivider} />
+            <View style={[styles.statBoxDivider, { backgroundColor: theme.colors.border }]} />
 
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
@@ -335,7 +331,7 @@ export default function PublicProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.statBoxDivider} />
+            <View style={[styles.statBoxDivider, { backgroundColor: theme.colors.border }]} />
 
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
@@ -344,7 +340,7 @@ export default function PublicProfileScreen() {
               <Text style={[styles.statLabel, { color: theme.colors.muted }]}>Gigs Done</Text>
             </View>
 
-            <View style={styles.statBoxDivider} />
+            <View style={[styles.statBoxDivider, { backgroundColor: theme.colors.border }]} />
 
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
@@ -361,12 +357,14 @@ export default function PublicProfileScreen() {
         <Button
           title={isOwner ? 'Edit My Profile' : isHire ? 'Browse Client Gigs' : 'Send Message / Hire'}
           variant="primary"
+          icon={isOwner ? 'create-outline' : 'chatbubble-ellipses-outline'}
           onPress={handleMessagePress}
           loading={messagingBusy}
         />
         <Button
           title="Share Profile"
           variant="secondary"
+          icon="share-social-outline"
           onPress={handleShare}
         />
       </View>
@@ -429,7 +427,7 @@ export default function PublicProfileScreen() {
 
         {/* Dual Role Badging if user participated in both modes */}
         {isHire && profile.freelancer_completed_gigs ? (
-          <View style={styles.dualRoleNotice}>
+          <View style={[styles.dualRoleNotice, { backgroundColor: theme.colors.surfaceAlt }]}>
             <Text style={[styles.dualRoleText, { color: theme.colors.muted }]}>
               Also freelanced: ★ {Number(profile.freelancer_rating_avg || 0).toFixed(1)} ({profile.freelancer_completed_gigs} gigs)
             </Text>
@@ -437,30 +435,21 @@ export default function PublicProfileScreen() {
         ) : null}
 
         {!isHire && profile.client_completed_gigs ? (
-          <View style={styles.dualRoleNotice}>
+          <View style={[styles.dualRoleNotice, { backgroundColor: theme.colors.surfaceAlt }]}>
             <Text style={[styles.dualRoleText, { color: theme.colors.muted }]}>
               Also hired: ★ {Number(profile.client_rating_avg || 0).toFixed(1)} ({profile.client_completed_gigs} gigs)
             </Text>
           </View>
         ) : null}
       </View>
-    </View>
+    </Card>
   );
 
   // Right Column Content (Main Information & Feed)
   const renderMainPanels = () => (
     <View style={styles.mainPanelsContainer}>
       {/* 1. About / Overview Card */}
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: '#FFFFFF',
-            borderColor: theme.colors.border,
-            shadowColor: theme.shadow.card.shadowColor,
-          },
-        ]}
-      >
+      <Card tone="neo-glass" padding="lg">
         <View style={styles.cardHeaderRow}>
           <Ionicons
             name={isHire ? 'business-outline' : 'person-outline'}
@@ -484,32 +473,30 @@ export default function PublicProfileScreen() {
 
         {/* Highlight Callout for Clients: What We Usually Hire For */}
         {isHire && profile.about_hiring ? (
-          <View style={[styles.hiringCallout, { borderColor: '#BFDBFE', backgroundColor: '#F8FAFC' }]}>
+          <View
+            style={[
+              styles.hiringCallout,
+              { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+            ]}
+          >
             <View style={styles.calloutHeader}>
-              <Ionicons name="sparkles" size={16} color="#2563EB" />
-              <Text style={[styles.calloutTitle, { color: '#1E3A8A' }]}>
+              <Ionicons name="sparkles" size={16} color={theme.colors.primary} />
+              <Text style={[styles.calloutTitle, { color: theme.colors.primaryDark }]}>
                 What We Look For In Freelancers
               </Text>
             </View>
-            <Text style={[styles.calloutBody, { color: '#334155' }]}>{profile.about_hiring}</Text>
+            <Text style={[styles.calloutBody, { color: theme.colors.text }]}>
+              {profile.about_hiring}
+            </Text>
           </View>
         ) : null}
-      </View>
+      </Card>
 
       {/* 2. Skills or Hiring Interests Card */}
       {isHire ? (
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: '#FFFFFF',
-              borderColor: theme.colors.border,
-              shadowColor: theme.shadow.card.shadowColor,
-            },
-          ]}
-        >
+        <Card tone="neo-glass" padding="lg">
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="compass-outline" size={20} color="#2563EB" />
+            <Ionicons name="compass-outline" size={20} color={theme.colors.primary} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
               Hiring Interests ({hiringInterests?.length || 0})
             </Text>
@@ -526,29 +513,25 @@ export default function PublicProfileScreen() {
                   key={cat.id}
                   style={[
                     styles.interestChip,
-                    { borderColor: '#DBEAFE', backgroundColor: '#F0F7FF' },
+                    {
+                      borderColor: theme.colors.primary,
+                      backgroundColor: theme.colors.primarySoft,
+                    },
                   ]}
                 >
-                  <Ionicons name="checkmark-circle-outline" size={14} color="#2563EB" />
-                  <Text style={[styles.interestChipText, { color: '#1E40AF' }]}>{cat.name}</Text>
+                  <Ionicons name="checkmark-circle-outline" size={14} color={theme.colors.primary} />
+                  <Text style={[styles.interestChipText, { color: theme.colors.primaryDark }]}>
+                    {cat.name}
+                  </Text>
                 </View>
               ))}
             </View>
           )}
-        </View>
+        </Card>
       ) : (
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: '#FFFFFF',
-              borderColor: theme.colors.border,
-              shadowColor: theme.shadow.card.shadowColor,
-            },
-          ]}
-        >
+        <Card tone="neo-glass" padding="lg">
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="construct-outline" size={20} color="#059669" />
+            <Ionicons name="construct-outline" size={20} color={theme.colors.success} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
               Skills & Expertise ({skills.length})
             </Text>
@@ -565,32 +548,28 @@ export default function PublicProfileScreen() {
                   key={skill.id}
                   style={[
                     styles.skillChip,
-                    { borderColor: '#D1FAE5', backgroundColor: '#F0FDF4' },
+                    {
+                      borderColor: theme.colors.success,
+                      backgroundColor: theme.colors.successSoft,
+                    },
                   ]}
                 >
-                  <Ionicons name="star" size={12} color="#059669" />
-                  <Text style={[styles.skillChipText, { color: '#065F46' }]}>{skill.name}</Text>
+                  <Ionicons name="star" size={12} color={theme.colors.success} />
+                  <Text style={[styles.skillChipText, { color: theme.colors.successText }]}>
+                    {skill.name}
+                  </Text>
                 </View>
               ))}
             </View>
           )}
-        </View>
+        </Card>
       )}
 
       {/* 3. Portfolio Showcase (Freelancers) */}
       {!isHire ? (
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: '#FFFFFF',
-              borderColor: theme.colors.border,
-              shadowColor: theme.shadow.card.shadowColor,
-            },
-          ]}
-        >
+        <Card tone="neo-glass" padding="lg">
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="images-outline" size={20} color="#059669" />
+            <Ionicons name="images-outline" size={20} color={theme.colors.success} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
               Portfolio Showcase ({portfolioItems.length})
             </Text>
@@ -601,13 +580,15 @@ export default function PublicProfileScreen() {
               No portfolio projects published yet.
             </Text>
           ) : (
-            <View style={styles.portfolioGrid}>
+            <View style={[styles.portfolioGrid, isDesktop && styles.portfolioGridDesktop]}>
               {portfolioItems.map((item) => (
-                <View
+                <Card
                   key={item.id}
+                  tone="outline"
+                  padding="none"
                   style={[
                     styles.portfolioItemCard,
-                    { borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
+                    isDesktop && styles.portfolioItemCardDesktop,
                   ]}
                 >
                   {item.file_paths && item.file_paths.length > 0 ? (
@@ -622,8 +603,13 @@ export default function PublicProfileScreen() {
                       />
                     </TouchableOpacity>
                   ) : (
-                    <View style={styles.portfolioPlaceholder}>
-                      <Ionicons name="document-text-outline" size={32} color="#94A3B8" />
+                    <View
+                      style={[
+                        styles.portfolioPlaceholder,
+                        { backgroundColor: theme.colors.surfaceAlt },
+                      ]}
+                    >
+                      <Ionicons name="document-text-outline" size={32} color={theme.colors.muted} />
                     </View>
                   )}
 
@@ -652,34 +638,32 @@ export default function PublicProfileScreen() {
                           </TouchableOpacity>
                         ))}
                         {item.file_paths.length > 4 ? (
-                          <View style={styles.moreThumbsChip}>
-                            <Text style={styles.moreThumbsText}>+{item.file_paths.length - 4}</Text>
+                          <View
+                            style={[
+                              styles.moreThumbsChip,
+                              { backgroundColor: theme.colors.surfaceAlt },
+                            ]}
+                          >
+                            <Text style={[styles.moreThumbsText, { color: theme.colors.text }]}>
+                              +{item.file_paths.length - 4}
+                            </Text>
                           </View>
                         ) : null}
                       </View>
                     ) : null}
                   </View>
-                </View>
+                </Card>
               ))}
             </View>
           )}
-        </View>
+        </Card>
       ) : null}
 
       {/* 4. Reviews & Testimonials Card */}
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: '#FFFFFF',
-            borderColor: theme.colors.border,
-            shadowColor: theme.shadow.card.shadowColor,
-          },
-        ]}
-      >
+      <Card tone="neo-glass" padding="lg">
         <View style={styles.cardHeaderBetween}>
           <View style={styles.cardHeaderRow}>
-            <Ionicons name="star" size={20} color="#EAB308" />
+            <Ionicons name="star" size={20} color={theme.colors.warning} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
               Reviews ({reviews.length})
             </Text>
@@ -696,13 +680,7 @@ export default function PublicProfileScreen() {
         ) : (
           <View style={styles.reviewsList}>
             {reviews.map((rev) => (
-              <View
-                key={rev.id}
-                style={[
-                  styles.reviewItemCard,
-                  { borderColor: '#F1F5F9', backgroundColor: '#FAFCFE' },
-                ]}
-              >
+              <Card key={rev.id} tone="muted" padding="md" style={styles.reviewItemCard}>
                 <View style={styles.reviewerHeader}>
                   <View style={styles.reviewerIdentity}>
                     <Avatar
@@ -721,8 +699,12 @@ export default function PublicProfileScreen() {
                   </View>
 
                   <View style={styles.starsPill}>
-                    <Text style={styles.starsGold}>{'★'.repeat(rev.rating)}</Text>
-                    <Text style={styles.starsEmpty}>{'☆'.repeat(5 - rev.rating)}</Text>
+                    <Text style={[styles.starsGold, { color: theme.colors.warning }]}>
+                      {'★'.repeat(rev.rating)}
+                    </Text>
+                    <Text style={[styles.starsEmpty, { color: theme.colors.borderStrong }]}>
+                      {'☆'.repeat(5 - rev.rating)}
+                    </Text>
                   </View>
                 </View>
 
@@ -731,11 +713,11 @@ export default function PublicProfileScreen() {
                     “{rev.comment}”
                   </Text>
                 ) : null}
-              </View>
+              </Card>
             ))}
           </View>
         )}
-      </View>
+      </Card>
     </View>
   );
 
@@ -743,18 +725,25 @@ export default function PublicProfileScreen() {
     <ScreenBackground>
       <View style={styles.screenWrapper}>
         {/* Web Desktop Header & Breadcrumbs / Mobile Navigation Bar */}
-        <View style={[styles.topNavBar, { borderBottomColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.topNavBar,
+            {
+              backgroundColor: theme.glass.surface,
+              borderBottomColor: theme.colors.border,
+              paddingTop: topPad,
+            },
+          ]}
+        >
           <View style={[styles.navInner, isDesktop && styles.navInnerDesktop]}>
-            <TouchableOpacity
-              style={styles.backButton}
+            <Button
+              title={isDesktop ? 'Back to Directory' : 'Back'}
+              icon="arrow-back"
+              variant="ghost"
+              size="sm"
+              fullWidth={false}
               onPress={handleBack}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
-              <Text style={[styles.backText, { color: theme.colors.text }]}>
-                {isDesktop ? 'Back to Directory' : 'Back'}
-              </Text>
-            </TouchableOpacity>
+            />
 
             {isDesktop ? (
               <View style={styles.desktopBreadcrumbs}>
@@ -772,13 +761,13 @@ export default function PublicProfileScreen() {
               </View>
             ) : null}
 
-            <TouchableOpacity
-              style={styles.shareIconBtn}
+            <IconButton
+              icon="share-outline"
+              variant="ghost"
+              size="sm"
               onPress={handleShare}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="share-outline" size={20} color={theme.colors.text} />
-            </TouchableOpacity>
+              accessibilityLabel="Share Profile"
+            />
           </View>
         </View>
 
@@ -786,7 +775,7 @@ export default function PublicProfileScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContainer,
-            isDesktop && styles.scrollContainerDesktop,
+            isDesktop ? styles.scrollContainerDesktop : { paddingBottom: 110 },
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -804,6 +793,25 @@ export default function PublicProfileScreen() {
             </View>
           )}
         </ScrollView>
+
+        {/* Sticky Mobile Bottom CTA Bar */}
+        {!isDesktop ? (
+          <StickyFooterBox>
+            <Button
+              title={
+                isOwner
+                  ? 'Edit My Profile'
+                  : isHire
+                  ? 'Browse Client Gigs'
+                  : 'Send Message / Hire'
+              }
+              variant="primary"
+              onPress={handleMessagePress}
+              loading={messagingBusy}
+              style={{ flex: 1 }}
+            />
+          </StickyFooterBox>
+        ) : null}
       </View>
 
       {/* Portfolio High-Res Image Lightbox Modal */}
@@ -815,12 +823,15 @@ export default function PublicProfileScreen() {
           onRequestClose={() => setActivePhotoModal(null)}
         >
           <View style={styles.modalBackdrop}>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setActivePhotoModal(null)}
-            >
-              <Ionicons name="close" size={28} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={styles.modalCloseBtn}>
+              <IconButton
+                icon="close"
+                variant="secondary"
+                size="md"
+                onPress={() => setActivePhotoModal(null)}
+                accessibilityLabel="Close"
+              />
+            </View>
             <Image
               source={{ uri: activePhotoModal }}
               style={styles.modalFullImage}
@@ -838,10 +849,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topNavBar: {
-    paddingTop: Platform.OS === 'ios' ? 48 : 16,
     paddingBottom: 12,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navInner: {
@@ -853,18 +862,6 @@ const styles = StyleSheet.create({
   navInnerDesktop: {
     maxWidth: 1040,
     alignSelf: 'center',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  backText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   desktopBreadcrumbs: {
     flexDirection: 'row',
@@ -881,10 +878,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  shareIconBtn: {
-    padding: 8,
-    borderRadius: 8,
-  },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
@@ -896,9 +889,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   errorCard: {
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 28,
     alignItems: 'center',
     maxWidth: 420,
     width: '100%',
@@ -949,15 +939,6 @@ const styles = StyleSheet.create({
   },
   mainPanelsContainer: {
     gap: 16,
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 20,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
   },
   identityCard: {
     gap: 16,
@@ -1057,7 +1038,6 @@ const styles = StyleSheet.create({
   statBoxDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#E2E8F0',
   },
   statValue: {
     fontSize: 16.5,
@@ -1102,7 +1082,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
   },
   dualRoleText: {
     fontSize: 12,
@@ -1192,10 +1171,15 @@ const styles = StyleSheet.create({
   portfolioGrid: {
     gap: 16,
   },
+  portfolioGridDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
   portfolioItemCard: {
-    borderWidth: 1,
-    borderRadius: 16,
     overflow: 'hidden',
+  },
+  portfolioItemCardDesktop: {
+    width: '48.2%',
   },
   portfolioCover: {
     width: '100%',
@@ -1204,7 +1188,6 @@ const styles = StyleSheet.create({
   portfolioPlaceholder: {
     width: '100%',
     height: 120,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1239,22 +1222,17 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 8,
-    backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   moreThumbsText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#475569',
   },
   reviewsList: {
     gap: 12,
   },
   reviewItemCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
     gap: 10,
   },
   reviewerHeader: {
@@ -1280,11 +1258,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   starsGold: {
-    color: '#EAB308',
     fontSize: 14,
   },
   starsEmpty: {
-    color: '#CBD5E1',
     fontSize: 14,
   },
   reviewComment: {
@@ -1304,7 +1280,6 @@ const styles = StyleSheet.create({
     top: 40,
     right: 24,
     zIndex: 10,
-    padding: 8,
   },
   modalFullImage: {
     width: '100%',

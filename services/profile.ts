@@ -1,5 +1,3 @@
-import * as ImagePicker from 'expo-image-picker';
-import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { runOnce } from '../lib/singleFlight';
 import { Profile } from './auth';
@@ -29,12 +27,6 @@ export interface Area {
   name: string;
   is_active: boolean;
   created_at: string;
-}
-
-export interface UserSkill {
-  profile_id: string;
-  skill_id: string;
-  skill: Skill;
 }
 
 export interface PortfolioItem {
@@ -69,7 +61,7 @@ export interface ProfileCompleteness {
   has_portfolio_bonus: boolean;
 }
 
-export interface UpdateProfileDetailsParams {
+interface UpdateProfileDetailsParams {
   displayName: string;
   headline?: string;
   bio?: string;
@@ -86,7 +78,7 @@ export interface UpdateProfileDetailsParams {
   aboutHiring?: string;
 }
 
-export interface SaveHiringDetailsParams {
+interface SaveHiringDetailsParams {
   clientType?: 'individual' | 'business' | 'organization' | 'other' | '' | null;
   businessName?: string;
   aboutHiring?: string;
@@ -94,7 +86,7 @@ export interface SaveHiringDetailsParams {
   customCategoryNames?: string[];
 }
 
-export interface SaveHiringDetailsResult {
+interface SaveHiringDetailsResult {
   profile_id: string;
   client_type: 'individual' | 'business' | 'organization' | 'other' | null;
   business_name: string;
@@ -127,11 +119,11 @@ export interface FreelancerSummary {
   skills: string[];
 }
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
-export const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
-export const ALLOWED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+const ALLOWED_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
-export function validateImageFile(params: {
+function validateImageFile(params: {
   mimeType?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
@@ -186,7 +178,7 @@ export function validateImageFile(params: {
   };
 }
 
-export function extractStorageObjectPath(
+function extractStorageObjectPath(
   bucket: 'avatars' | 'portfolio',
   urlOrPath: string | null | undefined
 ): string | null {
@@ -205,7 +197,7 @@ export function extractStorageObjectPath(
   return null;
 }
 
-export function buildAvatarStoragePath(userId: string, timestamp: number = Date.now(), ext: string = 'jpg'): string {
+function buildAvatarStoragePath(userId: string, timestamp: number = Date.now(), ext: string = 'jpg'): string {
   const cleanExt = ext === 'jpeg' ? 'jpg' : ext.toLowerCase();
   return `${userId}/avatar-${timestamp}.${cleanExt}`;
 }

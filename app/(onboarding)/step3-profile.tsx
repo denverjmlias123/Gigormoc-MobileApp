@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
@@ -11,12 +9,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { profileService, Area } from '../../services/profile';
 import { aiService } from '../../services/ai';
 import { Avatar } from '../../components/ui/Avatar';
+import { Card, AlertBox, StickyFooterBox } from '../../components/ui/Card';
+import { Button, IconButton } from '../../components/ui/Button';
+import { TextInput } from '../../components/ui/TextInput';
+import { Chip } from '../../components/ui/Chip';
 import { strings } from '../../constants/strings';
 import { confirmDialog } from '../../lib/dialog';
 import { runConfirmedLogout } from '../../utils/confirmedLogout';
@@ -24,7 +27,9 @@ import { runConfirmedLogout } from '../../utils/confirmedLogout';
 export default function OnboardingStep3ProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace } = useResponsiveLayout();
   const { user, profile, refreshProfile, signOut } = useAuth();
+  const isHire = profile?.active_mode === 'hire';
 
   // Photo
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -143,13 +148,11 @@ export default function OnboardingStep3ProfileScreen() {
 
     setLoading(true);
     try {
-      // 1. Update safe profile columns
       await authService.updateProfile(user.id, {
         bio: finalBio,
         area: skip ? '' : finalArea,
       });
 
-      // 2. Complete onboarding via RPC
       await authService.completeOnboarding();
       await refreshProfile();
       router.replace('/(tabs)');
@@ -163,207 +166,227 @@ export default function OnboardingStep3ProfileScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={[styles.container, { paddingTop: isWide ? 36 : topSpace + 8 }]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <View style={styles.header}>
         <View style={styles.topRow}>
-          <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Onboarding 3 of 3</Text>
-          <TouchableOpacity onPress={handleSignOut} disabled={signingOut}>
-            <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '600' }}>Log Out</Text>
-          </TouchableOpacity>
+          <View style={styles.topLeftRow}>
+            <IconButton
+              icon="arrow-back"
+              variant="secondary"
+              size="sm"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(onboarding)/step2-skills'))}
+              accessibilityLabel="Back to Step 2"
+            />
+            <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>Step 3 of 3</Text>
+          </View>
+          <Button
+            title="Log Out"
+            variant="ghost"
+            size="xs"
+            icon="log-out-outline"
+            onPress={handleSignOut}
+            disabled={signingOut}
+          />
+        </View>
+        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressFill, { width: '100%', backgroundColor: theme.colors.primary }]} />
         </View>
 
         <Text style={[styles.title, { color: theme.colors.text }]}>{strings.onboarding.bioTitle}</Text>
         <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
           {strings.onboarding.bioSubtitle}
         </Text>
+      </View>
 
-        {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Profile Photo (Optional) */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Profile Photo (Optional)</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Avatar
-              name={profile?.display_name || user?.user_metadata?.display_name}
-              imageUri={profile?.avatar_path}
-              size={64}
-              editable
-              onPress={() => handlePickPhoto('library')}
-            />
-            <View style={{ flex: 1, gap: 6 }}>
-              <TouchableOpacity
-                style={[styles.chip, { borderColor: theme.colors.primary, alignSelf: 'flex-start' }]}
-                onPress={() => handlePickPhoto('library')}
-                disabled={photoBusy}
-              >
-                <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 13 }}>
-                  {photoBusy ? 'Uploading...' : strings.profile.chooseFromLibraryBtn}
-                </Text>
-              </TouchableOpacity>
-              {Platform.OS !== 'web' ? (
-                <TouchableOpacity
-                  style={[styles.chip, { borderColor: theme.colors.border, alignSelf: 'flex-start' }]}
-                  onPress={() => handlePickPhoto('camera')}
-                  disabled={photoBusy}
-                >
-                  <Text style={{ color: theme.colors.text, fontWeight: '600', fontSize: 13 }}>
-                    {strings.profile.takePhotoBtn}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        {/* Barangay / Area Selection */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Barangay / Area in Ormoc</Text>
-          {areasLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : areas.length > 0 ? (
-            <View style={styles.chipsWrap}>
-              {areas.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  style={[
-                    styles.chip,
-                    { borderColor: theme.colors.border },
-                    selectedArea === a.name && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-                  ]}
-                  onPress={() => setSelectedArea(selectedArea === a.name ? '' : a.name)}
-                >
-                  <Text style={[styles.chipText, selectedArea === a.name && { color: '#ffffff' }]}>
-                    {a.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <TextInput
-              style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
-              value={customArea}
-              onChangeText={setCustomArea}
-              placeholder="e.g. Cogon, Ormoc City"
-              placeholderTextColor={theme.colors.muted}
-              maxLength={60}
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.inner}>
+          {error && (
+            <AlertBox
+              tone="danger"
+              message={error}
+              style={{ marginBottom: 16 }}
             />
           )}
-        </View>
 
-        {/* Short Bio */}
-        <View style={styles.inputGroup}>
-          <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>Short Bio</Text>
-            <Text style={[styles.charCount, { color: theme.colors.muted }]}>
-              {bio.length}/300 (min 20)
-            </Text>
-          </View>
-
-          <TextInput
-            style={[
-              styles.input,
-              styles.textArea,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Describe your background, services, or what you're looking for..."
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            maxLength={300}
-          />
-
-          {/* AI Bio Assist Button */}
-          <TouchableOpacity
-            style={[
-              styles.aiBtn,
-              { backgroundColor: theme.colors.primarySoft },
-              aiLoading && { opacity: 0.7 },
-            ]}
-            onPress={handleDraftBio}
-            disabled={aiLoading}
-            activeOpacity={0.8}
+          {/* Profile Photo (Optional) */}
+          <Card
+            headerTitle="Profile Photo (Optional)"
+            headerIcon="camera-outline"
+            style={styles.card}
           >
-            {aiLoading ? (
-              <View style={styles.btnRow}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.aiBtnText, { color: theme.colors.primary, marginLeft: 8 }]}>
-                  {strings.onboarding.draftingBio}
-                </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <Avatar
+                name={profile?.display_name || user?.user_metadata?.display_name}
+                imageUri={profile?.avatar_path}
+                size={68}
+                editable
+                onPress={() => handlePickPhoto('library')}
+              />
+              <View style={{ flex: 1, maxWidth: 240, gap: 8 }}>
+                <Button
+                  title={photoBusy ? 'Uploading...' : strings.profile.chooseFromLibraryBtn}
+                  onPress={() => handlePickPhoto('library')}
+                  variant="primary"
+                  size="sm"
+                  icon="images-outline"
+                  loading={photoBusy}
+                  disabled={photoBusy}
+                />
+                {Platform.OS !== 'web' ? (
+                  <Button
+                    title={strings.profile.takePhotoBtn}
+                    onPress={() => handlePickPhoto('camera')}
+                    variant="secondary"
+                    size="sm"
+                    icon="camera-outline"
+                    disabled={photoBusy}
+                  />
+                ) : null}
+              </View>
+            </View>
+          </Card>
+
+          {/* Barangay / Area Selection */}
+          <Card
+            headerTitle="Barangay / Area in Ormoc"
+            headerIcon="location-outline"
+            style={styles.card}
+          >
+            {areasLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 12 }} />
+            ) : areas.length > 0 ? (
+              <View style={styles.chipsWrap}>
+                {areas.map((a) => {
+                  const isSelected = selectedArea === a.name;
+                  return (
+                    <Chip
+                      key={a.id}
+                      label={a.name}
+                      selected={isSelected}
+                      size="sm"
+                      onPress={() => setSelectedArea(isSelected ? '' : a.name)}
+                    />
+                  );
+                })}
               </View>
             ) : (
-              <Text style={[styles.aiBtnText, { color: theme.colors.primary }]}>
-                {strings.onboarding.helpMeWriteBioBtn}
-              </Text>
+              <TextInput
+                value={customArea}
+                onChangeText={setCustomArea}
+                placeholder="e.g. Cogon, Ormoc City"
+                leftIcon="location-outline"
+                maxLength={60}
+                containerStyle={{ marginBottom: 0 }}
+              />
             )}
-          </TouchableOpacity>
+          </Card>
 
-          {aiError && (
-            <View style={styles.inlineError}>
-              <Text style={styles.inlineErrorText}>{aiError}</Text>
-              <TouchableOpacity onPress={handleDraftBio} style={{ marginTop: 4 }}>
-                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* AI Bio Draft Options */}
-          {aiDrafts.length > 0 && (
-            <View style={styles.draftsContainer}>
-              <Text style={[styles.draftsHeader, { color: theme.colors.text }]}>
-                {strings.onboarding.bioDraftsTitle}
+          {/* Short Bio */}
+          <Card
+            headerTitle="Short Bio"
+            headerIcon="document-text-outline"
+            headerRight={
+              <Text style={[styles.charCount, { color: theme.colors.muted }]}>
+                {bio.length}/300 (min 20)
               </Text>
-              {aiDrafts.map((draft, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.draftCard,
-                    { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-                    bio === draft && { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
-                  ]}
-                  onPress={() => handleSelectDraft(draft)}
-                >
-                  <Text style={[styles.draftText, { color: theme.colors.text }]}>
-                    "{draft}"
-                  </Text>
-                  <Text style={[styles.draftTapHint, { color: theme.colors.primary }]}>
-                    Tap to use this draft
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+            }
+            style={styles.card}
+          >
+            <TextInput
+              value={bio}
+              onChangeText={setBio}
+              placeholder={
+                isHire
+                  ? 'Introduce yourself or your business and what kind of local talent you hire...'
+                  : "Describe your background, services, or what you're looking for..."
+              }
+              multiline
+              numberOfLines={4}
+              maxLength={300}
+              containerStyle={{ marginBottom: 12 }}
+            />
+
+            {/* AI Bio Assist Button */}
+            <Button
+              title={aiLoading ? strings.onboarding.draftingBio : strings.onboarding.helpMeWriteBioBtn}
+              onPress={handleDraftBio}
+              variant="ai"
+              size="md"
+              icon="sparkles"
+              loading={aiLoading}
+              disabled={aiLoading}
+              fullWidth
+            />
+
+            {aiError && (
+              <AlertBox
+                tone="danger"
+                message={aiError}
+                actionLabel="Retry"
+                onAction={handleDraftBio}
+                style={{ marginTop: 10 }}
+              />
+            )}
+
+            {/* AI Bio Draft Options */}
+            {aiDrafts.length > 0 && (
+              <View style={styles.draftsContainer}>
+                <Text style={[styles.draftsHeader, { color: theme.colors.text }]}>
+                  {strings.onboarding.bioDraftsTitle}
+                </Text>
+                {aiDrafts.map((draft, idx) => (
+                  <Card
+                    key={idx}
+                    tone={bio === draft ? 'role' : 'inset'}
+                    padding="sm"
+                    onPress={() => handleSelectDraft(draft)}
+                    style={styles.draftCard}
+                  >
+                    <Text style={[styles.draftText, { color: theme.colors.text }]}>
+                      "{draft}"
+                    </Text>
+                    <View style={styles.draftHintRow}>
+                      {bio === draft ? (
+                        <>
+                          <Ionicons name="checkmark-circle" size={14} color={theme.colors.primary} />
+                          <Text style={[styles.draftTapHint, { color: theme.colors.primary }]}>Selected draft</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="add-circle-outline" size={14} color={theme.colors.muted} />
+                          <Text style={[styles.draftTapHint, { color: theme.colors.muted }]}>Tap to use this draft</Text>
+                        </>
+                      )}
+                    </View>
+                  </Card>
+                ))}
+              </View>
+            )}
+          </Card>
         </View>
-
-        {/* Buttons */}
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }, loading && { opacity: 0.7 }]}
-          onPress={() => handleComplete(false)}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>{strings.onboarding.finishSetupBtn}</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={() => handleComplete(true)}
-          disabled={loading}
-        >
-          <Text style={{ color: theme.colors.muted, textAlign: 'center' }}>{strings.onboarding.skipForNow}</Text>
-        </TouchableOpacity>
       </ScrollView>
+
+      {/* Sticky Footer */}
+      <StickyFooterBox maxWidth={520}>
+        <Button
+          title={strings.onboarding.finishSetupBtn}
+          onPress={() => handleComplete(false)}
+          loading={loading}
+          disabled={loading}
+          icon="checkmark-done"
+          fullWidth
+        />
+        <Button
+          title={strings.onboarding.skipForNow}
+          onPress={() => handleComplete(true)}
+          variant="ghost"
+          size="sm"
+          disabled={loading}
+          fullWidth
+          style={{ marginTop: 4 }}
+        />
+      </StickyFooterBox>
     </KeyboardAvoidingView>
   );
 }
@@ -372,20 +395,37 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-    paddingBottom: 40,
+  header: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
+  },
+  topLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 18,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
   },
   stepIndicator: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   title: {
     fontSize: 26,
@@ -395,120 +435,53 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  inner: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+  },
+  card: {
     marginBottom: 16,
-  },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
   },
   charCount: {
     fontSize: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-  },
-  textArea: {
-    minHeight: 90,
+    fontWeight: '600',
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 13,
-  },
-  aiBtn: {
-    marginTop: 8,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  btnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inlineError: {
-    backgroundColor: '#FDE8EA',
-    padding: 10,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  inlineErrorText: {
-    color: '#D92D3E',
-    fontSize: 13,
-  },
   draftsContainer: {
-    marginTop: 12,
+    marginTop: 14,
   },
   draftsHeader: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 8,
   },
   draftCard: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: 10,
+    borderRadius: 14,
   },
   draftText: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     fontStyle: 'italic',
+  },
+  draftHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
   },
   draftTapHint: {
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 6,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skipButton: {
-    marginTop: 14,
-    padding: 8,
   },
 });

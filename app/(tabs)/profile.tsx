@@ -4,17 +4,19 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
   ActivityIndicator,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { Avatar } from '../../components/ui/Avatar';
+import { LegitBadge } from '../../components/ui/LegitBadge';
+import { aiLegitimacyService } from '../../services/aiLegitimacy';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
+import { Card, AlertBox, StatBox } from '../../components/ui/Card';
 import { ListRow } from '../../components/ui/ListRow';
 import {
   ProfileCompleteBadge,
@@ -34,6 +36,7 @@ import { adminService } from '../../services/admin';
 export default function ProfileScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, isDesktop, topSpace } = useResponsiveLayout();
   const { user, profile, refreshProfile, signOut } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const [completeness, setCompleteness] = useState<ProfileCompleteness | null>(null);
@@ -41,6 +44,7 @@ export default function ProfileScreen() {
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [screeningBusy, setScreeningBusy] = useState(false);
 
   const loadCompleteness = useCallback(async () => {
     if (!user?.id) return;
@@ -145,227 +149,365 @@ export default function ProfileScreen() {
   const goEdit = () => router.push('/profile/edit');
   const goMode = () => router.push('/settings/mode');
   const goSkills = () => router.push('/profile/skills');
+  
+  const handleRunAiScreening = async () => {
+    if (!profile || screeningBusy) return;
+    setScreeningBusy(true);
+    try {
+      const evaluation = await aiLegitimacyService.submitForReview(profile);
+      await confirmDialog({
+        title: 'AI Screening Complete',
+        message: `Score: ${evaluation.score}%\n\n${evaluation.aiSummary}\n\nYour account has been submitted to the Super Admin review queue for final human approval.`,
+        confirmText: 'Done',
+        cancelText: '',
+      });
+      await refreshProfile();
+    } catch (err: any) {
+      await confirmDialog({
+        title: 'Screening Note',
+        message: err?.message || 'Could not complete AI screening.',
+        confirmText: 'OK',
+        cancelText: '',
+      });
+    } finally {
+      setScreeningBusy(false);
+    }
+  };
+
   const goPortfolio = () => router.push('/profile/portfolio');
   const goPublic = () => user && router.push({ pathname: '/profile/[id]', params: { id: user.id } });
 
   return (
     <ScreenBackground>
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { backgroundColor: theme.colors.heroBg }]}>
-          <Avatar
-            name={displayName}
-            imageUri={profile?.avatar_path}
-            size={76}
-            onHero
-            editable
-            onPress={() => setShowPhotoMenu((prev) => !prev)}
-          />
-          {photoBusy ? (
-            <ActivityIndicator color={theme.colors.heroText} style={{ marginTop: 8 }} />
-          ) : null}
-
-          <View style={styles.nameRow}>
-            <Text style={[theme.type.title, { color: theme.colors.heroText }]}>{displayName}</Text>
-            {completeness?.complete ? <ProfileCompleteBadge onHero /> : null}
-          </View>
-
-          {profile?.headline ? (
-            <Text style={[theme.type.body, { color: theme.colors.heroMuted, marginTop: 4, textAlign: 'center' }]}>
-              {profile.headline}
-            </Text>
-          ) : null}
-
-          <Text style={[theme.type.small, { color: theme.colors.heroMuted, marginTop: 2 }]}>
-            {user?.email || 'Unknown'}
-          </Text>
-
-          <View style={styles.heroMeta}>
-            <View style={[styles.heroChip, { backgroundColor: theme.colors.heroChip }]}>
-              <Ionicons name={isHire ? 'people' : 'search'} size={13} color={theme.colors.heroText} />
-              <Text style={[styles.heroChipText, { color: theme.colors.heroText }]}>
-                {profile?.active_mode === 'find_work'
-                  ? 'Freelancer'
-                  : isHire
-                  ? 'Client'
-                  : 'No mode selected'}
-              </Text>
-            </View>
-            {profile?.area ? (
-              <View style={[styles.heroChip, { backgroundColor: theme.colors.heroChip }]}>
-                <Ionicons name="location" size={13} color={theme.colors.heroText} />
-                <Text style={[styles.heroChipText, { color: theme.colors.heroText }]}>{profile.area}</Text>
-              </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWide && { paddingTop: 24, paddingHorizontal: 28 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <LinearGradient
+            colors={theme.gradients.hero}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.hero,
+              { paddingTop: isWide ? 32 : topSpace + 8 },
+              isWide && styles.heroWide,
+            ]}
+          >
+            <Avatar
+              name={displayName}
+              imageUri={profile?.avatar_path}
+              size={80}
+              onHero
+              editable
+              onPress={() => setShowPhotoMenu((prev) => !prev)}
+            />
+            {photoBusy ? (
+              <ActivityIndicator color={theme.colors.heroText} style={{ marginTop: 8 }} />
             ) : null}
-          </View>
-        </View>
 
-        <View style={styles.body}>
-          {photoError ? (
-            <View
-              style={[
-                styles.errorBanner,
-                { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.danger },
-              ]}
-            >
-              <Text style={{ color: theme.colors.dangerText, fontSize: 13, fontWeight: '600' }}>
-                {photoError}
-              </Text>
+            <View style={styles.nameRow}>
+              <Text style={[theme.type.title, { color: theme.colors.heroText }]}>{displayName}</Text>
+              {profile?.is_legit_verified ? <LegitBadge size="small" role={profile.active_mode} /> : null}
+              {completeness?.complete ? <ProfileCompleteBadge onHero /> : null}
             </View>
-          ) : null}
 
-          {showPhotoMenu ? (
-            <Card style={styles.photoMenuCard}>
-              <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 10 }]}>
-                {strings.profile.photoSectionTitle}
+            {profile?.headline ? (
+              <Text style={[theme.type.body, { color: theme.colors.heroMuted, marginTop: 4, textAlign: 'center' }]}>
+                {profile.headline}
               </Text>
-              <View style={styles.photoMenuBtns}>
-                <Pressable
-                  style={[styles.photoMenuBtn, { borderColor: theme.colors.border }]}
-                  onPress={() => handlePickAvatar('library')}
-                  disabled={photoBusy}
-                >
-                  <Ionicons name="images-outline" size={18} color={theme.colors.primary} />
-                  <Text style={[styles.photoMenuBtnText, { color: theme.colors.text }]}>
-                    {strings.profile.chooseFromLibraryBtn}
-                  </Text>
-                </Pressable>
+            ) : null}
 
-                {Platform.OS !== 'web' ? (
-                  <Pressable
-                    style={[styles.photoMenuBtn, { borderColor: theme.colors.border }]}
-                    onPress={() => handlePickAvatar('camera')}
-                    disabled={photoBusy}
-                  >
-                    <Ionicons name="camera-outline" size={18} color={theme.colors.primary} />
-                    <Text style={[styles.photoMenuBtnText, { color: theme.colors.text }]}>
-                      {strings.profile.takePhotoBtn}
-                    </Text>
-                  </Pressable>
-                ) : null}
+            <Text style={[theme.type.small, { color: theme.colors.heroMuted, marginTop: 2 }]}>
+              {user?.email || 'Unknown'}
+            </Text>
 
-                {profile?.avatar_path ? (
-                  <Pressable
-                    style={[styles.photoMenuBtn, { borderColor: theme.colors.danger }]}
-                    onPress={handleRemoveAvatar}
-                    disabled={photoBusy}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={theme.colors.dangerText} />
-                    <Text style={[styles.photoMenuBtnText, { color: theme.colors.dangerText }]}>
-                      {strings.profile.removePhotoBtn}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </Card>
-          ) : null}
-
-          <ProfileCompletenessCard
-            completeness={completeness}
-            onSelectMissingItem={handleMissingItemPress}
-          />
-
-          <View style={styles.statsRow}>
-            <Card style={styles.statCard}>
-              <View style={styles.statLine}>
-                <Ionicons name="star" size={18} color={theme.colors.accent} />
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {Number(mainRating || 0).toFixed(1)}
+            <View style={styles.heroMeta}>
+              <View style={[styles.heroChip, { backgroundColor: theme.colors.heroChip }]}>
+                <View style={[styles.roleDot, { backgroundColor: theme.colors.roleAccent }]} />
+                <Ionicons name={isHire ? 'people' : 'search'} size={13} color={theme.colors.heroText} />
+                <Text style={[styles.heroChipText, { color: theme.colors.heroText }]}>
+                  {profile?.active_mode === 'find_work'
+                    ? 'Freelancer'
+                    : isHire
+                    ? 'Client'
+                    : 'No mode selected'}
                 </Text>
               </View>
-              <Text style={[theme.type.small, { color: theme.colors.muted }]}>
-                {mainRatingCount || 0} {mainRatingCount === 1 ? 'review' : 'reviews'}
-              </Text>
-            </Card>
-            <Card style={styles.statCard}>
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>{mainCompleted || 0}</Text>
-              <Text style={[theme.type.small, { color: theme.colors.muted }]}>Gigs completed</Text>
-            </Card>
+              {profile?.area ? (
+                <View style={[styles.heroChip, { backgroundColor: theme.colors.heroChip }]}>
+                  <Ionicons name="location" size={13} color={theme.colors.heroText} />
+                  <Text style={[styles.heroChipText, { color: theme.colors.heroText }]}>{profile.area}</Text>
+                </View>
+              ) : null}
+            </View>
+          </LinearGradient>
+
+          <View style={[styles.body, isWide && { paddingHorizontal: 0 }]}>
+            {photoError ? (
+              <AlertBox tone="danger" message={photoError} style={{ marginBottom: 14 }} />
+            ) : null}
+
+            {showPhotoMenu ? (
+              <Card tone="neo-glass" padding="md" style={styles.photoMenuCard}>
+                <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 10 }]}>
+                  {strings.profile.photoSectionTitle}
+                </Text>
+                <View style={styles.photoMenuBtns}>
+                  <Button
+                    title={strings.profile.chooseFromLibraryBtn}
+                    variant="secondary"
+                    size="sm"
+                    icon="images-outline"
+                    onPress={() => handlePickAvatar('library')}
+                    disabled={photoBusy}
+                  />
+
+                  {Platform.OS !== 'web' ? (
+                    <Button
+                      title={strings.profile.takePhotoBtn}
+                      variant="secondary"
+                      size="sm"
+                      icon="camera-outline"
+                      onPress={() => handlePickAvatar('camera')}
+                      disabled={photoBusy}
+                    />
+                  ) : null}
+
+                  {profile?.avatar_path ? (
+                    <Button
+                      title={strings.profile.removePhotoBtn}
+                      variant="danger-soft"
+                      size="sm"
+                      icon="trash-outline"
+                      onPress={handleRemoveAvatar}
+                      disabled={photoBusy}
+                    />
+                  ) : null}
+                </View>
+              </Card>
+            ) : null}
+
+            <View style={isDesktop ? styles.desktopTwoCol : undefined}>
+              {/* Left Column on Desktop: Role Switcher + Completeness + Stats */}
+              <View style={isDesktop ? styles.desktopLeftCol : undefined}>
+                {/* Account Legitimacy Review Card */}
+                <Card tone="neo-glass" padding="md" style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={20}
+                        color={profile?.is_legit_verified ? theme.colors.primary : theme.colors.warning}
+                      />
+                      <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
+                        Account Legitimacy
+                      </Text>
+                    </View>
+                    {profile?.is_legit_verified ? (
+                      <LegitBadge size="small" role={profile?.active_mode} />
+                    ) : (
+                      <View style={{ backgroundColor: theme.colors.warningSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: theme.colors.warningText }}>
+                          {profile?.verification_status === 'ai_flagged' ? 'In Review' : 'Not Reviewed'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {profile?.is_legit_verified ? (
+                    <Text style={[theme.type.small, { color: theme.colors.successText, marginTop: 6 }]}>
+                      Certified by Super Admin. Your account displays the official Legit Badge across all gigs, proposals, and reports.
+                    </Text>
+                  ) : profile?.verification_status === 'ai_flagged' ? (
+                    <View style={{ gap: 8, marginTop: 6 }}>
+                      <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+                        AI Screening complete (Score: {profile?.ai_legitimacy_score || 85}%). Account is in the Super Admin queue awaiting human confirmation.
+                      </Text>
+                      <Button
+                        title="Re-run AI Screening"
+                        variant="secondary"
+                        size="sm"
+                        icon="sparkles-outline"
+                        loading={screeningBusy}
+                        onPress={handleRunAiScreening}
+                      />
+                    </View>
+                  ) : (
+                    <View style={{ gap: 8, marginTop: 6 }}>
+                      <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+                        AI evaluates your qualifications and reports to the Super Admin for human review.
+                      </Text>
+                      <Button
+                        title="Run AI Check & Submit to Admin"
+                        variant="ai"
+                        size="sm"
+                        loading={screeningBusy}
+                        onPress={handleRunAiScreening}
+                      />
+                    </View>
+                  )}
+                </Card>
+
+                {/* Prominent Role Mode Switcher Card */}
+                <Card
+                  tone="raised"
+                  padding="md"
+                  onPress={goMode}
+                  style={styles.roleSwitcherCard}
+                >
+                  <View
+                    style={[
+                      styles.roleSwitcherIconWrap,
+                      { backgroundColor: theme.colors.primarySoft },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isHire ? 'people' : 'briefcase'}
+                      size={22}
+                      color={theme.colors.primary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.roleSwitcherLabel, { color: theme.colors.muted }]}>
+                      Active Workspace Mode
+                    </Text>
+                    <Text style={[styles.roleSwitcherTitle, { color: theme.colors.text }]}>
+                      {isHire ? 'Client (Hiring Mode)' : 'Freelancer (Find Work Mode)'}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.roleSwitcherActionPill,
+                      { backgroundColor: theme.colors.primarySoft },
+                    ]}
+                  >
+                    <Ionicons name="swap-horizontal" size={14} color={theme.colors.primary} />
+                    <Text style={[styles.roleSwitcherActionText, { color: theme.colors.primary }]}>
+                      Switch
+                    </Text>
+                  </View>
+                </Card>
+
+                <ProfileCompletenessCard
+                  completeness={completeness}
+                  onSelectMissingItem={handleMissingItemPress}
+                />
+
+                <View style={styles.statsRow}>
+                  <StatBox
+                    label={`${mainRatingCount || 0} ${mainRatingCount === 1 ? 'review' : 'reviews'}`}
+                    value={`★ ${Number(mainRating || 0).toFixed(1)}`}
+                    icon="star"
+                    tone="warning"
+                  />
+                  <StatBox
+                    label="Gigs completed"
+                    value={mainCompleted || 0}
+                    icon="checkmark-done-circle-outline"
+                    tone="success"
+                  />
+                </View>
+
+                <Text style={[theme.type.small, { color: theme.colors.muted, marginBottom: 12 }]}>
+                  {otherLabel}: ★ {Number(otherRating || 0).toFixed(1)} ({otherCount || 0})
+                </Text>
+
+                {profile?.bio ? (
+                  <Card tone="neo-glass" padding="md" style={{ marginBottom: 14 }}>
+                    <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 4 }]}>About</Text>
+                    <Text style={[theme.type.body, { color: theme.colors.muted }]}>{profile.bio}</Text>
+                  </Card>
+                ) : null}
+              </View>
+
+              {/* Right Column on Desktop: Settings Menu & Logout */}
+              <View style={isDesktop ? styles.desktopRightCol : undefined}>
+                <Card tone="neo-glass" padding="none" style={styles.menuCard}>
+                  <ListRow
+                    icon="create-outline"
+                    title="Edit profile"
+                    subtitle={
+                      isHire
+                        ? 'Name, photo, bio, area, hiring details'
+                        : 'Name, photo, headline, bio, area, availability'
+                    }
+                    onPress={goEdit}
+                  />
+                  {isHire ? (
+                    <>
+                      {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
+                      <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
+                    </>
+                  ) : (
+                    <>
+                      <ListRow icon="construct-outline" title="Manage skills" onPress={goSkills} />
+                      <ListRow icon="folder-open-outline" title="Portfolio" onPress={goPortfolio} />
+                      {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
+                      <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
+                    </>
+                  )}
+                  <ListRow
+                    icon="phone-portrait-outline"
+                    title={strings.auth.sessionsTitle}
+                    subtitle={strings.auth.sessionsSubtitle}
+                    onPress={() => router.push('/settings/sessions')}
+                  />
+                  <ListRow
+                    icon="lock-closed-outline"
+                    title={strings.auth.securitySettings}
+                    subtitle={strings.auth.changePassword}
+                    onPress={() => router.push('/settings/password')}
+                    last={!isAdmin}
+                  />
+                  {isAdmin ? <ListRow icon="shield-checkmark-outline" title={strings.admin.dashboard} onPress={() => router.push('/admin/dashboard')} last /> : null}
+                </Card>
+
+                <Button
+                  title="Log out"
+                  variant="danger-soft"
+                  icon="log-out-outline"
+                  onPress={() => handleSignOut('local')}
+                  loading={loggingOut}
+                  disabled={loggingOut}
+                  style={{ marginBottom: 10 }}
+                />
+                <Button
+                  title="Log out of all devices"
+                  variant="ghost"
+                  onPress={() => handleSignOut('global')}
+                  disabled={loggingOut}
+                />
+              </View>
+            </View>
           </View>
-
-          <Text style={[theme.type.small, { color: theme.colors.muted, marginBottom: 12 }]}>
-            {otherLabel}: ★ {Number(otherRating || 0).toFixed(1)} ({otherCount || 0})
-          </Text>
-
-          {profile?.bio ? (
-            <Card>
-              <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 4 }]}>About</Text>
-              <Text style={[theme.type.body, { color: theme.colors.muted }]}>{profile.bio}</Text>
-            </Card>
-          ) : null}
-
-          <Card style={styles.menuCard}>
-            <ListRow
-              icon="create-outline"
-              title="Edit profile"
-              subtitle={
-                isHire
-                  ? 'Name, photo, bio, area, hiring details'
-                  : 'Name, photo, headline, bio, area, availability'
-              }
-              onPress={goEdit}
-            />
-            {isHire ? (
-              <>
-                {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
-                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
-              </>
-            ) : (
-              <>
-                <ListRow icon="construct-outline" title="Manage skills" onPress={goSkills} />
-                <ListRow icon="folder-open-outline" title="Portfolio" onPress={goPortfolio} />
-                {user ? <ListRow icon="eye-outline" title="View public profile" onPress={goPublic} /> : null}
-                <ListRow icon="swap-horizontal-outline" title="Switch account mode" onPress={goMode} />
-              </>
-            )}
-            <ListRow
-              icon="phone-portrait-outline"
-              title={strings.auth.sessionsTitle}
-              subtitle={strings.auth.sessionsSubtitle}
-              onPress={() => router.push('/settings/sessions')}
-            />
-            <ListRow
-              icon="lock-closed-outline"
-              title={strings.auth.securitySettings}
-              subtitle={strings.auth.changePassword}
-              onPress={() => router.push('/settings/password')}
-            />
-            {isAdmin ? <ListRow icon="shield-checkmark-outline" title={strings.admin.dashboard} onPress={() => router.push('/admin/dashboard')} last /> : null}
-          </Card>
-
-          <Button
-            title="Log out"
-            variant="secondary"
-            icon="log-out-outline"
-            onPress={() => handleSignOut('local')}
-            loading={loggingOut}
-            disabled={loggingOut}
-            textStyle={{ color: theme.colors.dangerText }}
-            style={{ borderColor: theme.colors.danger, marginBottom: 10 }}
-          />
-          <Button
-            title="Log out of all devices"
-            variant="ghost"
-            onPress={() => handleSignOut('global')}
-            disabled={loggingOut}
-          />
-        </View>
-      </ScrollView>
-    </View>
-  </ScreenBackground>
+        </ScrollView>
+      </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingBottom: 60, maxWidth: 680, width: '100%', alignSelf: 'center' },
+  scrollContent: {
+    paddingBottom: 60,
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
+  },
   hero: {
-    paddingTop: 64,
     paddingHorizontal: 20,
     paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     alignItems: 'center',
+  },
+  heroWide: {
+    borderRadius: 28,
+    paddingHorizontal: 28,
   },
   nameRow: {
     flexDirection: 'row',
@@ -384,13 +526,57 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
+  roleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
   heroChipText: { fontSize: 13, fontWeight: '700' },
   body: { padding: 20 },
-  errorBanner: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 14,
+  desktopTwoCol: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  desktopLeftCol: {
+    flex: 1,
+  },
+  desktopRightCol: {
+    flex: 1.15,
+  },
+  roleSwitcherCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  roleSwitcherIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleSwitcherLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  roleSwitcherTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  roleSwitcherActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  roleSwitcherActionText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   photoMenuCard: {
     marginBottom: 16,
@@ -398,22 +584,6 @@ const styles = StyleSheet.create({
   photoMenuBtns: {
     gap: 8,
   },
-  photoMenuBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  photoMenuBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statsRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, marginBottom: 12 },
-  statLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  menuCard: { padding: 0, overflow: 'hidden', marginBottom: 20 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  menuCard: { overflow: 'hidden', marginBottom: 20 },
 });

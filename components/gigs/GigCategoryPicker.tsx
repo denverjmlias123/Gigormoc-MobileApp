@@ -4,13 +4,15 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 import { Category } from '../../services/profile';
 import { SuggestedGigCategory, SimilarCategory } from '../../services/gigs';
 import { TextInput } from '../ui/TextInput';
+import { Button } from '../ui/Button';
+import { Card, AlertBox } from '../ui/Card';
+import { Chip } from '../ui/Chip';
 import { strings } from '../../constants/strings';
 
 interface GigCategoryPickerProps {
@@ -59,47 +61,36 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
     normalizedQuery.length >= 3 && normalizedQuery.length <= 40 && !exactExistingMatch;
 
   return (
-    <View style={styles.fieldGroup}>
-      <View style={styles.categoryHeaderRow}>
-        <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 0 }]}>
-          {strings.gigs.categoryLabel}
-        </Text>
-        <TouchableOpacity
-          onPress={onAiSuggestCategory}
-          disabled={suggestLoading}
-          style={[
-            styles.aiSuggestBtn,
-            { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
-          ]}
-        >
-          <Text style={[styles.aiSuggestBtnText, { color: theme.colors.primary }]}>
-            {suggestLoading
+    <Card
+      headerTitle={strings.gigs.categoryLabel}
+      headerSubtitle={strings.gigs.categoryHelper}
+      headerIcon="pricetag-outline"
+      headerRight={
+        <Button
+          title={
+            suggestLoading
               ? strings.gigs.aiSuggestingCategory
-              : strings.gigs.aiSuggestCategoryBtn}
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={[styles.helperSubtext, { color: theme.colors.muted }]}>
-        {strings.gigs.categoryHelper}
-      </Text>
-
+              : strings.gigs.aiSuggestCategoryBtn
+          }
+          variant="ai"
+          size="xs"
+          icon="sparkles"
+          loading={suggestLoading}
+          disabled={suggestLoading}
+          onPress={onAiSuggestCategory}
+        />
+      }
+      style={styles.fieldGroup}
+    >
       {/* Selected custom category pill */}
       {customCategoryName ? (
-        <View
-          style={[
-            styles.selectedCustomBanner,
-            { backgroundColor: theme.colors.primarySoft, borderColor: theme.colors.primary },
-          ]}
-        >
-          <Text style={[styles.selectedCustomText, { color: theme.colors.primary }]}>
-            New category selected: <Text style={{ fontWeight: '800' }}>{customCategoryName}</Text>
-          </Text>
-          <TouchableOpacity onPress={() => setCustomCategoryName('')}>
-            <Text style={{ color: theme.colors.primary, fontWeight: '700', fontSize: 12 }}>
-              Change
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <AlertBox
+          tone="info"
+          icon="checkmark-circle"
+          title={`New category selected: ${customCategoryName}`}
+          actionLabel="Change"
+          onAction={() => setCustomCategoryName('')}
+        />
       ) : null}
 
       {/* Suggested Categories */}
@@ -110,29 +101,23 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
             {suggestedCategories.map((sug) => {
-              const isSelected = selectedCategoryId === sug.id && !customCategoryName;
+              const isSelected =
+                (!customCategoryName && selectedCategoryId === sug.id) ||
+                (!customCategoryName &&
+                  Boolean(selectedCategoryId) &&
+                  categories.find((c) => c.id === selectedCategoryId)?.name.trim().toLowerCase() ===
+                    sug.name.trim().toLowerCase()) ||
+                (Boolean(customCategoryName) &&
+                  customCategoryName.trim().toLowerCase() === sug.name.trim().toLowerCase());
               return (
-                <TouchableOpacity
+                <Chip
                   key={`sug-${sug.id}`}
-                  style={[
-                    styles.catChip,
-                    { borderColor: theme.colors.primary },
-                    isSelected && {
-                      backgroundColor: theme.colors.primary,
-                      borderColor: theme.colors.primary,
-                    },
-                  ]}
+                  label={sug.name}
+                  icon="sparkles"
+                  selected={isSelected}
                   onPress={() => onSelectExistingCategory(sug.id)}
-                >
-                  <Text
-                    style={[
-                      styles.catChipText,
-                      { color: isSelected ? '#ffffff' : theme.colors.primary },
-                    ]}
-                  >
-                    ✨ {sug.name}
-                  </Text>
-                </TouchableOpacity>
+                  style={{ marginRight: 8 }}
+                />
               );
             })}
           </ScrollView>
@@ -145,30 +130,14 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
           <Text style={[styles.subSectionLabel, { color: theme.colors.muted }]}>
             {strings.gigs.aiProposedCategoryLabel}
           </Text>
-          <TouchableOpacity
-            style={[
-              styles.catChip,
-              { alignSelf: 'flex-start', borderColor: theme.colors.primary },
-              customCategoryName.toLowerCase() === aiProposedCategory.toLowerCase() && {
-                backgroundColor: theme.colors.primary,
-              },
-            ]}
-            onPress={() => onSelectCustomCategory(aiProposedCategory)}
-          >
-            <Text
-              style={[
-                styles.catChipText,
-                {
-                  color:
-                    customCategoryName.toLowerCase() === aiProposedCategory.toLowerCase()
-                      ? '#ffffff'
-                      : theme.colors.primary,
-                },
-              ]}
-            >
-              + {aiProposedCategory}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ alignItems: 'flex-start' }}>
+            <Chip
+              label={`+ ${aiProposedCategory}`}
+              icon="add-circle-outline"
+              selected={customCategoryName.toLowerCase() === aiProposedCategory.toLowerCase()}
+              onPress={() => onSelectCustomCategory(aiProposedCategory)}
+            />
+          </View>
         </View>
       )}
 
@@ -178,37 +147,25 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
         placeholder={strings.gigs.searchOrCreateCategoryPlaceholder}
         value={categoryQuery}
         onChangeText={setCategoryQuery}
+        leftIcon="search-outline"
+        onClear={() => setCategoryQuery('')}
       />
 
       {/* Existing categories list */}
       {catsLoading ? (
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 8 }} />
       ) : filteredExistingCategories.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
           {filteredExistingCategories.map((cat) => {
             const isSelected = selectedCategoryId === cat.id && !customCategoryName;
             return (
-              <TouchableOpacity
+              <Chip
                 key={cat.id}
-                style={[
-                  styles.catChip,
-                  { borderColor: theme.colors.border },
-                  isSelected && {
-                    backgroundColor: theme.colors.primary,
-                    borderColor: theme.colors.primary,
-                  },
-                ]}
+                label={cat.name}
+                selected={isSelected}
                 onPress={() => onSelectExistingCategory(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.catChipText,
-                    { color: isSelected ? '#ffffff' : theme.colors.text },
-                  ]}
-                >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
+                style={{ marginRight: 8 }}
+              />
             );
           })}
         </ScrollView>
@@ -216,12 +173,7 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
 
       {/* Did you mean? Box */}
       {canProposeTypedCategory && (
-        <View
-          style={[
-            styles.didYouMeanBox,
-            { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-          ]}
-        >
+        <Card tone="inset" padding="sm" style={styles.didYouMeanBox}>
           {similarCategories.length > 0 ? (
             <>
               <Text style={[styles.didYouMeanTitle, { color: theme.colors.text }]}>
@@ -231,65 +183,41 @@ export const GigCategoryPicker: React.FC<GigCategoryPickerProps> = ({
                 {similarCategories.map((sim) => {
                   const isSelected = selectedCategoryId === sim.id && !customCategoryName;
                   return (
-                    <TouchableOpacity
+                    <Chip
                       key={`sim-${sim.id}`}
-                      style={[
-                        styles.catChip,
-                        { borderColor: theme.colors.primary, marginBottom: 6 },
-                        isSelected && { backgroundColor: theme.colors.primary },
-                      ]}
+                      label={sim.name}
+                      size="sm"
+                      selected={isSelected}
                       onPress={() => {
                         onSelectExistingCategory(sim.id);
                         setCategoryQuery('');
                       }}
-                    >
-                      <Text
-                        style={[
-                          styles.catChipText,
-                          { color: isSelected ? '#ffffff' : theme.colors.primary },
-                        ]}
-                      >
-                        {sim.name}
-                      </Text>
-                    </TouchableOpacity>
+                    />
                   );
                 })}
               </View>
-              <TouchableOpacity
-                style={[styles.createNewConfirmBtn, { borderColor: theme.colors.border }]}
+              <Button
+                title={`${strings.gigs.confirmCreateNewCategoryPrefix} "${normalizedQuery}" ${strings.gigs.confirmCreateNewCategorySuffix}`}
+                variant="secondary"
+                size="sm"
+                icon="add-circle-outline"
                 onPress={() => onSelectCustomCategory(normalizedQuery)}
-              >
-                <Text style={[styles.createNewConfirmText, { color: theme.colors.text }]}>
-                  {strings.gigs.confirmCreateNewCategoryPrefix} &ldquo;{normalizedQuery}&rdquo;{' '}
-                  {strings.gigs.confirmCreateNewCategorySuffix}
-                </Text>
-              </TouchableOpacity>
+                fullWidth
+              />
             </>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.createNewConfirmBtn,
-                {
-                  borderColor: theme.colors.primary,
-                  backgroundColor: theme.colors.primarySoft,
-                },
-              ]}
+            <Button
+              title={`+ ${strings.gigs.addNewCategoryPrefix} "${normalizedQuery}" ${strings.gigs.addNewCategorySuffix}`}
+              variant="soft"
+              size="sm"
+              icon="add-circle-outline"
               onPress={() => onSelectCustomCategory(normalizedQuery)}
-            >
-              <Text
-                style={[
-                  styles.createNewConfirmText,
-                  { color: theme.colors.primary, fontWeight: '700' },
-                ]}
-              >
-                + {strings.gigs.addNewCategoryPrefix} &ldquo;{normalizedQuery}&rdquo;{' '}
-                {strings.gigs.addNewCategorySuffix}
-              </Text>
-            </TouchableOpacity>
+              fullWidth
+            />
           )}
-        </View>
+        </Card>
       )}
-    </View>
+    </Card>
   );
 };
 
@@ -297,73 +225,21 @@ const styles = StyleSheet.create({
   fieldGroup: {
     marginBottom: 16,
   },
-  categoryHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  helperSubtext: {
-    fontSize: 12,
-    marginBottom: 10,
-    lineHeight: 16,
-  },
-  aiSuggestBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  aiSuggestBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  selectedCustomBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 10,
-  },
-  selectedCustomText: {
-    fontSize: 13,
-  },
   suggestedSection: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   subSectionLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   catRow: {
     flexDirection: 'row',
     marginBottom: 6,
   },
-  catChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  catChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
   didYouMeanBox: {
     marginTop: 8,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
+    marginBottom: 0,
   },
   didYouMeanTitle: {
     fontSize: 13,
@@ -373,17 +249,7 @@ const styles = StyleSheet.create({
   similarChipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 6,
-  },
-  createNewConfirmBtn: {
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  createNewConfirmText: {
-    fontSize: 13,
-    fontWeight: '500',
+    gap: 8,
+    marginBottom: 10,
   },
 });

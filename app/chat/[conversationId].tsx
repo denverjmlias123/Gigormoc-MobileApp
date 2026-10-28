@@ -15,17 +15,20 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { chatService, MessageItem, ConversationItem, ConversationSummary } from '../../services/chat';
 import { applicationsService } from '../../services/applications';
-import { Button } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Avatar } from '../../components/ui/Avatar';
 import { showToast } from '../../components/ui/Toast';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 
 export default function ChatScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, insets } = useResponsiveLayout();
   const { conversationId, partnerName } = useLocalSearchParams<{
     conversationId: string;
     partnerName: string;
@@ -181,54 +184,68 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
     >
       {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border, backgroundColor: theme.glass.surface }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/messages');
-            }
-          }}
-          style={styles.backButton}
-        >
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
-        </TouchableOpacity>
-        <View style={styles.topBarCenter}>
-          <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
-            {partnerTitle}
-          </Text>
-          {currentGigTitle ? (
-            relatedThreads.length > 0 ? (
-              <TouchableOpacity
-                style={[styles.projectSwitchPill, { backgroundColor: theme.colors.primarySoft }]}
-                onPress={() => setShowProjectPicker(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="briefcase-outline" size={11} color={theme.colors.primaryDark} />
-                <Text
-                  style={[styles.projectSwitchText, { color: theme.colors.primaryDark }]}
-                  numberOfLines={1}
-                >
-                  {currentGigTitle}
-                </Text>
-                <Ionicons name="chevron-down" size={11} color={theme.colors.primaryDark} />
-              </TouchableOpacity>
-            ) : (
-              <Text style={[styles.topBarSubtitle, { color: theme.colors.muted }]}>
-                📁 {currentGigTitle}
+      <View
+        style={[
+          styles.topBar,
+          {
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.glass.surface,
+            paddingTop: isWide ? 14 : Math.max(insets.top + 8, 14),
+          },
+        ]}
+      >
+        <View style={styles.topBarInner}>
+          <Button
+            title="‹ Back"
+            variant="ghost"
+            size="xs"
+            fullWidth={false}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/messages');
+              }
+            }}
+          />
+          <View style={styles.topBarCenter}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Avatar name={partnerTitle} size={28} />
+              <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                {partnerTitle}
               </Text>
-            )
-          ) : null}
+            </View>
+            {currentGigTitle ? (
+              relatedThreads.length > 0 ? (
+                <TouchableOpacity
+                  style={[styles.projectSwitchPill, { backgroundColor: theme.colors.primarySoft }]}
+                  onPress={() => setShowProjectPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="briefcase-outline" size={11} color={theme.colors.primaryDark} />
+                  <Text
+                    style={[styles.projectSwitchText, { color: theme.colors.primaryDark }]}
+                    numberOfLines={1}
+                  >
+                    {currentGigTitle}
+                  </Text>
+                  <Ionicons name="chevron-down" size={11} color={theme.colors.primaryDark} />
+                </TouchableOpacity>
+              ) : (
+                <Text style={[styles.topBarSubtitle, { color: theme.colors.muted }]} numberOfLines={1}>
+                  📁 {currentGigTitle}
+                </Text>
+              )
+            ) : null}
+          </View>
+          <Button
+            title={strings.loop.viewStageBtn}
+            variant="soft"
+            size="xs"
+            fullWidth={false}
+            onPress={handleGoToStage}
+          />
         </View>
-        <TouchableOpacity
-          onPress={handleGoToStage}
-          style={[styles.backButton, { backgroundColor: theme.colors.primarySoft, borderRadius: 8 }]}
-        >
-          <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: '700' }}>
-            {strings.loop.viewStageBtn}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -259,16 +276,35 @@ export default function ChatScreen() {
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesList}
+          contentContainerStyle={[styles.messagesList, styles.centeredChatColumn]}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => {
             const isMe = item.sender_id === user?.id;
+            if (item.is_system) {
+              return (
+                <View style={styles.systemMessageWrapper}>
+                  <View
+                    style={[
+                      styles.systemPill,
+                      {
+                        backgroundColor: theme.colors.surfaceAlt,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.systemMessageText, { color: theme.colors.muted }]}>
+                      {item.content}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
             return (
               <View
                 style={[
                   styles.messageBubbleWrapper,
-                    item.is_system ? styles.systemMessageWrapper : isMe ? styles.myMessageWrapper : styles.theirMessageWrapper,
+                  isMe ? styles.myMessageWrapper : styles.theirMessageWrapper,
                 ]}
               >
                 {!isMe && item.sender?.display_name && (
@@ -295,7 +331,7 @@ export default function ChatScreen() {
                   <Text
                     style={[
                       styles.messageText,
-                      { color: isMe ? '#ffffff' : theme.colors.text },
+                      { color: isMe ? theme.colors.primaryContrast : theme.colors.text },
                     ]}
                   >
                     {item.content}
@@ -303,7 +339,7 @@ export default function ChatScreen() {
                   <Text
                     style={[
                       styles.timestamp,
-                      { color: isMe ? '#e0e7ff' : theme.colors.muted },
+                      { color: isMe ? theme.colors.primarySoft : theme.colors.muted },
                     ]}
                   >
                     {new Date(item.created_at).toLocaleTimeString([], {
@@ -327,61 +363,93 @@ export default function ChatScreen() {
 
       {/* Input Bar */}
       {conversation?.closed_at ? (
-        <View style={[styles.inputBar, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.emptyText, { color: theme.colors.muted }]}>{strings.errors.deletedConversationReadOnly}</Text>
-        </View>
-      ) : <View style={[styles.inputBar, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
-        <TextInput
+        <View
           style={[
-            styles.inputField,
-            { borderColor: theme.colors.border, color: theme.colors.text },
-          ]}
-          placeholder="Type a message..."
-          placeholderTextColor={theme.colors.muted}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={2000}
-        />
-        <TouchableOpacity
-          style={[
-            styles.sendBtn,
+            styles.inputBarWrapper,
             {
-              backgroundColor:
-                !inputText.trim() || sending ? theme.colors.muted : theme.colors.primary,
+              borderTopColor: theme.colors.border,
+              backgroundColor: theme.colors.surface,
+              paddingBottom: Math.max(insets.bottom, 10),
             },
           ]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}
         >
-          {sending ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <Text style={styles.sendBtnText}>Send</Text>
-          )}
-        </TouchableOpacity>
-      </View>}
+          <View style={styles.inputBarInner}>
+            <Text style={[styles.emptyText, { color: theme.colors.muted }]}>
+              {strings.errors.deletedConversationReadOnly}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.inputBarWrapper,
+            {
+              borderTopColor: theme.colors.border,
+              backgroundColor: theme.colors.surface,
+              paddingBottom: Math.max(insets.bottom, 10),
+            },
+          ]}
+        >
+          <View style={styles.inputBarInner}>
+            <TextInput
+              style={[
+                styles.inputField,
+                {
+                  borderColor: theme.colors.border,
+                  color: theme.colors.text,
+                  backgroundColor: theme.colors.surfaceAlt,
+                },
+              ]}
+              placeholder={isWide ? 'Type a message... (Enter to send, Shift+Enter for new line)' : 'Type a message...'}
+              placeholderTextColor={theme.colors.muted}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={2000}
+              onKeyPress={(e: any) => {
+                if (Platform.OS === 'web' && e?.nativeEvent?.key === 'Enter' && !e?.nativeEvent?.shiftKey) {
+                  e.preventDefault?.();
+                  void handleSend();
+                }
+              }}
+            />
+            <Button
+              title="Send"
+              icon="send"
+              size="sm"
+              fullWidth={false}
+              onPress={handleSend}
+              disabled={!inputText.trim() || sending}
+              loading={sending}
+            />
+          </View>
+        </View>
+      )}
 
       {/* Switch Project Discussion Modal */}
       <Modal
         visible={showProjectPicker}
         transparent
-        animationType="fade"
+        animationType={isWide ? 'fade' : 'slide'}
         onRequestClose={() => setShowProjectPicker(false)}
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, !isWide && styles.modalOverlayBottom]}
           onPress={() => setShowProjectPicker(false)}
         >
           <Pressable
             style={[
               styles.modalContent,
+              !isWide && styles.modalContentBottomSheet,
               { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
               theme.shadow.card,
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHeader}>
+            {!isWide && (
+              <View style={[styles.sheetHandle, { backgroundColor: theme.colors.borderStrong }]} />
+            )}
+            <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                   Project Conversations
@@ -390,14 +458,13 @@ export default function ChatScreen() {
                   Switch discussion with {partnerTitle}:
                 </Text>
               </View>
-              <TouchableOpacity
+              <IconButton
+                icon="close"
+                variant="ghost"
+                size="sm"
                 onPress={() => setShowProjectPicker(false)}
-                hitSlop={8}
-                accessibilityRole="button"
                 accessibilityLabel="Close"
-              >
-                <Ionicons name="close-circle" size={24} color={theme.colors.muted} />
-              </TouchableOpacity>
+              />
             </View>
 
             <ScrollView
@@ -406,15 +473,7 @@ export default function ChatScreen() {
               showsVerticalScrollIndicator={false}
             >
               {/* Current gig thread */}
-              <View
-                style={[
-                  styles.modalThreadCard,
-                  {
-                    backgroundColor: theme.colors.primarySoft,
-                    borderColor: theme.colors.primary,
-                  },
-                ]}
-              >
+              <Card tone="tinted-primary" padding="sm">
                 <View style={styles.modalThreadRow}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
                   <Text
@@ -424,19 +483,14 @@ export default function ChatScreen() {
                     {currentGigTitle} (Current)
                   </Text>
                 </View>
-              </View>
+              </Card>
 
               {/* Other threads with this partner */}
               {relatedThreads.map((thread) => (
-                <TouchableOpacity
+                <Card
                   key={thread.id}
-                  style={[
-                    styles.modalThreadCard,
-                    {
-                      backgroundColor: theme.colors.surfaceAlt,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
+                  tone="muted"
+                  padding="sm"
                   onPress={() => {
                     setShowProjectPicker(false);
                     router.replace({
@@ -447,7 +501,6 @@ export default function ChatScreen() {
                       },
                     });
                   }}
-                  activeOpacity={0.7}
                 >
                   <View style={styles.modalThreadRow}>
                     <Ionicons name="briefcase-outline" size={14} color={theme.colors.primary} />
@@ -461,7 +514,7 @@ export default function ChatScreen() {
                   <Text style={[styles.modalThreadSnippet, { color: theme.colors.muted }]} numberOfLines={1}>
                     {thread.last_message_content || 'No messages yet.'}
                   </Text>
-                </TouchableOpacity>
+                </Card>
               ))}
             </ScrollView>
           </Pressable>
@@ -474,25 +527,22 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  topBarInner: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   topBarTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
   },
   center: {
@@ -511,6 +561,11 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 12,
   },
+  centeredChatColumn: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+  },
   messageBubbleWrapper: {
     maxWidth: '80%',
   },
@@ -520,7 +575,22 @@ const styles = StyleSheet.create({
   theirMessageWrapper: {
     alignSelf: 'flex-start',
   },
-  systemMessageWrapper: { alignSelf: 'center', maxWidth: '90%' },
+  systemMessageWrapper: {
+    alignSelf: 'center',
+    maxWidth: '90%',
+    marginVertical: 4,
+  },
+  systemPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  systemMessageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   senderLabel: {
     fontSize: 11,
     marginBottom: 2,
@@ -556,34 +626,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  inputBar: {
+  inputBarWrapper: {
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  inputBarInner: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
     gap: 8,
   },
   inputField: {
     flex: 1,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
     fontSize: 15,
     maxHeight: 100,
-  },
-  sendBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendBtnText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
   },
   topBarCenter: {
     flex: 1,
@@ -617,6 +680,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  modalOverlayBottom: {
+    justifyContent: 'flex-end',
+    padding: 0,
+  },
   modalContent: {
     width: '100%',
     maxWidth: 440,
@@ -624,13 +691,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 18,
   },
+  modalContentBottomSheet: {
+    maxWidth: '100%',
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingBottom: 28,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
     fontSize: 16,
@@ -639,11 +718,6 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 12,
     marginTop: 2,
-  },
-  modalThreadCard: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
   },
   modalThreadRow: {
     flexDirection: 'row',

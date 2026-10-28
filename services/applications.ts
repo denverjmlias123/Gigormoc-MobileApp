@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { runOnce } from '../lib/singleFlight';
+import { offlineSyncService } from './offlineSync';
 
 export interface ApplicationItem {
   id: string;
@@ -21,6 +22,7 @@ export interface ApplicationItem {
     freelancer_rating_avg: number;
     freelancer_rating_count: number;
     freelancer_completed_gigs: number;
+    is_legit_verified?: boolean;
   };
   gig?: {
     id: string;
@@ -29,6 +31,7 @@ export interface ApplicationItem {
     price_max: number;
     work_type: string;
     deadline: string;
+    client_id?: string;
   };
 }
 
@@ -52,11 +55,13 @@ export interface AgreementItem {
     id: string;
     display_name: string;
     avatar_path: string | null;
+    is_legit_verified?: boolean;
   };
   freelancer?: {
     id: string;
     display_name: string;
     avatar_path: string | null;
+    is_legit_verified?: boolean;
   };
 }
 
@@ -86,16 +91,37 @@ export const applicationsService = {
           p_estimated_days: params.estimatedDays,
           p_message: params.message,
         };
-        let { data, error } = await supabase.rpc('submit_application', {
-          ...baseArgs,
-          p_request_id: reqId,
-        });
-        if (error && error.code === 'PGRST202') {
-          ({ data, error } = await supabase.rpc('submit_application', baseArgs));
-        }
+        try {
+          let { data, error } = await supabase.rpc('submit_application', {
+            ...baseArgs,
+            p_request_id: reqId,
+          });
+          if (error && error.code === 'PGRST202') {
+            ({ data, error } = await supabase.rpc('submit_application', baseArgs));
+          }
 
-        if (error) throw error;
-        return data as string;
+          if (error) throw error;
+          return data as string;
+        } catch (err: any) {
+          const isNetworkIssue =
+            err?.code === 'OFFLINE' ||
+            err?.code === 'TIMEOUT' ||
+            err?.message?.toLowerCase().includes('network') ||
+            err?.message?.toLowerCase().includes('fetch');
+
+          if (isNetworkIssue) {
+            // Queue for offline sync
+            const tempId = `off_${Date.now()}`;
+            await offlineSyncService.queueAction('submit_application', {
+              gigId: params.gigId,
+              proposedPrice: params.proposedPrice,
+              estimatedDays: params.estimatedDays,
+              message: params.message,
+            });
+            return tempId;
+          }
+          throw err;
+        }
       },
       { requestId: params.requestId }
     );
@@ -115,16 +141,34 @@ export const applicationsService = {
           p_action: action,
           p_counter_price: counterPrice || null,
         };
-        let { data, error } = await supabase.rpc('respond_to_application', {
-          ...baseArgs,
-          p_request_id: reqId,
-        });
-        if (error && error.code === 'PGRST202') {
-          ({ data, error } = await supabase.rpc('respond_to_application', baseArgs));
-        }
+        try {
+          let { data, error } = await supabase.rpc('respond_to_application', {
+            ...baseArgs,
+            p_request_id: reqId,
+          });
+          if (error && error.code === 'PGRST202') {
+            ({ data, error } = await supabase.rpc('respond_to_application', baseArgs));
+          }
 
-        if (error) throw error;
-        return data as string | null;
+          if (error) throw error;
+          return data as string | null;
+        } catch (err: any) {
+          const isNetworkIssue =
+            err?.code === 'OFFLINE' ||
+            err?.code === 'TIMEOUT' ||
+            err?.message?.toLowerCase().includes('network') ||
+            err?.message?.toLowerCase().includes('fetch');
+
+          if (isNetworkIssue) {
+            await offlineSyncService.queueAction('respond_to_application', {
+              applicationId,
+              action,
+              counterPrice,
+            });
+            return action === 'accept' ? `off_agr_${Date.now()}` : null;
+          }
+          throw err;
+        }
       },
       { requestId }
     );
@@ -158,109 +202,158 @@ export const applicationsService = {
   },
 
   async getGigApplicants(gigId: string): Promise<ApplicationItem[]> {
-    const { data, error } = await supabase
-      .from('applications')
-      .select(`
-        id,
-        gig_id,
-        freelancer_id,
-        proposed_price,
-        estimated_days,
-        message,
-        status,
-        status_reason,
-        gig_title_snapshot,
-        counter_price,
-        created_at,
-        updated_at,
-        freelancer:profiles(
+    const fetchRemote = async () => {
+      const { data, error } = await supabase
+        .from('applications')
+        .select(`
           id,
-          display_name,
-          avatar_path,
-          freelancer_rating_avg,
-          freelancer_rating_count,
-          freelancer_completed_gigs
-        )
-      `)
-      .eq('gig_id', gigId)
-      .order('created_at', { ascending: false });
+          gig_id,
+          freelancer_id,
+          proposed_price,
+          estimated_days,
+          message,
+          status,
+          status_reason,
+          gig_title_snapshot,
+          counter_price,
+          created_at,
+          updated_at,
+          freelancer:profiles(
+            id,
+            display_name,
+            avatar_path,
+            freelancer_rating_avg,
+            freelancer_rating_count,
+            freelancer_completed_gigs,
+            is_legit_verified
+          )
+        `)
+        .eq('gig_id', gigId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return (data || []) as any[];
+      if (error) throw error;
+      return (data || []) as any[];
+    };
+
+    const getCached = async () => {
+      return offlineSyncService.getCachedGigApplicants(gigId);
+    };
+
+    const { data } = await offlineSyncService.withOfflineFallback(
+      fetchRemote,
+      getCached,
+      async (res) => {
+        await offlineSyncService.cacheGigApplicants(gigId, res);
+      }
+    );
+    return data;
   },
 
   async getMyApplications(): Promise<ApplicationItem[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const fetchRemote = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
 
-    const { data, error } = await supabase
-      .from('applications')
-      .select(`
-        id,
-        gig_id,
-        freelancer_id,
-        proposed_price,
-        estimated_days,
-        message,
-        status,
-        status_reason,
-        gig_title_snapshot,
-        counter_price,
-        created_at,
-        updated_at,
-        gig:gigs(
+      const { data, error } = await supabase
+        .from('applications')
+        .select(`
           id,
-          title,
-          price_min,
-          price_max,
-          work_type,
-          deadline
-        )
-      `)
-      .eq('freelancer_id', user.id)
-      .order('created_at', { ascending: false });
+          gig_id,
+          freelancer_id,
+          proposed_price,
+          estimated_days,
+          message,
+          status,
+          status_reason,
+          gig_title_snapshot,
+          counter_price,
+          created_at,
+          updated_at,
+          gig:gigs(
+            id,
+            title,
+            price_min,
+            price_max,
+            work_type,
+            deadline,
+            client_id
+          )
+        `)
+        .eq('freelancer_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return (data || []) as any[];
+      if (error) throw error;
+      return (data || []) as any[];
+    };
+
+    const getCached = async () => {
+      return offlineSyncService.getCachedMyApplications();
+    };
+
+    const { data } = await offlineSyncService.withOfflineFallback(
+      fetchRemote,
+      getCached,
+      async (res) => {
+        await offlineSyncService.cacheMyApplications(res);
+      }
+    );
+    return data;
   },
 
   async getMyAgreements(): Promise<AgreementItem[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const fetchRemote = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
 
-    const { data, error } = await supabase
-      .from('agreements')
-      .select(`
-        id,
-        gig_id,
-        client_id,
-        freelancer_id,
-        agreed_price,
-        deadline,
-        status,
-        created_at,
-        updated_at,
-        gig:gigs(
+      const { data, error } = await supabase
+        .from('agreements')
+        .select(`
           id,
-          title,
-          work_type
-        ),
-        client:profiles!agreements_client_id_fkey(
-          id,
-          display_name,
-          avatar_path
-        ),
-        freelancer:profiles!agreements_freelancer_id_fkey(
-          id,
-          display_name,
-          avatar_path
-        )
-      `)
-      .or(`client_id.eq.${user.id},freelancer_id.eq.${user.id}`)
-      .order('created_at', { ascending: false });
+          gig_id,
+          client_id,
+          freelancer_id,
+          agreed_price,
+          deadline,
+          status,
+          created_at,
+          updated_at,
+          gig:gigs(
+            id,
+            title,
+            work_type
+          ),
+          client:profiles!agreements_client_id_fkey(
+            id,
+            display_name,
+            avatar_path,
+            is_legit_verified
+          ),
+          freelancer:profiles!agreements_freelancer_id_fkey(
+            id,
+            display_name,
+            avatar_path,
+            is_legit_verified
+          )
+        `)
+        .or(`client_id.eq.${user.id},freelancer_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return (data || []) as any[];
+      if (error) throw error;
+      return (data || []) as any[];
+    };
+
+    const getCached = async () => {
+      return offlineSyncService.getCachedMyAgreements();
+    };
+
+    const { data } = await offlineSyncService.withOfflineFallback(
+      fetchRemote,
+      getCached,
+      async (res) => {
+        await offlineSyncService.cacheMyAgreements(res);
+      }
+    );
+    return data;
   },
 
   async getAgreementDetail(agreementId: string): Promise<AgreementItem | null> {
@@ -284,12 +377,14 @@ export const applicationsService = {
         client:profiles!agreements_client_id_fkey(
           id,
           display_name,
-          avatar_path
+          avatar_path,
+          is_legit_verified
         ),
         freelancer:profiles!agreements_freelancer_id_fkey(
           id,
           display_name,
-          avatar_path
+          avatar_path,
+          is_legit_verified
         )
       `)
       .eq('id', agreementId)
@@ -300,9 +395,20 @@ export const applicationsService = {
   },
 
   async getModeSwitchStatus(): Promise<ModeSwitchStatus> {
-    const { data, error } = await supabase.rpc('get_mode_switch_status');
-    if (error) throw error;
-    return data as ModeSwitchStatus;
+    try {
+      const { data, error } = await supabase.rpc('get_mode_switch_status');
+      if (error) throw error;
+      return data as ModeSwitchStatus;
+    } catch {
+      return {
+        current_mode: 'find_work',
+        can_switch: true,
+        cooldown_remaining_days: 0,
+        blockers: [],
+        pending_gigs_count: 0,
+        pending_apps_count: 0,
+      };
+    }
   },
 
   async switchMode(targetMode: 'find_work' | 'hire', confirm: boolean = true): Promise<void> {
@@ -317,16 +423,22 @@ export const applicationsService = {
   },
 
   subscribeToGigApplicants(gigId: string, onChange: () => void) {
-    const channel = supabase
-      .channel(`gig-applicants:${gigId}:${Date.now()}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'applications', filter: `gig_id=eq.${gigId}` },
-        () => onChange()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    try {
+      const channel = supabase
+        .channel(`gig-applicants:${gigId}:${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'applications', filter: `gig_id=eq.${gigId}` },
+          () => onChange()
+        )
+        .subscribe();
+      return () => {
+        try {
+          supabase.removeChannel(channel);
+        } catch {}
+      };
+    } catch {
+      return () => {};
+    }
   },
 };

@@ -6,11 +6,12 @@ import {
   ScrollView,
   Pressable,
   TextInput as RNTextInput,
-  TouchableOpacity,
+  RefreshControl,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
 import { applicationsService } from '../../services/applications';
@@ -19,9 +20,9 @@ import { GigCard, GigSummary } from '../../components/ui/GigCard';
 import { FreelancerCard } from '../../components/ui/FreelancerCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { Skeleton, SkeletonGigList } from '../../components/ui/Skeleton';
-import { Chip } from '../../components/ui/Chip';
-import { Button } from '../../components/ui/Button';
+import { SkeletonGigList } from '../../components/ui/Skeleton';
+import { Button, IconButton } from '../../components/ui/Button';
+import { Chip, SegmentedControl } from '../../components/ui/Chip';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../constants/strings';
 import { confirmDialog } from '../../lib/dialog';
@@ -34,6 +35,7 @@ type ClientStatusFilter = 'all' | 'open' | 'draft' | 'in_progress' | 'closed';
 export default function GigsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace } = useResponsiveLayout();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tab?: string; categoryId?: string }>();
 
@@ -46,6 +48,7 @@ export default function GigsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMobileCategories, setShowMobileCategories] = useState(false);
 
   // Client Specific State
   const [clientSegment, setClientSegment] = useState<ClientSegment>('my_gigs');
@@ -53,6 +56,7 @@ export default function GigsScreen() {
   const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatusFilter>('all');
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingGigId, setDeletingGigId] = useState<string | null>(null);
 
@@ -66,8 +70,8 @@ export default function GigsScreen() {
     }
   }, [params.tab, params.categoryId]);
 
-  const loadData = async (searchOverride = searchQuery) => {
-    setLoading(true);
+  const loadData = async (searchOverride = searchQuery, isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
     setError(null);
     try {
       if (isClient && clientSegment === 'my_gigs') {
@@ -102,6 +106,7 @@ export default function GigsScreen() {
       setError(err?.message || 'Failed to load data.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -112,7 +117,7 @@ export default function GigsScreen() {
     useCallback(() => {
       void loadDataRef.current();
       return gigsService.subscribeToGigChanges(
-        () => void loadDataRef.current(),
+        () => void loadDataRef.current(undefined, true),
         isClient && clientSegment === 'my_gigs' ? user?.id : undefined
       );
     }, [isClient, clientSegment, selectedCategory, workTypeFilter, user?.id])
@@ -123,7 +128,12 @@ export default function GigsScreen() {
   }, [router]);
 
   const handleSearchSubmit = () => {
-    loadData();
+    void loadData();
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    void loadData(searchQuery, true);
   };
 
   const handleDeleteGig = async (gig: GigSummary) => {
@@ -174,240 +184,275 @@ export default function GigsScreen() {
     return g.status === clientStatusFilter;
   });
 
+  const selectedCategoryName = categories.find((c) => c.id === selectedCategory)?.name;
+
   return (
     <ScreenBackground style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <View style={styles.titleRow}>
-          <Text style={[theme.type.title, { color: theme.colors.text }]}>
-            {isClient ? 'My Gigs' : 'Browse Gigs'}
-          </Text>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+            paddingTop: isWide ? 24 : topSpace,
+          },
+        ]}
+      >
+        <View style={styles.headerInner}>
+          <View style={styles.titleRow}>
+            <Text style={[theme.type.title, { color: theme.colors.text }]}>
+              {isClient ? 'My Gigs' : 'Browse Gigs'}
+            </Text>
+            {isClient && (
+              <Button
+                title="Post Gig"
+                icon="add"
+                size="sm"
+                fullWidth={false}
+                onPress={() => router.push('/gigs/post')}
+              />
+            )}
+          </View>
+
+          {/* Client Segmented Control: My Gigs vs Find Freelancers vs Market Feed */}
           {isClient && (
-            <TouchableOpacity
-              style={[styles.postButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => router.push('/gigs/post')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={16} color="#FFFFFF" />
-              <Text style={styles.postButtonText}>Post Gig</Text>
-            </TouchableOpacity>
+            <View style={[ { marginBottom: 12 }, isWide && { maxWidth: 520 }]}>
+              <SegmentedControl<ClientSegment>
+                options={[
+                  { value: 'my_gigs', label: 'My Gigs', count: myGigs.length },
+                  { value: 'find_freelancers', label: 'Find Freelancers' },
+                  { value: 'marketplace', label: 'Market Feed' },
+                ]}
+                value={clientSegment}
+                onChange={setClientSegment}
+              />
+            </View>
+          )}
+
+          {/* Search Input for Browse / Marketplace / Find Freelancers */}
+          {(!isClient || clientSegment === 'marketplace' || clientSegment === 'find_freelancers') && (
+            <>
+              <View style={styles.searchFilterBar}>
+                <View
+                  style={[
+                    styles.searchBox,
+                    {
+                      backgroundColor: theme.colors.surfaceAlt,
+                      borderRadius: theme.radii.input,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Ionicons name="search" size={18} color={theme.colors.muted} />
+                  <RNTextInput
+                    style={[
+                      styles.searchInput,
+                      { color: theme.colors.text },
+                      Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                    ]}
+                    placeholder={
+                      clientSegment === 'find_freelancers'
+                        ? 'Search freelancers by name, skill (e.g. Graphic Design, Web)...'
+                        : 'Search gigs by title, skill, or keyword...'
+                    }
+                    placeholderTextColor={theme.colors.muted}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onSubmitEditing={handleSearchSubmit}
+                    returnKeyType="search"
+                  />
+                  {searchQuery ? (
+                    <Pressable
+                      onPress={() => {
+                        setSearchQuery('');
+                        void loadData('');
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                    >
+                      <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
+                    </Pressable>
+                  ) : null}
+                  <Button
+                    title="Search"
+                    size="xs"
+                    fullWidth={false}
+                    onPress={handleSearchSubmit}
+                  />
+                </View>
+
+                {!isWide && categories.length > 0 && (
+                  <IconButton
+                    icon="options-outline"
+                    variant={selectedCategory ? 'soft' : 'secondary'}
+                    size="md"
+                    onPress={() => setShowMobileCategories((prev) => !prev)}
+                    accessibilityLabel="Toggle category filter"
+                  />
+                )}
+              </View>
+
+              {/* Work type filters only apply to job posts */}
+              {(!isClient || clientSegment === 'marketplace') && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                  {workFilters.map((f) => (
+                    <Chip
+                      key={f.id}
+                      label={f.label}
+                      icon={f.icon}
+                      selected={workTypeFilter === f.id}
+                      onPress={() => setWorkTypeFilter(f.id)}
+                    />
+                  ))}
+                  {!isWide && selectedCategoryName && !showMobileCategories ? (
+                    <Chip
+                      label={selectedCategoryName}
+                      selected
+                      onPress={() => setSelectedCategory(null)}
+                      onRemove={() => setSelectedCategory(null)}
+                    />
+                  ) : null}
+                </ScrollView>
+              )}
+
+              {categories.length > 0 && (isWide || showMobileCategories || clientSegment === 'find_freelancers') && (
+                <ScrollView
+                  horizontal={!isWide}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={[
+                    styles.filterRow,
+                    { marginTop: 6 },
+                    isWide && { flexWrap: 'wrap' },
+                  ]}
+                >
+                  <Chip
+                    key="cat-all"
+                    label={strings.gigs.filterAllCategories}
+                    selected={selectedCategory === null}
+                    onPress={() => setSelectedCategory(null)}
+                  />
+                  {categories.map((cat) => (
+                    <Chip
+                      key={`cat-${cat.id}`}
+                      label={cat.name}
+                      selected={selectedCategory === cat.id}
+                      onPress={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
+                    />
+                  ))}
+                </ScrollView>
+              )}
+            </>
+          )}
+
+          {/* Status Filters for Client My Gigs */}
+          {isClient && clientSegment === 'my_gigs' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {clientStatusFilters.map((f) => (
+                <Chip
+                  key={f.id}
+                  label={f.label}
+                  selected={clientStatusFilter === f.id}
+                  onPress={() => setClientStatusFilter(f.id)}
+                />
+              ))}
+            </ScrollView>
           )}
         </View>
-
-        {/* Client Segmented Control: My Gigs vs Find Freelancers vs Market Feed */}
-        {isClient && (
-          <View style={[styles.segmentContainer, { backgroundColor: theme.colors.surfaceAlt, borderColor: theme.colors.border }]}>
-            <TouchableOpacity
-              style={[
-                styles.segmentItem,
-                clientSegment === 'my_gigs' && [styles.segmentActive, { backgroundColor: theme.colors.surface }],
-              ]}
-              onPress={() => setClientSegment('my_gigs')}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: clientSegment === 'my_gigs' ? theme.colors.primary : theme.colors.muted },
-                ]}
-              >
-                My Gigs ({myGigs.length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.segmentItem,
-                clientSegment === 'find_freelancers' && [styles.segmentActive, { backgroundColor: theme.colors.surface }],
-              ]}
-              onPress={() => setClientSegment('find_freelancers')}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: clientSegment === 'find_freelancers' ? theme.colors.primary : theme.colors.muted },
-                ]}
-              >
-                Find Freelancers
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.segmentItem,
-                clientSegment === 'marketplace' && [styles.segmentActive, { backgroundColor: theme.colors.surface }],
-              ]}
-              onPress={() => setClientSegment('marketplace')}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  { color: clientSegment === 'marketplace' ? theme.colors.primary : theme.colors.muted },
-                ]}
-              >
-                Market Feed
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Search Input for Browse / Marketplace / Find Freelancers */}
-        {(!isClient || clientSegment === 'marketplace' || clientSegment === 'find_freelancers') && (
-          <>
-            <View style={[styles.searchBox, { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radii.input }]}>
-              <Ionicons name="search" size={18} color={theme.colors.muted} />
-              <RNTextInput
-                style={[styles.searchInput, { color: theme.colors.text }]}
-                placeholder={
-                  clientSegment === 'find_freelancers'
-                    ? 'Search freelancers by name, skill (e.g. Graphic Design, Web)...'
-                    : 'Search gigs by title, skill, or keyword...'
-                }
-                placeholderTextColor={theme.colors.muted}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearchSubmit}
-                returnKeyType="search"
-              />
-              {searchQuery ? (
-                <Pressable
-                  onPress={() => {
-                    setSearchQuery('');
-                    void loadData('');
-                  }}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
-                </Pressable>
-              ) : null}
-            </View>
-
-            {/* Work type filters only apply to job posts */}
-            {(!isClient || clientSegment === 'marketplace') && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                {workFilters.map((f) => (
-                  <Chip
-                    key={f.id}
-                    label={f.label}
-                    icon={f.icon}
-                    selected={workTypeFilter === f.id}
-                    onPress={() => setWorkTypeFilter(f.id)}
-                  />
-                ))}
-              </ScrollView>
-            )}
-
-            {categories.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.filterRow, { marginTop: 6 }]}
-              >
-                <Chip
-                  key="cat-all"
-                  label={strings.gigs.filterAllCategories}
-                  selected={selectedCategory === null}
-                  onPress={() => setSelectedCategory(null)}
-                />
-                {categories.map((cat) => (
-                  <Chip
-                    key={`cat-${cat.id}`}
-                    label={cat.name}
-                    selected={selectedCategory === cat.id}
-                    onPress={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
-                  />
-                ))}
-              </ScrollView>
-            )}
-          </>
-        )}
-
-        {/* Status Filters for Client My Gigs */}
-        {isClient && clientSegment === 'my_gigs' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {clientStatusFilters.map((f) => (
-              <Chip
-                key={f.id}
-                label={f.label}
-                selected={clientStatusFilter === f.id}
-                onPress={() => setClientStatusFilter(f.id)}
-              />
-            ))}
-          </ScrollView>
-        )}
       </View>
 
       {/* List Body */}
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {error ? (
-          <ErrorState message={error} onRetry={loadData} />
-        ) : loading ? (
-          <SkeletonGigList count={3} />
-        ) : isClient && clientSegment === 'my_gigs' ? (
-          filteredMyGigs.length === 0 ? (
-            <EmptyState
-              icon="briefcase-outline"
-              title="No posted gigs found"
-              description="You have not created any gigs matching this filter."
-              actionTitle="Post a Gig"
-              onAction={() => router.push('/gigs/post')}
-            />
-          ) : (
-            filteredMyGigs.map((gig) => (
-              <GigCard
-                key={gig.id}
-                gig={gig}
-                onPress={() => handleGigPress(gig.id)}
-                onDelete={['open', 'draft', 'cancelled', 'expired'].includes(gig.status) ? () => handleDeleteGig(gig) : undefined}
-                deleting={deletingGigId === gig.id}
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        <View style={styles.listInner}>
+          {error ? (
+            <ErrorState message={error} onRetry={() => loadData()} />
+          ) : loading ? (
+            <SkeletonGigList count={3} />
+          ) : isClient && clientSegment === 'my_gigs' ? (
+            filteredMyGigs.length === 0 ? (
+              <EmptyState
+                icon="briefcase-outline"
+                title="No posted gigs found"
+                description="You have not created any gigs matching this filter."
+                actionTitle="Post a Gig"
+                onAction={() => router.push('/gigs/post')}
               />
-            ))
-          )
-        ) : isClient && clientSegment === 'find_freelancers' ? (
-          freelancers.length === 0 ? (
+            ) : (
+              <View style={isWide ? styles.gridContainer : undefined}>
+                {filteredMyGigs.map((gig) => (
+                  <GigCard
+                    key={gig.id}
+                    gig={gig}
+                    onPress={() => handleGigPress(gig.id)}
+                    onDelete={['open', 'draft', 'cancelled', 'expired'].includes(gig.status) ? () => handleDeleteGig(gig) : undefined}
+                    deleting={deletingGigId === gig.id}
+                    style={isWide ? styles.gridCard : undefined}
+                  />
+                ))}
+              </View>
+            )
+          ) : isClient && clientSegment === 'find_freelancers' ? (
+            freelancers.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title="No freelancers found"
+                description="No freelancers match your search or category filter."
+                actionTitle="Clear filters"
+                onAction={() => {
+                  setSearchQuery('');
+                  setSelectedCategory(null);
+                  void loadData('');
+                }}
+              />
+            ) : (
+              <View style={isWide ? styles.gridContainer : undefined}>
+                {freelancers.map((freelancer) => (
+                  <FreelancerCard
+                    key={freelancer.id}
+                    freelancer={freelancer}
+                    style={isWide ? styles.gridCard : undefined}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/profile/[id]',
+                        params: { id: freelancer.id },
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            )
+          ) : gigs.length === 0 ? (
             <EmptyState
               icon="search-outline"
-              title="No freelancers found"
-              description="No freelancers match your search or category filter."
-              actionTitle="Clear filters"
-              onAction={() => {
-                setSearchQuery('');
-                setSelectedCategory(null);
-                void loadData('');
-              }}
+              title={strings.gigs.noGigsTitle}
+              description={strings.gigs.noGigsDesc}
+              actionTitle="Refresh"
+              onAction={() => loadData()}
             />
           ) : (
-            freelancers.map((freelancer) => (
-              <FreelancerCard
-                key={freelancer.id}
-                freelancer={freelancer}
-                onPress={() =>
-                  router.push({
-                    pathname: '/profile/[id]',
-                    params: { id: freelancer.id },
-                  })
-                }
-              />
-            ))
-          )
-        ) : gigs.length === 0 ? (
-          <EmptyState
-            icon="search-outline"
-            title={strings.gigs.noGigsTitle}
-            description={strings.gigs.noGigsDesc}
-            actionTitle="Refresh"
-            onAction={loadData}
-          />
-        ) : (
-          gigs.map((gig) => (
-            <GigCard
-              key={gig.id}
-              gig={gig}
-              onPress={() => handleGigPress(gig.id)}
-            />
-          ))
-        )}
+            <View style={isWide ? styles.gridContainer : undefined}>
+              {gigs.map((gig) => (
+                <GigCard
+                  key={gig.id}
+                  gig={gig}
+                  onPress={() => handleGigPress(gig.id)}
+                  style={isWide ? styles.gridCard : undefined}
+                />
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </ScreenBackground>
   );
@@ -415,48 +460,54 @@ export default function GigsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  postButton: {
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerInner: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 14,
-  },
-  postButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  segmentContainer: {
-    flexDirection: 'row',
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 3,
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  segmentItem: {
-    flex: 1,
-    paddingVertical: 8,
+  searchFilterBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 9,
+    gap: 8,
+    marginBottom: 10,
   },
-  segmentActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 6,
+    height: 46,
+    borderWidth: 1,
   },
-  segmentText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 46, marginBottom: 12 },
   searchInput: { flex: 1, fontSize: 15, height: '100%' },
   filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   listContent: { padding: 16, paddingBottom: 40 },
-  skeletonContainer: { paddingTop: 8 },
+  listInner: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  gridCard: {
+    flexBasis: '48.8%',
+    flexGrow: 1,
+    marginBottom: 0,
+  },
 });

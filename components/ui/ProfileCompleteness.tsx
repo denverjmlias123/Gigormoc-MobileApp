@@ -47,6 +47,7 @@ export const ProfileCompletenessCard: React.FC<ProfileCompletenessCardProps> = (
   onSelectMissingItem,
 }) => {
   const theme = useAppTheme();
+  const c = theme.colors;
 
   if (!completeness) return null;
 
@@ -54,14 +55,18 @@ export const ProfileCompletenessCard: React.FC<ProfileCompletenessCardProps> = (
   const firstMissing = missing_items && missing_items.length > 0 ? missing_items[0] : null;
 
   return (
-    <Card style={styles.card}>
+    <Card
+      style={styles.card}
+      accentPosition="left"
+      accentColor={complete ? c.success : c.primary}
+    >
       <View style={styles.topRow}>
         <View
           style={[
             styles.ring,
             {
-              borderColor: complete ? theme.colors.success : theme.colors.primary,
-              backgroundColor: complete ? theme.colors.successSoft : theme.colors.primarySoft,
+              borderColor: complete ? c.success : c.primary,
+              backgroundColor: complete ? c.successSoft : c.primarySoft,
             },
           ]}
           accessibilityLabel={`Profile completeness ${percent} percent`}
@@ -69,7 +74,7 @@ export const ProfileCompletenessCard: React.FC<ProfileCompletenessCardProps> = (
           <Text
             style={[
               styles.ringText,
-              { color: complete ? theme.colors.success : theme.colors.primary },
+              { color: complete ? c.success : c.primary },
             ]}
           >
             {percent}%
@@ -80,22 +85,22 @@ export const ProfileCompletenessCard: React.FC<ProfileCompletenessCardProps> = (
           {complete ? (
             <>
               <View style={styles.completeHeader}>
-                <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
-                <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
+                <Ionicons name="checkmark-circle" size={18} color={c.success} />
+                <Text style={[theme.type.bodyStrong, { color: c.text }]}>
                   {strings.profile.profileCompleteBadge}
                 </Text>
               </View>
-              <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+              <Text style={[theme.type.small, { color: c.muted }]}>
                 All profile details are filled in.
               </Text>
             </>
           ) : (
             <>
-              <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
+              <Text style={[theme.type.bodyStrong, { color: c.text }]}>
                 {percent}% complete
                 {firstMissing ? `: ${firstMissing.label.toLowerCase()}` : ''}
               </Text>
-              <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+              <Text style={[theme.type.small, { color: c.muted }]}>
                 {strings.profile.completenessHint}
               </Text>
             </>
@@ -109,21 +114,25 @@ export const ProfileCompletenessCard: React.FC<ProfileCompletenessCardProps> = (
             <Pressable
               key={item.key}
               onPress={() => onSelectMissingItem(item)}
-              style={[
+              style={(state: any) => [
                 styles.missingChip,
                 {
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.background,
+                  borderColor: state.hovered ? c.primary : c.border,
+                  backgroundColor:
+                    state.pressed || state.hovered ? c.primarySoft : c.insetBg || c.surfaceAlt,
+                  ...({ cursor: 'pointer' } as any),
                 },
               ]}
               accessibilityRole="button"
               accessibilityLabel={item.label}
             >
-              <Ionicons name="add-circle-outline" size={16} color={theme.colors.primary} />
-              <Text style={[styles.missingChipText, { color: theme.colors.text }]}>
+              <View style={[styles.missingIconWrap, { backgroundColor: c.surface }]}>
+                <Ionicons name="add" size={16} color={c.primary} />
+              </View>
+              <Text style={[styles.missingChipText, { color: c.text }]}>
                 {item.label}
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={theme.colors.muted} />
+              <Ionicons name="chevron-forward" size={15} color={c.primary} />
             </Pressable>
           ))}
         </View>
@@ -157,8 +166,8 @@ const styles = StyleSheet.create({
   ring: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    borderWidth: 4,
+    borderRadius: 18,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -176,21 +185,28 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   missingList: {
-    marginTop: 12,
+    marginTop: 14,
     gap: 8,
   },
   missingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
+  },
+  missingIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   missingChipText: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13.5,
+    fontWeight: '700',
   },
 });

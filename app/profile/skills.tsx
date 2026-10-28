@@ -11,10 +11,13 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Skill } from '../../services/profile';
 import { aiService } from '../../services/ai';
+import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../components/ui/Card';
+import { Chip } from '../../components/ui/Chip';
 import { showToast } from '../../components/ui/Toast';
 import { strings } from '../../constants/strings';
 
@@ -23,6 +26,7 @@ const MAX_PROFILE_SKILLS = 15;
 export default function SkillsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { bottomPad } = useResponsiveLayout();
   const { user, profile, refreshProfile } = useAuth();
 
   const isHire = profile?.active_mode === 'hire';
@@ -30,6 +34,7 @@ export default function SkillsScreen() {
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [userSkills, setUserSkills] = useState<Skill[]>([]);
   const [customSkillInput, setCustomSkillInput] = useState('');
+  const [catalogFilter, setCatalogFilter] = useState('');
   const [addingCustom, setAddingCustom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -79,23 +84,21 @@ export default function SkillsScreen() {
   if (isHire) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-            <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            Freelancer Mode Only
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-            You are currently in Hire Someone (Client) mode. Clients set their hiring details and interests in Edit Profile instead.
-          </Text>
+        <PageHeaderBox
+          title="Freelancer Mode Only"
+          subtitle="You are currently in Hire Someone (Client) mode. Clients set their hiring details and interests in Edit Profile instead."
+          onBack={handleBack}
+          maxWidth={920}
+        />
+        <View style={[styles.innerWrap, { paddingTop: 20 }]}>
+          <Card tone="neo-glass" padding="lg">
+            <Button
+              title="Edit Client Hiring Details"
+              variant="primary"
+              onPress={() => router.replace('/profile/edit')}
+            />
+          </Card>
         </View>
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.replace('/profile/edit')}
-        >
-          <Text style={styles.primaryBtnText}>Edit Client Hiring Details</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -236,270 +239,252 @@ export default function SkillsScreen() {
     }
   };
 
+  const filteredCatalog = catalogFilter.trim()
+    ? availableSkills.filter((s) =>
+        s.name.toLowerCase().includes(catalogFilter.trim().toLowerCase())
+      )
+    : availableSkills;
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Manage Skills</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.muted }]}>
-          Select skills from the catalog, use AI suggestions, or add custom skills to display on your freelancer profile (up to 15).
-        </Text>
-      </View>
+      <PageHeaderBox
+        title="Manage Skills"
+        subtitle="Select skills from the catalog, use AI suggestions, or add custom skills to display on your freelancer profile (up to 15)."
+        onBack={handleBack}
+        maxWidth={920}
+      />
 
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      {(zeroSkillsWarning || (!loading && userSkills.length === 0)) && (
-        <View style={styles.warningBox}>
-          <Text style={styles.warningText}>{strings.onboarding.zeroSkillsWarning}</Text>
-        </View>
-      )}
-
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.skillsContent} keyboardShouldPersistTaps="handled">
-          {/* Top "Your skills (n/15)" Tray */}
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            ]}
-          >
-            <View style={styles.trayHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
-                {strings.onboarding.yourSkillsTrayLabel} ({userSkills.length}/{MAX_PROFILE_SKILLS})
-              </Text>
-              {skillsSaved && (
-                <View style={[styles.savedBadge, { backgroundColor: '#DCFCE7' }]}>
-                  <Text style={styles.savedBadgeText}>✓ {strings.onboarding.skillsSavedText}</Text>
-                </View>
-              )}
-            </View>
-
-            {userSkills.length > 0 ? (
-              <View style={[styles.chipGrid, { marginTop: 12 }]}>
-                {userSkills.map((skill) => {
-                  const isBusy = actionLoading === skill.id;
-                  const isPendingReview = skill.source === 'user' && skill.is_active === false;
-
-                  return (
-                    <TouchableOpacity
-                      key={skill.id}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: theme.colors.primary,
-                          borderColor: theme.colors.primary,
-                        },
-                      ]}
-                      onPress={() => toggleSkill(skill)}
-                      disabled={isBusy}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipText, { color: '#ffffff', marginRight: 6 }]}>
-                        {skill.name}
-                      </Text>
-                      {isPendingReview && (
-                        <View style={styles.pendingPill}>
-                          <Text style={styles.pendingPillText}>
-                            {strings.onboarding.pendingReviewBadge}
-                          </Text>
-                        </View>
-                      )}
-                      <Text style={{ color: '#ffffff', fontWeight: '700' }}>×</Text>
-                      {isBusy && (
-                        <ActivityIndicator
-                          size="small"
-                          color="#ffffff"
-                          style={{ marginLeft: 6 }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              <Text style={[styles.subtitle, { color: theme.colors.muted, marginTop: 8 }]}>
-                {strings.onboarding.yourSkillsEmptyHint}
-              </Text>
-            )}
+      <View style={styles.innerWrap}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
-
-          {/* Add Custom Skill Input */}
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+        ) : (
+          <ScrollView
+            contentContainerStyle={[
+              styles.skillsContent,
+              { paddingBottom: Math.max(bottomPad, 32) },
             ]}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              ✍️ Add Custom Skill
-            </Text>
-            <View style={styles.customRow}>
+            {error && <AlertBox tone="danger" message={error} style={{ marginBottom: 12 }} />}
+
+            {(zeroSkillsWarning || (!loading && userSkills.length === 0)) && (
+              <AlertBox
+                tone="warning"
+                message={strings.onboarding.zeroSkillsWarning}
+                style={{ marginBottom: 12 }}
+              />
+            )}
+
+            {/* Top "Your skills (n/15)" Tray */}
+            <Card tone="neo-glass" padding="md" style={styles.card}>
+              <View style={styles.trayHeaderRow}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+                  {strings.onboarding.yourSkillsTrayLabel} ({userSkills.length}/{MAX_PROFILE_SKILLS})
+                </Text>
+                {skillsSaved && (
+                  <View style={[styles.savedBadge, { backgroundColor: theme.colors.successSoft }]}>
+                    <Text style={[styles.savedBadgeText, { color: theme.colors.successText }]}>
+                      ✓ {strings.onboarding.skillsSavedText}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {userSkills.length > 0 ? (
+                <View style={[styles.chipGrid, { marginTop: 12 }]}>
+                  {userSkills.map((skill) => {
+                    const isBusy = actionLoading === skill.id;
+                    const isPendingReview = skill.source === 'user' && skill.is_active === false;
+
+                    return (
+                      <TouchableOpacity
+                        key={skill.id}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: theme.colors.primary,
+                            borderColor: theme.colors.primary,
+                          },
+                        ]}
+                        onPress={() => toggleSkill(skill)}
+                        disabled={isBusy}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: theme.colors.primaryContrast, marginRight: 6 },
+                          ]}
+                        >
+                          {skill.name}
+                        </Text>
+                        {isPendingReview && (
+                          <View style={styles.pendingPill}>
+                            <Text
+                              style={[
+                                styles.pendingPillText,
+                                { color: theme.colors.primaryContrast },
+                              ]}
+                            >
+                              {strings.onboarding.pendingReviewBadge}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={{ color: theme.colors.primaryContrast, fontWeight: '700' }}>
+                          ×
+                        </Text>
+                        {isBusy && (
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.colors.primaryContrast}
+                            style={{ marginLeft: 6 }}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={[styles.subtitle, { color: theme.colors.muted, marginTop: 8 }]}>
+                  {strings.onboarding.yourSkillsEmptyHint}
+                </Text>
+              )}
+            </Card>
+
+            {/* Add Custom Skill Input */}
+            <Card tone="neo-glass" padding="md" style={styles.card}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                ✍️ Add Custom Skill
+              </Text>
+              <View style={styles.customRow}>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.surfaceAlt,
+                    },
+                  ]}
+                  placeholder={strings.onboarding.addCustomSkillPlaceholder}
+                  placeholderTextColor={theme.colors.muted}
+                  value={customSkillInput}
+                  onChangeText={setCustomSkillInput}
+                  maxLength={40}
+                />
+                <Button
+                  title="Add"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={handleAddCustomSkill}
+                  disabled={addingCustom}
+                  loading={addingCustom}
+                />
+              </View>
+            </Card>
+
+            {/* AI Skill Suggestions */}
+            <Card tone="neo-glass" padding="md" style={styles.card}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 4 }]}>
+                🤖 Suggest Skills with AI
+              </Text>
+              <Text style={[styles.subtitle, { color: theme.colors.muted, marginBottom: 10 }]}>
+                Describe what you do in plain words to get skill suggestions.
+              </Text>
               <TextInput
                 style={[
                   styles.customInput,
-                  { borderColor: theme.colors.border, color: theme.colors.text },
+                  {
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                    backgroundColor: theme.colors.surfaceAlt,
+                    marginBottom: 10,
+                    flex: 0,
+                  },
                 ]}
-                placeholder={strings.onboarding.addCustomSkillPlaceholder}
+                placeholder={strings.onboarding.aiSkillsPlaceholder}
                 placeholderTextColor={theme.colors.muted}
-                value={customSkillInput}
-                onChangeText={setCustomSkillInput}
-                maxLength={40}
+                value={workDescription}
+                onChangeText={setWorkDescription}
               />
-              <TouchableOpacity
-                style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
-                onPress={handleAddCustomSkill}
-                disabled={addingCustom}
-              >
-                {addingCustom ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.addBtnText}>Add</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+              {aiError && <AlertBox tone="danger" message={aiError} style={{ marginBottom: 8 }} />}
+              <Button
+                title={aiLoading ? strings.onboarding.suggestingSkills : strings.onboarding.suggestSkillsBtn}
+                variant="soft"
+                icon="sparkles-outline"
+                onPress={handleSuggestSkills}
+                disabled={aiLoading}
+                loading={aiLoading}
+              />
 
-          {/* AI Skill Suggestions */}
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 4 }]}>
-              🤖 Suggest Skills with AI
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.muted, marginBottom: 10 }]}>
-              Describe what you do in plain words to get skill suggestions.
-            </Text>
-            <TextInput
-              style={[
-                styles.customInput,
-                { borderColor: theme.colors.border, color: theme.colors.text, marginBottom: 10 },
-              ]}
-              placeholder={strings.onboarding.aiSkillsPlaceholder}
-              placeholderTextColor={theme.colors.muted}
-              value={workDescription}
-              onChangeText={setWorkDescription}
-            />
-            {aiError && (
-              <Text style={[styles.errorText, { marginBottom: 8 }]}>{aiError}</Text>
-            )}
-            <TouchableOpacity
-              style={[
-                styles.aiBtn,
-                { backgroundColor: theme.colors.primarySoft },
-                aiLoading && { opacity: 0.7 },
-              ]}
-              onPress={handleSuggestSkills}
-              disabled={aiLoading}
-            >
-              <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 14 }}>
-                {aiLoading ? strings.onboarding.suggestingSkills : strings.onboarding.suggestSkillsBtn}
-              </Text>
-            </TouchableOpacity>
+              {aiSuggestions.length > 0 && (
+                <View style={[styles.chipGrid, { marginTop: 12 }]}>
+                  {aiSuggestions.map((sug) => {
+                    const lower = sug.trim().toLowerCase();
+                    const selected = userSkills.some((s) => s.name.trim().toLowerCase() === lower);
+                    const isBusy = actionLoading === `ai-${lower}`;
+                    return (
+                      <Chip
+                        key={sug}
+                        label={`${selected ? '✓ ' : '+ '}${sug}`}
+                        selected={selected}
+                        disabled={isBusy}
+                        onPress={() => handleToggleAiSkill(sug)}
+                      />
+                    );
+                  })}
+                </View>
+              )}
+            </Card>
 
-            {aiSuggestions.length > 0 && (
-              <View style={[styles.chipGrid, { marginTop: 12 }]}>
-                {aiSuggestions.map((sug) => {
-                  const lower = sug.trim().toLowerCase();
-                  const selected = userSkills.some((s) => s.name.trim().toLowerCase() === lower);
-                  const isBusy = actionLoading === `ai-${lower}`;
-                  return (
-                    <TouchableOpacity
-                      key={sug}
-                      style={[
-                        styles.chip,
-                        { borderColor: theme.colors.border },
-                        selected && {
-                          backgroundColor: theme.colors.primary,
-                          borderColor: theme.colors.primary,
-                        },
-                      ]}
-                      onPress={() => handleToggleAiSkill(sug)}
-                      disabled={isBusy}
-                    >
-                      <Text style={[styles.chipText, selected && { color: '#ffffff' }]}>
-                        {selected ? '✓ ' : '+ '}
-                        {sug}
-                      </Text>
-                      {isBusy && (
-                        <ActivityIndicator
-                          size="small"
-                          color={selected ? '#ffffff' : theme.colors.primary}
-                          style={{ marginLeft: 6 }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
+            {/* Skills Catalog */}
+            {availableSkills.length > 0 ? (
+              <Card tone="neo-glass" padding="md" style={styles.card}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  📋 Skills Catalog
+                </Text>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    {
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.surfaceAlt,
+                      marginBottom: 12,
+                      flex: 0,
+                    },
+                  ]}
+                  placeholder="Filter catalog skills..."
+                  placeholderTextColor={theme.colors.muted}
+                  value={catalogFilter}
+                  onChangeText={setCatalogFilter}
+                />
+                <View style={styles.chipGrid}>
+                  {filteredCatalog.map((skill) => {
+                    const selected = userSkills.some((s) => s.id === skill.id);
+                    const isBusy = actionLoading === skill.id;
 
-          {/* Skills Catalog */}
-          {availableSkills.length > 0 ? (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                📋 Skills Catalog
-              </Text>
-              <View style={styles.chipGrid}>
-                {availableSkills.map((skill) => {
-                  const selected = userSkills.some((s) => s.id === skill.id);
-                  const isBusy = actionLoading === skill.id;
-
-                  return (
-                    <TouchableOpacity
-                      key={skill.id}
-                      style={[
-                        styles.chip,
-                        { borderColor: theme.colors.border },
-                        selected && {
-                          backgroundColor: theme.colors.primary,
-                          borderColor: theme.colors.primary,
-                        },
-                      ]}
-                      onPress={() => toggleSkill(skill)}
-                      disabled={isBusy}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipText, selected && { color: '#ffffff' }]}>
-                        {selected ? '✓ ' : '+ '}
-                        {skill.name}
-                      </Text>
-                      {isBusy && (
-                        <ActivityIndicator
-                          size="small"
-                          color={selected ? '#ffffff' : theme.colors.primary}
-                          style={{ marginLeft: 6 }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
-      )}
+                    return (
+                      <Chip
+                        key={skill.id}
+                        label={`${selected ? '✓ ' : '+ '}${skill.name}`}
+                        selected={selected}
+                        disabled={isBusy}
+                        onPress={() => toggleSkill(skill)}
+                      />
+                    );
+                  })}
+                </View>
+              </Card>
+            ) : null}
+          </ScrollView>
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -507,28 +492,19 @@ export default function SkillsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    paddingTop: 48,
   },
-  header: {
-    marginBottom: 16,
-  },
-  backBtn: {
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 4,
+  innerWrap: {
+    flex: 1,
+    maxWidth: 920,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
   },
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
   },
   card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
     marginBottom: 16,
   },
   trayHeaderRow: {
@@ -542,7 +518,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   savedBadgeText: {
-    color: '#15803D',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -554,76 +529,21 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   pendingPillText: {
-    color: '#ffffff',
     fontSize: 10,
-    fontWeight: '700',
-  },
-  primaryBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
     fontWeight: '700',
   },
   customRow: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
   customInput: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-  },
-  addBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  aiBtn: {
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
-  },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
-  },
-  warningBox: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  warningText: {
-    color: '#B45309',
-    fontSize: 13,
-    fontWeight: '600',
   },
   center: {
     flex: 1,
@@ -631,7 +551,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   skillsContent: {
-    paddingVertical: 4,
+    paddingTop: 16,
   },
   sectionTitle: {
     fontSize: 16,

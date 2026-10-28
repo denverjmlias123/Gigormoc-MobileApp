@@ -1,16 +1,25 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  RefreshControl,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { gigsService } from '../../services/gigs';
 import { GigCard, GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
-import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
+import { Button } from '../../components/ui/Button';
+import { Card, AlertBox } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
 import { Skeleton, SkeletonGigList, SkeletonActivityList } from '../../components/ui/Skeleton';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
@@ -24,6 +33,7 @@ import { strings, mapSqlErrorToFriendlyMessage } from '../../constants/strings';
 export default function HomeScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, isDesktop, topSpace } = useResponsiveLayout();
   const { user, profile } = useAuth();
   const userId = user?.id;
 
@@ -40,11 +50,12 @@ export default function HomeScreen() {
   const [myReviews, setMyReviews] = useState<ReviewItem[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notificationLoadError, setNotificationLoadError] = useState<string | null>(null);
 
-  const loadHomeData = useCallback(async () => {
-    setLoading(true);
+  const loadHomeData = useCallback(async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
     setLoadError(null);
     setNotificationLoadError(null);
     try {
@@ -78,6 +89,7 @@ export default function HomeScreen() {
       setLoadError(mapSqlErrorToFriendlyMessage(err, 'Could not load gigs. Please check your connection and try again.'));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
 
     // Keep notification failures separate
@@ -110,6 +122,11 @@ export default function HomeScreen() {
       });
     }, [loadHomeData, user?.id])
   );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    void loadHomeData(true);
+  };
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Ormocanon';
 
@@ -148,18 +165,130 @@ export default function HomeScreen() {
     isHire ? <SkeletonActivityList count={2} /> : <SkeletonGigList count={3} />
   );
 
+  const renderFreelancerAlertsAndContracts = () => (
+    <>
+      {acceptedApps.length > 0 && (
+        <AlertBox
+          tone="success"
+          title="Proposal Accepted!"
+          message={`A client accepted your proposal for "${acceptedApps[0].gig?.title || 'Gig'}". Open the agreement to review terms and start work.`}
+          actionLabel="View Agreement Terms ›"
+          onAction={() => router.push({ pathname: '/gigs/[id]', params: { id: acceptedApps[0].gig_id } })}
+          style={{ marginBottom: 14 }}
+        />
+      )}
+
+      {counteredApps.length > 0 && (
+        <AlertBox
+          tone="info"
+          title="Counter-Offer Received"
+          message={`A client offered a new rate on "${counteredApps[0].gig?.title || 'Gig'}": ₱${formatPrice(counteredApps[0].counter_price || 0)}.`}
+          actionLabel="Review Offer ›"
+          onAction={() => router.push({ pathname: '/gigs/[id]', params: { id: counteredApps[0].gig_id } })}
+          style={{ marginBottom: 14 }}
+        />
+      )}
+
+      <View style={{ marginTop: 4 }}>
+        <SectionHeader
+          title={`Active Contracts (${activeAgreements.length})`}
+          actionLabel={activeAgreements.length > 0 ? 'View activity' : undefined}
+          onAction={() => router.push('/(tabs)/activity')}
+        />
+        {loading ? (
+          renderLoading()
+        ) : activeAgreements.length === 0 ? (
+          <Card tone="inset" padding="md" style={styles.emptyInlineCard}>
+            <Ionicons name="briefcase-outline" size={24} color={theme.colors.muted} />
+            <Text style={[styles.emptyInlineText, { color: theme.colors.muted }]}>
+              No active contracts in progress. Explore open gigs to submit proposals!
+            </Text>
+          </Card>
+        ) : (
+          activeAgreements.map((agr) => (
+            <Card
+              key={agr.id}
+              tone="neo-glass"
+              padding="md"
+              accentPosition="left"
+              accentColor={theme.colors.primary}
+              style={{ marginBottom: 12, gap: 8 }}
+            >
+              <View style={styles.activeContractHeader}>
+                <View style={[styles.contractStatusBadge, { backgroundColor: theme.colors.primarySoft }]}>
+                  <View style={[styles.activePillDot, { backgroundColor: theme.colors.primary }]} />
+                  <Text style={[styles.contractStatusText, { color: theme.colors.primary }]}>ACTIVE CONTRACT</Text>
+                </View>
+                <Text style={[styles.agreedPriceText, { color: theme.colors.primary }]}>
+                  ₱{formatPrice(agr.agreed_price)}
+                </Text>
+              </View>
+
+              <Text style={[styles.contractGigTitle, { color: theme.colors.text }]}>
+                {agr.gig?.title || 'Ongoing Contract'}
+              </Text>
+
+              <View style={styles.contractMetaRow}>
+                <View style={styles.contractClientInfo}>
+                  <Avatar
+                    name={agr.client?.display_name || 'Client'}
+                    imageUri={agr.client?.avatar_path}
+                    size={22}
+                  />
+                  <Text style={[styles.contractClientName, { color: theme.colors.muted }]}>
+                    {agr.client?.display_name || 'Client'}
+                  </Text>
+                </View>
+                <Text style={[styles.contractDeadline, { color: theme.colors.muted }]}>
+                  Due: {new Date(agr.deadline).toLocaleDateString()}
+                </Text>
+              </View>
+
+              <View style={{ marginTop: 4 }}>
+                <Button
+                  title="Open Agreement & Milestones"
+                  variant="soft"
+                  size="sm"
+                  rightIcon="chevron-forward"
+                  onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: agr.id } })}
+                />
+              </View>
+            </Card>
+          ))
+        )}
+      </View>
+    </>
+  );
+
   return (
     <ScreenBackground style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          isWide && { paddingTop: 24, paddingHorizontal: 28 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
         {/* Hero: Smooth gradient with active mode personality */}
         <LinearGradient
           colors={theme.gradients.hero}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.hero}
+          style={[
+            styles.hero,
+            { paddingTop: isWide ? 28 : topSpace + 8 },
+            isWide && styles.heroWide,
+          ]}
         >
           <View style={styles.heroTop}>
-            <Avatar name={displayName} imageUri={profile?.avatar_path} size={44} onHero />
+            <Avatar name={displayName} imageUri={profile?.avatar_path} size={46} onHero />
             <View style={styles.greetingCol}>
               <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Maayong adlaw,</Text>
               <Text style={[styles.name, { color: theme.colors.heroText }]} numberOfLines={1}>
@@ -175,8 +304,8 @@ export default function HomeScreen() {
               >
                 <Ionicons name="notifications-outline" size={18} color={theme.colors.heroText} />
                 {unreadNotifications > 0 && (
-                  <View style={styles.bellBadge}>
-                    <Text style={styles.bellBadgeText}>
+                  <View style={[styles.bellBadge, { backgroundColor: theme.colors.danger }]}>
+                    <Text style={[styles.bellBadgeText, { color: theme.colors.heroText }]}>
                       {unreadNotifications > 9 ? '9+' : unreadNotifications}
                     </Text>
                   </View>
@@ -184,11 +313,19 @@ export default function HomeScreen() {
               </Pressable>
 
               <Pressable
-                style={[styles.modePill, { backgroundColor: theme.colors.heroChip }]}
+                style={[
+                  styles.modePill,
+                  {
+                    backgroundColor: theme.colors.heroChip,
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    borderWidth: 1,
+                  },
+                ]}
                 onPress={() => router.push('/settings/mode')}
                 accessibilityRole="button"
                 accessibilityLabel="Current mode. Tap to view mode settings."
               >
+                <View style={[styles.statusDot, { backgroundColor: theme.colors.roleAccent }]} />
                 <Ionicons name={isHire ? 'people' : 'search'} size={14} color={theme.colors.heroText} />
                 <Text style={[styles.modePillText, { color: theme.colors.heroText }]}>
                   {isFindWork ? 'Find work' : isHire ? 'Hiring' : 'Select mode'}
@@ -199,59 +336,71 @@ export default function HomeScreen() {
 
           {isHire ? (
             /* Client Hero Stats */
-            <>
-              <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
-                Your hiring at a glance
-              </Text>
-              <View style={styles.statRow}>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>{loading ? '–' : openCount}</Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Open</Text>
-                </View>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>{loading ? '–' : draftCount}</Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Drafts</Text>
-                </View>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>{loading ? '–' : myGigs.length}</Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>All gigs</Text>
+            <View style={isDesktop ? styles.heroStatsDesktopRow : undefined}>
+              <View style={isDesktop ? { flex: 1 } : undefined}>
+                <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
+                  Your hiring at a glance
+                </Text>
+                <View style={styles.statRow}>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : openCount}</Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Open</Text>
+                  </View>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : draftCount}</Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Drafts</Text>
+                  </View>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : myGigs.length}</Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>All gigs</Text>
+                  </View>
                 </View>
               </View>
               <Pressable
-                style={[styles.heroCta, { backgroundColor: '#FFFFFF' }]}
+                style={[
+                  styles.heroCta,
+                  { backgroundColor: theme.colors.surface },
+                  isDesktop && styles.heroCtaDesktop,
+                ]}
                 onPress={() => router.push('/gigs/post')}
                 accessibilityRole="button"
               >
                 <Ionicons name="add-circle" size={20} color={theme.colors.primary} />
                 <Text style={[styles.heroCtaText, { color: theme.colors.primaryDark }]}>Post a gig</Text>
               </Pressable>
-            </>
+            </View>
           ) : (
             /* Freelancer Hero Stats */
-            <>
-              <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
-                Your freelancing at a glance
-              </Text>
-              <View style={styles.statRow}>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>{loading ? '–' : activeAgreements.length}</Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Active work</Text>
-                </View>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>{loading ? '–' : pendingApplications.length}</Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Proposals</Text>
-                </View>
-                <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
-                  <Text style={styles.statValue}>
-                    {loading ? '–' : completedAgreements.length || profile?.freelancer_completed_gigs || 0}
-                  </Text>
-                  <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Completed</Text>
+            <View style={isDesktop ? styles.heroStatsDesktopRow : undefined}>
+              <View style={isDesktop ? { flex: 1 } : undefined}>
+                <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
+                  Your freelancing at a glance
+                </Text>
+                <View style={styles.statRow}>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : activeAgreements.length}</Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Active work</Text>
+                  </View>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : pendingApplications.length}</Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Proposals</Text>
+                  </View>
+                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                    <Text style={[styles.statValue, { color: theme.colors.heroText }]}>
+                      {loading ? '–' : completedAgreements.length || profile?.freelancer_completed_gigs || 0}
+                    </Text>
+                    <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Completed</Text>
+                  </View>
                 </View>
               </View>
 
-              <View style={styles.freelancerHeroActions}>
+              <View style={[styles.freelancerHeroActions, isDesktop && styles.freelancerHeroActionsDesktop]}>
                 <Pressable
-                  style={styles.freelancerExploreBtn}
+                  style={[
+                    styles.freelancerExploreBtn,
+                    { backgroundColor: theme.colors.surface },
+                    isDesktop && { flex: 0, paddingHorizontal: 22 },
+                  ]}
                   onPress={() => router.push('/(tabs)/gigs')}
                   accessibilityRole="button"
                 >
@@ -270,8 +419,8 @@ export default function HomeScreen() {
                       {
                         backgroundColor:
                           profile?.availability === 'available_now' || !profile?.availability
-                            ? '#10B981'
-                            : '#F59E0B',
+                            ? theme.colors.success
+                            : theme.colors.warning,
                       },
                     ]}
                   />
@@ -286,538 +435,487 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
               </View>
-            </>
+            </View>
           )}
         </LinearGradient>
 
-        <View style={styles.body}>
+        <View style={[styles.body, isWide && { paddingHorizontal: 0 }]}>
           {notificationLoadError && (
             <ErrorState message={notificationLoadError} onRetry={retryNotificationCount} />
           )}
 
           {!profile?.avatar_path && (
-            <Pressable
-              style={[styles.banner, { backgroundColor: theme.colors.primarySoft }]}
-              onPress={() => router.push('/profile/edit')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="camera-outline" size={22} color={theme.colors.primary} />
-              <Text style={[styles.bannerText, { color: theme.colors.text }]}>
-                {isHire
+            <AlertBox
+              tone="info"
+              icon="camera-outline"
+              message={
+                isHire
                   ? 'Add a profile photo and hiring details to complete your client profile.'
-                  : 'Add a profile photo and skills so you can apply to gigs.'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.primary} />
-            </Pressable>
+                  : 'Add a profile photo and skills so you can apply to gigs.'
+              }
+              actionLabel="Complete Profile"
+              onAction={() => router.push('/profile/edit')}
+              style={{ marginBottom: 20 }}
+            />
           )}
 
           {isHire ? (
             /* ==================== CLIENT DASHBOARD VIEW ==================== */
-            <View>
-              {/* 1. Active & Open Gigs */}
-              <SectionHeader
-                title="Active & Open Gigs"
-                actionLabel={openGigs.length > 0 ? 'View all' : undefined}
-                onAction={openGigs.length > 0 ? () => router.push('/(tabs)/gigs') : undefined}
-              />
-              {loading ? (
-                renderLoading()
-              ) : loadError ? (
-                <ErrorState message={loadError} onRetry={loadHomeData} />
-              ) : openGigs.length === 0 ? (
-                <EmptyState
-                  icon="document-text-outline"
-                  title={strings.gigs.noMyGigsTitle}
-                  description={strings.gigs.noMyGigsDesc}
-                  actionTitle={strings.gigs.postGig}
-                  onAction={() => router.push('/gigs/post')}
-                />
-              ) : (
-                openGigs.map((gig) => (
-                  <GigCard
-                    key={gig.id}
-                    gig={gig}
-                    onPress={() => handleGigPress(gig.id)}
-                  />
-                ))
-              )}
-
-              {/* 2. Top Freelancers in Ormoc */}
-              <View style={{ marginTop: 12 }}>
+            <View style={isDesktop ? styles.desktopTwoCol : undefined}>
+              {/* Left Column (Primary Active & Past Gigs) */}
+              <View style={isDesktop ? styles.desktopMainCol : undefined}>
                 <SectionHeader
-                  title="Top Freelancers in Ormoc"
-                  actionLabel="Find more"
-                  onAction={() =>
-                    router.push({
-                      pathname: '/(tabs)/gigs',
-                      params: { tab: 'find_freelancers' },
-                    })
-                  }
-                />
-                {loading ? (
-                  <View style={{ flexDirection: 'row', gap: 12, paddingVertical: 4 }}>
-                    <Skeleton height={140} width={220} borderRadius={16} />
-                    <Skeleton height={140} width={220} borderRadius={16} />
-                  </View>
-                ) : topFreelancers.length === 0 ? (
-                  <View
-                    style={[
-                      styles.emptyInlineCard,
-                      {
-                        backgroundColor: '#FFFFFF',
-                        borderColor: theme.colors.border,
-                      },
-                    ]}
-                  >
-                    <Ionicons name="people-outline" size={24} color={theme.colors.muted} />
-                    <Text style={[styles.emptyInlineText, { color: theme.colors.muted }]}>
-                      Freelancers will appear here once registered.
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.freelancersScroll}
-                  >
-                    {topFreelancers.map((freelancer) => (
-                      <FreelancerCard
-                        key={freelancer.id}
-                        freelancer={freelancer}
-                        compact
-                        onPress={() =>
-                          router.push({
-                            pathname: '/profile/[id]',
-                            params: { id: freelancer.id },
-                          })
-                        }
-                      />
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
-
-              {/* 3. Browse Talent by Category */}
-              {categories.length > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <SectionHeader title="Browse Talent by Category" />
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.categoryChipsScroll}
-                  >
-                    {categories.slice(0, 8).map((cat) => (
-                      <Pressable
-                        key={cat.id}
-                        style={({ pressed }) => [
-                          styles.categoryCard,
-                          {
-                            backgroundColor: '#FFFFFF',
-                            borderColor: theme.colors.border,
-                            opacity: pressed ? 0.85 : 1,
-                          },
-                        ]}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(tabs)/gigs',
-                            params: { tab: 'find_freelancers', categoryId: cat.id },
-                          })
-                        }
-                      >
-                        <Text style={[styles.categoryName, { color: theme.colors.text }]}>
-                          {cat.name}
-                        </Text>
-                        <View style={styles.categoryArrowRow}>
-                          <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
-                            Browse
-                          </Text>
-                          <Ionicons
-                            name="arrow-forward"
-                            size={12}
-                            color={theme.colors.primary}
-                          />
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* 4. Completed & Past Gigs */}
-              {completedClientGigs.length > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <SectionHeader
-                    title="Completed & Past Gigs"
-                    actionLabel={completedClientGigs.length > 2 ? 'See all' : undefined}
-                    onAction={
-                      completedClientGigs.length > 2
-                        ? () => router.push('/(tabs)/gigs')
-                        : undefined
-                    }
-                  />
-                  {completedClientGigs.slice(0, 3).map((gig) => (
-                    <GigCard
-                      key={gig.id}
-                      gig={gig}
-                      onPress={() => handleGigPress(gig.id)}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : (
-            /* ==================== FREELANCER DASHBOARD VIEW ==================== */
-            <View>
-              {/* 1. Actionable Alerts Hub */}
-              {acceptedApps.length > 0 && (
-                <View style={[styles.alertBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                  <View style={styles.alertHeader}>
-                    <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                    <Text style={[styles.alertTitle, { color: '#065F46' }]}>Proposal Accepted!</Text>
-                  </View>
-                  <Text style={[styles.alertDesc, { color: '#166534' }]}>
-                    A client accepted your proposal for "{acceptedApps[0].gig?.title || 'Gig'}". Open the agreement to review terms and start work.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.alertBtn, { backgroundColor: '#059669' }]}
-                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: acceptedApps[0].gig_id } })}
-                  >
-                    <Text style={styles.alertBtnText}>View Agreement Terms ›</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {counteredApps.length > 0 && (
-                <View style={[styles.alertBanner, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-                  <View style={styles.alertHeader}>
-                    <Ionicons name="chatbubble-ellipses" size={20} color="#2563EB" />
-                    <Text style={[styles.alertTitle, { color: '#1E40AF' }]}>Counter-Offer Received</Text>
-                  </View>
-                  <Text style={[styles.alertDesc, { color: '#1E3A8A' }]}>
-                    A client offered a new rate on "{counteredApps[0].gig?.title || 'Gig'}": ₱{formatPrice(counteredApps[0].counter_price || 0)}.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.alertBtn, { backgroundColor: '#2563EB' }]}
-                    onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: counteredApps[0].gig_id } })}
-                  >
-                    <Text style={styles.alertBtnText}>Review Offer ›</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* 2. Active Contracts In Progress */}
-              <View style={{ marginTop: 4 }}>
-                <SectionHeader
-                  title={`Active Contracts In Progress (${activeAgreements.length})`}
-                  actionLabel={activeAgreements.length > 0 ? 'View activity' : undefined}
-                  onAction={() => router.push('/(tabs)/activity')}
-                />
-                {loading ? (
-                  renderLoading()
-                ) : activeAgreements.length === 0 ? (
-                  <View
-                    style={[
-                      styles.emptyInlineCard,
-                      { backgroundColor: '#FFFFFF', borderColor: theme.colors.border },
-                    ]}
-                  >
-                    <Ionicons name="briefcase-outline" size={24} color={theme.colors.muted} />
-                    <Text style={[styles.emptyInlineText, { color: theme.colors.muted }]}>
-                      No active contracts in progress. Explore open gigs below to submit proposals!
-                    </Text>
-                  </View>
-                ) : (
-                  activeAgreements.map((agr) => (
-                    <View
-                      key={agr.id}
-                      style={[
-                        styles.activeContractCard,
-                        { backgroundColor: '#FFFFFF', borderColor: theme.colors.border },
-                      ]}
-                    >
-                      <View style={styles.activeContractHeader}>
-                        <View style={styles.contractStatusBadge}>
-                          <View style={styles.activePillDot} />
-                          <Text style={styles.contractStatusText}>ACTIVE CONTRACT</Text>
-                        </View>
-                        <Text style={[styles.agreedPriceText, { color: theme.colors.primary }]}>
-                          ₱{formatPrice(agr.agreed_price)}
-                        </Text>
-                      </View>
-
-                      <Text style={[styles.contractGigTitle, { color: theme.colors.text }]}>
-                        {agr.gig?.title || 'Ongoing Contract'}
-                      </Text>
-
-                      <View style={styles.contractMetaRow}>
-                        <View style={styles.contractClientInfo}>
-                          <Avatar
-                            name={agr.client?.display_name || 'Client'}
-                            imageUri={agr.client?.avatar_path}
-                            size={22}
-                          />
-                          <Text style={[styles.contractClientName, { color: theme.colors.muted }]}>
-                            {agr.client?.display_name || 'Client'}
-                          </Text>
-                        </View>
-                        <Text style={[styles.contractDeadline, { color: theme.colors.muted }]}>
-                          Due: {new Date(agr.deadline).toLocaleDateString()}
-                        </Text>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.viewAgreementBtn, { borderColor: theme.colors.border }]}
-                        onPress={() => router.push({ pathname: '/agreements/[id]', params: { id: agr.id } })}
-                      >
-                        <Text style={[styles.viewAgreementText, { color: theme.colors.primary }]}>
-                          Open Agreement & Milestones ›
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                )}
-              </View>
-
-              {/* 3. Gigs Matched To Your Skills */}
-              {matchedGigs.length > 0 && (
-                <View style={{ marginTop: 20 }}>
-                  <SectionHeader
-                    title={`Matched to Your Skills (${matchedGigs.length})`}
-                    actionLabel="View all"
-                    onAction={() => router.push('/(tabs)/gigs')}
-                  />
-                  <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
-                    Opportunities matching your skills in Ormoc
-                  </Text>
-                  {matchedGigs.slice(0, 3).map((gig) => (
-                    <View key={gig.id} style={styles.matchedGigWrapper}>
-                      <View style={styles.matchBadgeRow}>
-                        <Ionicons name="sparkles" size={13} color="#2563EB" />
-                        <Text style={styles.matchBadgeText}>Matches your profile skills</Text>
-                      </View>
-                      <GigCard gig={gig} onPress={() => handleGigPress(gig.id)} />
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Skill Prompt Banner if freelancer has not added skills yet */}
-              {userSkills.length === 0 && !loading && (
-                <Pressable
-                  style={[styles.skillPromptCard, { backgroundColor: '#FFFFFF', borderColor: '#DBEAFE' }]}
-                  onPress={() => router.push('/profile/skills')}
-                >
-                  <Ionicons name="sparkles" size={24} color="#2563EB" />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[styles.skillPromptTitle, { color: theme.colors.text }]}>
-                      Add your skills to get matched gigs
-                    </Text>
-                    <Text style={[styles.skillPromptSubtitle, { color: theme.colors.muted }]}>
-                      Highlight your specialties so local Ormoc clients find you faster.
-                    </Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={18} color="#2563EB" />
-                </Pressable>
-              )}
-
-              {/* 4. Browse Work by Category */}
-              {categories.length > 0 && (
-                <View style={{ marginTop: 20 }}>
-                  <SectionHeader title="Explore Work by Category" />
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.categoryChipsScroll}
-                  >
-                    {categories.slice(0, 8).map((cat) => (
-                      <Pressable
-                        key={cat.id}
-                        style={({ pressed }) => [
-                          styles.categoryCard,
-                          {
-                            backgroundColor: '#FFFFFF',
-                            borderColor: theme.colors.border,
-                            opacity: pressed ? 0.85 : 1,
-                          },
-                        ]}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(tabs)/gigs',
-                            params: { categoryId: cat.id },
-                          })
-                        }
-                      >
-                        <Text style={[styles.categoryName, { color: theme.colors.text }]}>
-                          {cat.name}
-                        </Text>
-                        <View style={styles.categoryArrowRow}>
-                          <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
-                            View gigs
-                          </Text>
-                          <Ionicons
-                            name="arrow-forward"
-                            size={12}
-                            color={theme.colors.primary}
-                          />
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* 5. All Available Gigs in Ormoc */}
-              <View style={{ marginTop: 20 }}>
-                <SectionHeader
-                  title={`Available Gigs in Ormoc (${availableGigs.length})`}
-                  actionLabel="See all"
-                  onAction={() => router.push('/(tabs)/gigs')}
+                  title="Active & Open Gigs"
+                  actionLabel={openGigs.length > 0 ? 'View all' : undefined}
+                  onAction={openGigs.length > 0 ? () => router.push('/(tabs)/gigs') : undefined}
                 />
                 {loading ? (
                   renderLoading()
                 ) : loadError ? (
-                  <ErrorState message={loadError} onRetry={loadHomeData} />
-                ) : availableGigs.length === 0 ? (
+                  <ErrorState message={loadError} onRetry={() => loadHomeData()} />
+                ) : openGigs.length === 0 ? (
                   <EmptyState
-                    icon="briefcase-outline"
-                    title={strings.gigs.noGigsTitle}
-                    description={strings.gigs.noGigsDesc}
-                    actionTitle="Refresh"
-                    onAction={loadHomeData}
+                    icon="document-text-outline"
+                    title={strings.gigs.noMyGigsTitle}
+                    description={strings.gigs.noMyGigsDesc}
+                    actionTitle={strings.gigs.postGig}
+                    onAction={() => router.push('/gigs/post')}
                   />
                 ) : (
-                  availableGigs.slice(0, 5).map((gig) => (
-                    <GigCard
-                      key={gig.id}
-                      gig={gig}
-                      onPress={() => handleGigPress(gig.id)}
+                  <View style={isWide ? styles.cardGrid : undefined}>
+                    {openGigs.map((gig) => (
+                      <GigCard
+                        key={gig.id}
+                        gig={gig}
+                        onPress={() => handleGigPress(gig.id)}
+                        style={isWide ? styles.gridCardItem : undefined}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {/* Completed & Past Gigs */}
+                {completedClientGigs.length > 0 && (
+                  <View style={{ marginTop: 20 }}>
+                    <SectionHeader
+                      title="Completed & Past Gigs"
+                      actionLabel={completedClientGigs.length > 2 ? 'See all' : undefined}
+                      onAction={
+                        completedClientGigs.length > 2
+                          ? () => router.push('/(tabs)/gigs')
+                          : undefined
+                      }
                     />
-                  ))
+                    <View style={isWide ? styles.cardGrid : undefined}>
+                      {completedClientGigs.slice(0, 4).map((gig) => (
+                        <GigCard
+                          key={gig.id}
+                          gig={gig}
+                          onPress={() => handleGigPress(gig.id)}
+                          style={isWide ? styles.gridCardItem : undefined}
+                        />
+                      ))}
+                    </View>
+                  </View>
                 )}
               </View>
 
-              {/* 6. Proposals Sent Tracker */}
-              {pendingApplications.length > 0 && (
-                <View style={{ marginTop: 20 }}>
+              {/* Right Column (Top Freelancers & Categories) */}
+              <View style={isDesktop ? styles.desktopSideCol : undefined}>
+                <View style={{ marginTop: isDesktop ? 0 : 12 }}>
                   <SectionHeader
-                    title={`Proposals Sent (${pendingApplications.length})`}
-                    actionLabel="View in activity"
-                    onAction={() => router.push('/(tabs)/activity')}
+                    title="Top Freelancers in Ormoc"
+                    actionLabel="Find more"
+                    onAction={() =>
+                      router.push({
+                        pathname: '/(tabs)/gigs',
+                        params: { tab: 'find_freelancers' },
+                      })
+                    }
                   />
-                  {pendingApplications.slice(0, 3).map((app) => (
-                    <TouchableOpacity
-                      key={app.id}
-                      style={[
-                        styles.proposalCard,
-                        { backgroundColor: '#FFFFFF', borderColor: theme.colors.border },
-                      ]}
-                      onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } })}
-                    >
-                      <View style={styles.proposalHeaderRow}>
-                        <Text style={[styles.proposalGigTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                          {app.gig?.title || app.gig_title_snapshot || 'Gig Proposal'}
-                        </Text>
-                        <View
-                          style={[
-                            styles.proposalStatusChip,
-                            {
-                              backgroundColor:
-                                app.status === 'accepted'
-                                  ? '#DCFCE7'
-                                  : app.status === 'countered'
-                                  ? '#DBEAFE'
-                                  : '#FEF3C7',
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.proposalStatusChipText,
-                              {
-                                color:
-                                  app.status === 'accepted'
-                                    ? '#166534'
-                                    : app.status === 'countered'
-                                    ? '#1E40AF'
-                                    : '#92400E',
-                              },
-                            ]}
-                          >
-                            {app.status === 'accepted'
-                              ? 'Accepted'
-                              : app.status === 'countered'
-                              ? 'Counter-Offer'
-                              : 'Under Review'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.proposalMetaRow}>
-                        <Text style={[styles.proposalPrice, { color: theme.colors.primary }]}>
-                          Proposed: ₱{formatPrice(app.proposed_price)}
-                        </Text>
-                        <Text style={[styles.proposalDate, { color: theme.colors.muted }]}>
-                          Submitted: {new Date(app.created_at).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* 7. Client Reviews & Feedback */}
-              {myReviews.length > 0 && (
-                <View style={{ marginTop: 20 }}>
-                  <SectionHeader
-                    title={`Client Feedback (★ ${Number(profile?.freelancer_rating_avg || 0).toFixed(1)})`}
-                    actionLabel="My profile"
-                    onAction={() => user && router.push({ pathname: '/profile/[id]', params: { id: user.id } })}
-                  />
-                  {myReviews.slice(0, 2).map((rev) => (
-                    <View
-                      key={rev.id}
-                      style={[
-                        styles.testimonialCard,
-                        { backgroundColor: '#FFFFFF', borderColor: theme.colors.border },
-                      ]}
-                    >
-                      <View style={styles.testimonialHeader}>
-                        <Avatar
-                          name={rev.reviewer?.display_name || 'Client'}
-                          imageUri={rev.reviewer?.avatar_path}
-                          size={32}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.testimonialClientName, { color: theme.colors.text }]}>
-                            {rev.reviewer?.display_name || 'Client'}
-                          </Text>
-                          <Text style={[styles.testimonialDate, { color: theme.colors.muted }]}>
-                            {new Date(rev.created_at).toLocaleDateString()}
-                          </Text>
-                        </View>
-                        <Text style={styles.testimonialStars}>{'★'.repeat(rev.rating)}</Text>
-                      </View>
-                      {rev.comment ? (
-                        <Text style={[styles.testimonialComment, { color: theme.colors.text }]}>
-                          “{rev.comment}”
-                        </Text>
-                      ) : null}
+                  {loading ? (
+                    <View style={{ flexDirection: 'row', gap: 12, paddingVertical: 4 }}>
+                      <Skeleton height={140} width={220} borderRadius={16} />
+                      <Skeleton height={140} width={220} borderRadius={16} />
                     </View>
-                  ))}
+                  ) : topFreelancers.length === 0 ? (
+                    <Card tone="inset" padding="md" style={styles.emptyInlineCard}>
+                      <Ionicons name="people-outline" size={24} color={theme.colors.muted} />
+                      <Text style={[styles.emptyInlineText, { color: theme.colors.muted }]}>
+                        Freelancers will appear here once registered.
+                      </Text>
+                    </Card>
+                  ) : isDesktop ? (
+                    <View style={{ gap: 10 }}>
+                      {topFreelancers.slice(0, 4).map((freelancer) => (
+                        <FreelancerCard
+                          key={freelancer.id}
+                          freelancer={freelancer}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/profile/[id]',
+                              params: { id: freelancer.id },
+                            })
+                          }
+                        />
+                      ))}
+                    </View>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.freelancersScroll}
+                    >
+                      {topFreelancers.map((freelancer) => (
+                        <FreelancerCard
+                          key={freelancer.id}
+                          freelancer={freelancer}
+                          compact
+                          onPress={() =>
+                            router.push({
+                              pathname: '/profile/[id]',
+                              params: { id: freelancer.id },
+                            })
+                          }
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
-              )}
 
-              {/* 8. Direct Payment & Safety Guide */}
-              <View style={[styles.safetyCard, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }]}>
-                <Ionicons name="shield-checkmark-outline" size={24} color="#059669" />
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={[styles.safetyTitle, { color: theme.colors.text }]}>
-                    Direct Payment & Milestone Protection
-                  </Text>
-                  <Text style={[styles.safetyText, { color: theme.colors.muted }]}>
-                    You keep 100% of your agreed earnings. Clients pay you directly via GCash or Cash upon milestone delivery. Always record deliverables on GigOrmoc for dispute-free records.
-                  </Text>
+                {/* Browse Talent by Category */}
+                {categories.length > 0 && (
+                  <View style={{ marginTop: 18 }}>
+                    <SectionHeader title="Browse Talent by Category" />
+                    {isWide ? (
+                      <View style={styles.categoryWrapGrid}>
+                        {categories.slice(0, 8).map((cat) => (
+                          <Card
+                            key={cat.id}
+                            tone="raised"
+                            padding="sm"
+                            style={styles.categoryCardWrapItem}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(tabs)/gigs',
+                                params: { tab: 'find_freelancers', categoryId: cat.id },
+                              })
+                            }
+                          >
+                            <Text style={[styles.categoryName, { color: theme.colors.text }]}>
+                              {cat.name}
+                            </Text>
+                            <View style={styles.categoryArrowRow}>
+                              <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
+                                Browse
+                              </Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={12}
+                                color={theme.colors.primary}
+                              />
+                            </View>
+                          </Card>
+                        ))}
+                      </View>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.categoryChipsScroll}
+                      >
+                        {categories.slice(0, 8).map((cat) => (
+                          <Card
+                            key={cat.id}
+                            tone="raised"
+                            padding="sm"
+                            style={styles.categoryCard}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(tabs)/gigs',
+                                params: { tab: 'find_freelancers', categoryId: cat.id },
+                              })
+                            }
+                          >
+                            <Text style={[styles.categoryName, { color: theme.colors.text }]}>
+                              {cat.name}
+                            </Text>
+                            <View style={styles.categoryArrowRow}>
+                              <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
+                                Browse
+                              </Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={12}
+                                color={theme.colors.primary}
+                              />
+                            </View>
+                          </Card>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : (
+            /* ==================== FREELANCER DASHBOARD VIEW ==================== */
+            <View style={isDesktop ? styles.desktopTwoCol : undefined}>
+              {/* Left Column: Matched Gigs, Categories, Available Gigs */}
+              <View style={isDesktop ? styles.desktopMainCol : undefined}>
+                {/* Mobile-only top alerts and active contracts */}
+                {!isDesktop && renderFreelancerAlertsAndContracts()}
+
+                {/* Gigs Matched To Your Skills */}
+                {matchedGigs.length > 0 && (
+                  <View style={{ marginTop: isDesktop ? 0 : 20 }}>
+                    <SectionHeader
+                      title={`Matched to Your Skills (${matchedGigs.length})`}
+                      actionLabel="View all"
+                      onAction={() => router.push('/(tabs)/gigs')}
+                    />
+                    <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
+                      Opportunities matching your skills in Ormoc
+                    </Text>
+                    <View style={isWide ? styles.cardGrid : undefined}>
+                      {matchedGigs.slice(0, 4).map((gig) => (
+                        <View
+                          key={gig.id}
+                          style={[styles.matchedGigWrapper, isWide && styles.gridCardItem]}
+                        >
+                          <View style={[styles.matchBadgeRow, { backgroundColor: theme.colors.primarySoft }]}>
+                            <Ionicons name="sparkles" size={13} color={theme.colors.primary} />
+                            <Text style={[styles.matchBadgeText, { color: theme.colors.primaryDark }]}>
+                              Matches your profile skills
+                            </Text>
+                          </View>
+                          <GigCard gig={gig} onPress={() => handleGigPress(gig.id)} style={{ flex: 1 }} />
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Skill Prompt Banner if freelancer has not added skills yet */}
+                {userSkills.length === 0 && !loading && (
+                  <Card
+                    tone="role"
+                    padding="md"
+                    onPress={() => router.push('/profile/skills')}
+                    style={styles.skillPromptCard}
+                  >
+                    <Ionicons name="sparkles" size={24} color={theme.colors.primary} />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[styles.skillPromptTitle, { color: theme.colors.text }]}>
+                        Add your skills to get matched gigs
+                      </Text>
+                      <Text style={[styles.skillPromptSubtitle, { color: theme.colors.muted }]}>
+                        Highlight your specialties so local Ormoc clients find you faster.
+                      </Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
+                  </Card>
+                )}
+
+                {/* Browse Work by Category */}
+                {categories.length > 0 && (
+                  <View style={{ marginTop: 20 }}>
+                    <SectionHeader title="Explore Work by Category" />
+                    {isWide ? (
+                      <View style={styles.categoryWrapGrid}>
+                        {categories.slice(0, 8).map((cat) => (
+                          <Card
+                            key={cat.id}
+                            tone="raised"
+                            padding="sm"
+                            style={styles.categoryCardWrapItem}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(tabs)/gigs',
+                                params: { categoryId: cat.id },
+                              })
+                            }
+                          >
+                            <Text style={[styles.categoryName, { color: theme.colors.text }]}>
+                              {cat.name}
+                            </Text>
+                            <View style={styles.categoryArrowRow}>
+                              <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
+                                View gigs
+                              </Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={12}
+                                color={theme.colors.primary}
+                              />
+                            </View>
+                          </Card>
+                        ))}
+                      </View>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.categoryChipsScroll}
+                      >
+                        {categories.slice(0, 8).map((cat) => (
+                          <Card
+                            key={cat.id}
+                            tone="raised"
+                            padding="sm"
+                            style={styles.categoryCard}
+                            onPress={() =>
+                              router.push({
+                                pathname: '/(tabs)/gigs',
+                                params: { categoryId: cat.id },
+                              })
+                            }
+                          >
+                            <Text style={[styles.categoryName, { color: theme.colors.text }]}>
+                              {cat.name}
+                            </Text>
+                            <View style={styles.categoryArrowRow}>
+                              <Text style={[styles.categoryHint, { color: theme.colors.primary }]}>
+                                View gigs
+                              </Text>
+                              <Ionicons
+                                name="arrow-forward"
+                                size={12}
+                                color={theme.colors.primary}
+                              />
+                            </View>
+                          </Card>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
+
+                {/* All Available Gigs in Ormoc */}
+                <View style={{ marginTop: 20 }}>
+                  <SectionHeader
+                    title={`Available Gigs in Ormoc (${availableGigs.length})`}
+                    actionLabel="See all"
+                    onAction={() => router.push('/(tabs)/gigs')}
+                  />
+                  {loading ? (
+                    renderLoading()
+                  ) : loadError ? (
+                    <ErrorState message={loadError} onRetry={() => loadHomeData()} />
+                  ) : availableGigs.length === 0 ? (
+                    <EmptyState
+                      icon="briefcase-outline"
+                      title={strings.gigs.noGigsTitle}
+                      description={strings.gigs.noGigsDesc}
+                      actionTitle="Refresh"
+                      onAction={() => loadHomeData()}
+                    />
+                  ) : (
+                    <View style={isWide ? styles.cardGrid : undefined}>
+                      {availableGigs.slice(0, 6).map((gig) => (
+                        <GigCard
+                          key={gig.id}
+                          gig={gig}
+                          onPress={() => handleGigPress(gig.id)}
+                          style={isWide ? styles.gridCardItem : undefined}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </View>
+              </View>
+
+              {/* Right Column on Desktop (or Bottom Stack on Mobile): Alerts, Active Contracts, Proposals, Reviews & Safety */}
+              <View style={isDesktop ? styles.desktopSideCol : undefined}>
+                {isDesktop && renderFreelancerAlertsAndContracts()}
+
+                {/* Proposals Sent Tracker */}
+                {pendingApplications.length > 0 && (
+                  <View style={{ marginTop: 20 }}>
+                    <SectionHeader
+                      title={`Proposals Sent (${pendingApplications.length})`}
+                      actionLabel="View in activity"
+                      onAction={() => router.push('/(tabs)/activity')}
+                    />
+                    {pendingApplications.slice(0, 3).map((app) => (
+                      <Card
+                        key={app.id}
+                        tone="neo-glass"
+                        padding="md"
+                        style={{ marginBottom: 10, gap: 6 }}
+                        onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } })}
+                      >
+                        <View style={styles.proposalHeaderRow}>
+                          <Text style={[styles.proposalGigTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                            {app.gig?.title || app.gig_title_snapshot || 'Gig Proposal'}
+                          </Text>
+                          <Badge status={app.status} />
+                        </View>
+
+                        <View style={styles.proposalMetaRow}>
+                          <Text style={[styles.proposalPrice, { color: theme.colors.primary }]}>
+                            Proposed: ₱{formatPrice(app.proposed_price)}
+                          </Text>
+                          <Text style={[styles.proposalDate, { color: theme.colors.muted }]}>
+                            Submitted: {new Date(app.created_at).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </Card>
+                    ))}
+                  </View>
+                )}
+
+                {/* Client Reviews & Feedback */}
+                {myReviews.length > 0 && (
+                  <View style={{ marginTop: 20 }}>
+                    <SectionHeader
+                      title={`Client Feedback (★ ${Number(profile?.freelancer_rating_avg || 0).toFixed(1)})`}
+                      actionLabel="My profile"
+                      onAction={() => user && router.push({ pathname: '/profile/[id]', params: { id: user.id } })}
+                    />
+                    {myReviews.slice(0, 2).map((rev) => (
+                      <Card
+                        key={rev.id}
+                        tone="raised"
+                        padding="md"
+                        style={{ marginBottom: 10, gap: 8 }}
+                      >
+                        <View style={styles.testimonialHeader}>
+                          <Avatar
+                            name={rev.reviewer?.display_name || 'Client'}
+                            imageUri={rev.reviewer?.avatar_path}
+                            size={32}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.testimonialClientName, { color: theme.colors.text }]}>
+                              {rev.reviewer?.display_name || 'Client'}
+                            </Text>
+                            <Text style={[styles.testimonialDate, { color: theme.colors.muted }]}>
+                              {new Date(rev.created_at).toLocaleDateString()}
+                            </Text>
+                          </View>
+                          <Text style={[styles.testimonialStars, { color: theme.colors.warning }]}>
+                            {'★'.repeat(rev.rating)}
+                          </Text>
+                        </View>
+                        {rev.comment ? (
+                          <Text style={[styles.testimonialComment, { color: theme.colors.text }]}>
+                            “{rev.comment}”
+                          </Text>
+                        ) : null}
+                      </Card>
+                    ))}
+                  </View>
+                )}
+
+                {/* Direct Payment & Safety Guide */}
+                <AlertBox
+                  tone="success"
+                  icon="shield-checkmark-outline"
+                  title="Direct Payment & Milestone Protection"
+                  message="You keep 100% of your agreed earnings. Clients pay you directly via GCash or Cash upon milestone delivery. Always record deliverables on GigOrmoc for dispute-free records."
+                  style={{ marginTop: 20, marginBottom: 12 }}
+                />
               </View>
             </View>
           )}
@@ -831,25 +929,28 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: {
     paddingBottom: 60,
-    maxWidth: 960,
+    maxWidth: 1160,
     width: '100%',
     alignSelf: 'center',
   },
   hero: {
-    paddingTop: 56,
     paddingHorizontal: 20,
     paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+  },
+  heroWide: {
+    borderRadius: 28,
+    paddingHorizontal: 28,
   },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   greetingCol: { flex: 1 },
   name: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bellBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -858,7 +959,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#DC2626',
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -867,7 +967,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   bellBadgeText: {
-    color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '800',
   },
@@ -876,13 +975,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
   },
   modePillText: { fontSize: 13, fontWeight: '700' },
+  heroStatsDesktopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 24,
+  },
   statRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   stat: { flex: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14 },
-  statValue: { color: '#FFFFFF', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  statValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -892,12 +997,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
   },
+  heroCtaDesktop: {
+    paddingHorizontal: 24,
+    height: 52,
+    marginTop: 0,
+  },
   heroCtaText: { fontSize: 15, fontWeight: '800' },
   freelancerHeroActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginTop: 16,
+  },
+  freelancerHeroActionsDesktop: {
+    marginTop: 0,
   },
   freelancerExploreBtn: {
     flex: 1,
@@ -907,7 +1020,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
   },
   availabilityHeroPill: {
     flexDirection: 'row',
@@ -928,15 +1040,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   body: { paddingHorizontal: 20, paddingTop: 20 },
-  banner: {
+  desktopTwoCol: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    gap: 24,
   },
-  bannerText: { fontSize: 14, flex: 1, lineHeight: 19, fontWeight: '500' },
+  desktopMainCol: {
+    flex: 1.65,
+  },
+  desktopSideCol: {
+    flex: 1,
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  gridCardItem: {
+    flexBasis: '48.2%',
+    flexGrow: 1,
+    marginBottom: 0,
+  },
   freelancersScroll: {
     paddingVertical: 4,
     paddingRight: 8,
@@ -946,13 +1070,18 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     gap: 8,
   },
+  categoryWrapGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   categoryCard: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
     minWidth: 120,
     justifyContent: 'center',
+  },
+  categoryCardWrapItem: {
+    flexBasis: '47%',
+    flexGrow: 1,
   },
   categoryName: {
     fontSize: 13,
@@ -972,58 +1101,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
     marginVertical: 4,
   },
   emptyInlineText: {
     fontSize: 13.5,
     flex: 1,
     lineHeight: 19,
-  },
-  alertBanner: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    gap: 8,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  alertTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  alertDesc: {
-    fontSize: 13.5,
-    lineHeight: 19,
-  },
-  alertBtn: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 4,
-  },
-  alertBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  activeContractCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    gap: 8,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
   activeContractHeader: {
     flexDirection: 'row',
@@ -1034,7 +1117,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EFF6FF',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1043,10 +1125,8 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#2563EB',
   },
   contractStatusText: {
-    color: '#2563EB',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1076,16 +1156,6 @@ const styles = StyleSheet.create({
   contractDeadline: {
     fontSize: 12.5,
   },
-  viewAgreementBtn: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 10,
-    marginTop: 4,
-    alignItems: 'center',
-  },
-  viewAgreementText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-  },
   sectionSubtitle: {
     fontSize: 13,
     marginTop: -8,
@@ -1099,7 +1169,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#EFF6FF',
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1107,7 +1176,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   matchBadgeText: {
-    color: '#1E40AF',
     fontSize: 11.5,
     fontWeight: '700',
   },
@@ -1115,9 +1183,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
     marginTop: 8,
     marginBottom: 12,
   },
@@ -1128,13 +1193,6 @@ const styles = StyleSheet.create({
   skillPromptSubtitle: {
     fontSize: 12.5,
     lineHeight: 17,
-  },
-  proposalCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    gap: 6,
   },
   proposalHeaderRow: {
     flexDirection: 'row',
@@ -1147,15 +1205,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1,
   },
-  proposalStatusChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  proposalStatusChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
   proposalMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1167,13 +1216,6 @@ const styles = StyleSheet.create({
   },
   proposalDate: {
     fontSize: 12,
-  },
-  testimonialCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    gap: 8,
   },
   testimonialHeader: {
     flexDirection: 'row',
@@ -1188,30 +1230,11 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
   testimonialStars: {
-    color: '#EAB308',
     fontSize: 14,
   },
   testimonialComment: {
     fontSize: 13,
     lineHeight: 18,
     fontStyle: 'italic',
-  },
-  safetyCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  safetyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  safetyText: {
-    fontSize: 12.5,
-    lineHeight: 18,
   },
 });

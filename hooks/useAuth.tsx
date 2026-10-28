@@ -5,17 +5,18 @@ import { performSharedCleanup } from '../lib/sessionCleanup';
 import { authService, Profile } from '../services/auth';
 import { strings } from '../constants/strings';
 import { sessionService } from '../services/sessions';
+import { offlineSyncService } from '../services/offlineSync';
 
-export interface SignOutOptions {
+interface SignOutOptions {
   scope?: 'local' | 'global';
   reason?: 'user' | 'session_expired';
 }
 
 interface AuthContextType {
-  session: Session | null;
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  isOffline: boolean;
   authNotice: string | null;
   clearAuthNotice: () => void;
   refreshProfile: () => Promise<Profile | null>;
@@ -24,10 +25,10 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
   user: null,
   profile: null,
   loading: true,
+  isOffline: false,
   authNotice: null,
   clearAuthNotice: () => {},
   refreshProfile: async () => null,
@@ -36,10 +37,10 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const signOutInFlightRef = useRef<Promise<void> | null>(null);
@@ -66,18 +67,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         handledSignedOutRef.current = true;
         try {
-          await supabase.removeAllChannels();
-        } catch {
-          // Ignore
-        }
-        try {
           await authService.signOut({ scope: options?.scope ?? 'local' });
         } catch {
           // Ignore
         }
         await performSharedCleanup({ clearAuthStorage: true });
 
-        setSession(null);
         setUser(null);
         setProfile(null);
 
@@ -97,45 +92,94 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const syncUserState = async (currentSession: Session | null) => {
     if (!currentSession?.user) {
-      setSession(null);
       setUser(null);
       setProfile(null);
       setLoading(false);
       return;
     }
 
+    // Attempt to load from offline cache first to avoid screen flicker / delays
+    const cached = await offlineSyncService.getCachedProfile();
+    if (cached && cached.id === currentSession.user.id) {
+      setUser(currentSession.user);
+      setProfile(cached);
+      hadActiveSessionRef.current = true;
+      setLoading(false);
+    }
+
     try {
       // 1. Verify user with Supabase server (in case user was deleted in Supabase)
       const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user) {
+
+      const isNetworkIssue =
+        userError?.message?.toLowerCase().includes('network') ||
+        userError?.message?.toLowerCase().includes('fetch') ||
+        userError?.message?.toLowerCase().includes('timeout') ||
+        userError?.code === 'OFFLINE' ||
+        userError?.code === 'TIMEOUT';
+
+      if (userError && !isNetworkIssue) {
         await clearAuth({ reason: 'session_expired' });
         setLoading(false);
         return;
       }
 
-      // 2. Fetch profile from database before setting session/user so there is no flash of stale data
-      const p = await authService.getCurrentProfile(userData.user.id);
-      if (!p || p.status === 'suspended' || p.status === 'deactivated' || p.status === 'deleted') {
-        await clearAuth({ reason: 'user' });
-        if (p && (p.status === 'suspended' || p.status === 'deactivated' || p.status === 'deleted')) {
-          setAuthNotice(strings.errors.accountSuspended);
+      if (isNetworkIssue) {
+        setIsOffline(true);
+        offlineSyncService.setKnownOffline(true);
+        if (cached) {
+          setUser(currentSession.user);
+          setProfile(cached);
+          hadActiveSessionRef.current = true;
+          setLoading(false);
+          return;
         }
+      }
+
+      const activeUserId = userData?.user?.id || currentSession.user.id;
+
+      // 2. Fetch profile from database
+      const p = await authService.getCurrentProfile(activeUserId);
+      if (!p) {
+        // If profile fetch failed due to offline/network, use cached if available
+        if (cached) {
+          setIsOffline(true);
+          setUser(currentSession.user);
+          setProfile(cached);
+          hadActiveSessionRef.current = true;
+          setLoading(false);
+          return;
+        }
+        await clearAuth({ reason: 'user' });
         setLoading(false);
         return;
       }
 
-      const sessionActive = await sessionService.ensureCurrentSession();
-      if (!sessionActive) {
-        await clearAuth({ reason: 'session_expired' });
+      if (p.status === 'suspended' || p.status === 'deactivated' || p.status === 'deleted') {
+        await clearAuth({ reason: 'user' });
+        setAuthNotice(strings.errors.accountSuspended);
         setLoading(false);
         return;
       }
+
+      try {
+        await sessionService.ensureCurrentSession();
+      } catch {
+        // Network failure during session check should not kill offline session
+      }
+
+      // Update cache
+      await offlineSyncService.cacheProfile(p);
+      setIsOffline(false);
+      offlineSyncService.setKnownOffline(false);
 
       hadActiveSessionRef.current = true;
       handledSignedOutRef.current = false;
-      setSession(currentSession);
-      setUser(userData.user);
+      setUser(userData?.user || currentSession.user);
       setProfile(p);
+
+      // Trigger background sync of any pending actions
+      void offlineSyncService.syncPendingActions().catch(() => {});
     } catch (err: any) {
       const isAuthError =
         err?.status === 401 ||
@@ -145,8 +189,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         err?.message?.toLowerCase().includes('sub claim') ||
         err?.message?.toLowerCase().includes('user not found');
 
+      const isNetworkIssue =
+        err?.code === 'OFFLINE' ||
+        err?.code === 'TIMEOUT' ||
+        err?.name === 'AbortError' ||
+        err?.message?.toLowerCase().includes('network') ||
+        err?.message?.toLowerCase().includes('offline') ||
+        err?.message?.toLowerCase().includes('fetch');
+
       if (isAuthError) {
         await clearAuth({ reason: 'session_expired' });
+      } else if (isNetworkIssue) {
+        setIsOffline(true);
+        offlineSyncService.setKnownOffline(true);
+        if (cached) {
+          setUser(currentSession.user);
+          setProfile(cached);
+          hadActiveSessionRef.current = true;
+        }
       } else {
         setProfile(null);
       }
@@ -178,7 +238,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await performSharedCleanup({ clearAuthStorage: true });
           setAuthNotice(strings.errors.loggedOutNotice);
         }
-        setSession(null);
         setUser(null);
         setProfile(null);
         setLoading(false);
@@ -195,19 +254,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshProfile = async (): Promise<Profile | null> => {
-    const activeUserId = user?.id || session?.user?.id;
+    const activeUserId = user?.id;
     if (!activeUserId) {
       return null;
     }
     try {
       const p = await authService.getCurrentProfile(activeUserId);
       if (!p) {
-        await clearAuth({ reason: 'user' });
+        const cached = await offlineSyncService.getCachedProfile();
+        if (cached) return cached;
         return null;
       }
+      await offlineSyncService.cacheProfile(p);
       setProfile(p);
       return p;
     } catch (err: any) {
+      const isNetworkIssue =
+        err?.code === 'OFFLINE' ||
+        err?.code === 'TIMEOUT' ||
+        err?.name === 'AbortError' ||
+        err?.message?.toLowerCase().includes('network') ||
+        err?.message?.toLowerCase().includes('fetch');
+
+      if (isNetworkIssue) {
+        setIsOffline(true);
+        const cached = await offlineSyncService.getCachedProfile();
+        if (cached) {
+          setProfile(cached);
+          return cached;
+        }
+      }
+
       const isAuthError =
         err?.status === 401 ||
         err?.status === 403 ||
@@ -229,10 +306,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider
       value={{
-        session,
         user,
         profile,
         loading,
+        isOffline,
         authNotice,
         clearAuthNotice,
         refreshProfile,
@@ -246,4 +323,3 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-

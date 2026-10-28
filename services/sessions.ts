@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { createRequestId } from '../lib/errors';
 
 const SESSION_STORAGE_KEY = 'gigormoc:session:id';
 const LAST_ACTIVITY_KEY = 'gigormoc:session:last_activity_at';
@@ -25,10 +25,6 @@ function platformName(): UserSession['platform'] {
     : 'unknown';
 }
 
-function requestId(): string {
-  return Crypto.randomUUID();
-}
-
 export const sessionService = {
   async getCurrentSessionId(): Promise<string | null> {
     return AsyncStorage.getItem(SESSION_STORAGE_KEY);
@@ -40,7 +36,7 @@ export const sessionService = {
       const { data, error } = await supabase.rpc('start_session', {
         p_device_label: Platform.OS === 'web' ? 'Web browser' : `${Platform.OS} device`,
         p_platform: platformName(),
-        p_request_id: requestId(),
+        p_request_id: createRequestId(),
       });
       if (error) throw error;
       const id = data?.session_id;

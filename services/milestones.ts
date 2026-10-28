@@ -1,5 +1,3 @@
-import * as ImagePicker from 'expo-image-picker';
-import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { runOnce } from '../lib/singleFlight';
 import { pickImagesUniversal } from '../utils/imageUpload';

@@ -154,3 +154,80 @@ test('Post Gig Real: cancel_gig declines applicants and issues notification', ()
   assert.strictEqual(notifications[0].type, 'gig_cancelled');
   assert.strictEqual(notifications[1].user_id, 'freelancer-b');
 });
+
+// 6. Non-UUID category ID resolution (prevents "invalid input syntax for type uuid: cat-1")
+test('Post Gig Real: Category resolution prevents non-UUID string from being passed as category_id', () => {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isValidUuid = (val) => Boolean(val && UUID_REGEX.test(val.trim()));
+
+  const dbCategories = [
+    { id: '11111111-1111-1111-1111-111111111111', name: 'Web & Mobile Development', is_active: true },
+    { id: '22222222-2222-2222-2222-222222222222', name: 'Computer Programming', is_active: true },
+  ];
+
+  function resolveCategoryParams(selectedId, customName, suggested) {
+    let finalCategoryId = null;
+    let finalCategoryName = null;
+
+    if (selectedId) {
+      if (isValidUuid(selectedId)) {
+        finalCategoryId = selectedId;
+      } else {
+        const matched =
+          dbCategories.find((c) => c.id === selectedId) ||
+          (suggested || []).find((s) => s.id === selectedId);
+        if (matched) {
+          const dbCat = dbCategories.find(
+            (c) => c.name.trim().toLowerCase() === matched.name.trim().toLowerCase()
+          );
+          if (dbCat && isValidUuid(dbCat.id)) {
+            finalCategoryId = dbCat.id;
+          } else {
+            finalCategoryName = matched.name.trim();
+          }
+        } else {
+          finalCategoryName = selectedId;
+        }
+      }
+    } else if (customName) {
+      const dbCat = dbCategories.find(
+        (c) => c.name.trim().toLowerCase() === customName.trim().toLowerCase()
+      );
+      if (dbCat && isValidUuid(dbCat.id)) {
+        finalCategoryId = dbCat.id;
+      } else {
+        finalCategoryName = customName.trim();
+      }
+    }
+
+    return { category_id: finalCategoryId, category_name: finalCategoryName };
+  }
+
+  // Case A: AI/Offline suggestion gave 'cat-1' for 'Web & Mobile Development'
+  const suggested = [{ id: 'cat-1', name: 'Web & Mobile Development' }];
+  const resA = resolveCategoryParams('cat-1', '', suggested);
+  assert.strictEqual(resA.category_id, '11111111-1111-1111-1111-111111111111');
+  assert.strictEqual(resA.category_name, null);
+  assert.ok(isValidUuid(resA.category_id));
+
+  // Case B: Non-UUID suggestion that does not exist in DB gets resolved as category_name, not category_id
+  const unknownSug = [{ id: 'cat-99', name: 'Drone Videography' }];
+  const resB = resolveCategoryParams('cat-99', '', unknownSug);
+  assert.strictEqual(resB.category_id, null);
+  assert.strictEqual(resB.category_name, 'Drone Videography');
+
+  // Case C: Real UUID selected directly
+  const resC = resolveCategoryParams('22222222-2222-2222-2222-222222222222', '', []);
+  assert.strictEqual(resC.category_id, '22222222-2222-2222-2222-222222222222');
+  assert.strictEqual(resC.category_name, null);
+});
+
+// 7. Post Gig screen requires confirmation before publishing
+test('Post Gig Real: app/gigs/post.tsx prompts Confirm Post Gig before publishing', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const postCode = fs.readFileSync(path.join(__dirname, '..', 'app', 'gigs', 'post.tsx'), 'utf8');
+
+  assert.match(postCode, /confirmDialog\(/);
+  assert.match(postCode, /title:\s*['"]Confirm Post Gig['"]/);
+});

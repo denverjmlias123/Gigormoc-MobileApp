@@ -1,29 +1,38 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
-  TextInput as RNTextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useAppTheme } from '../../theme';
+import { useAppTheme, useResponsiveLayout } from '../../theme';
 import { applicationsService, ApplicationItem } from '../../../services/applications';
 import { chatService } from '../../../services/chat';
 import { formatPrice } from '../../../components/ui/GigCard';
 import { Badge } from '../../../components/ui/Badge';
+import { LegitBadge } from '../../../components/ui/LegitBadge';
+import { Avatar } from '../../../components/ui/Avatar';
 import { Button } from '../../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../../components/ui/Card';
+import { TextInput } from '../../../components/ui/TextInput';
+import { Chip } from '../../../components/ui/Chip';
 import { showToast } from '../../../components/ui/Toast';
 import { confirmDialog } from '../../../lib/dialog';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { NextStepBanner, computePreAgreementLoopState } from '../../../components/ui/Timeline';
 import { strings } from '../../../constants/strings';
 
+type StatusFilter = 'all' | 'applied' | 'countered' | 'accepted' | 'declined';
+
 export default function GigApplicantsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isDesktop, insets } = useResponsiveLayout();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [applicants, setApplicants] = useState<ApplicationItem[]>([]);
@@ -31,6 +40,7 @@ export default function GigApplicantsScreen() {
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [counterAppId, setCounterAppId] = useState<string | null>(null);
   const [counterPriceStr, setCounterPriceStr] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [error, setError] = useState<string | null>(null);
 
   const loadApplicants = useCallback(async () => {
@@ -97,7 +107,16 @@ export default function GigApplicantsScreen() {
     }
   };
 
-  const handleDecline = async (appId: string) => {
+  const handleDecline = async (appId: string, freelancerName?: string) => {
+    const confirmed = await confirmDialog({
+      title: 'Decline Proposal',
+      message: `Are you sure you want to decline ${freelancerName || 'this freelancer'}'s proposal?`,
+      confirmText: 'Decline',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
     setActionBusy(appId);
     try {
       await applicationsService.respondToApplication(appId, 'decline');
@@ -137,6 +156,11 @@ export default function GigApplicantsScreen() {
   ).length;
   const acceptedApplicant = applicants.find((a) => a.status === 'accepted');
 
+  const filteredApplicants = useMemo(() => {
+    if (statusFilter === 'all') return applicants;
+    return applicants.filter((a) => a.status === statusFilter);
+  }, [applicants, statusFilter]);
+
   const topLoopState = computePreAgreementLoopState({
     viewerRole: 'client',
     gigStatus: acceptedApplicant ? 'in_progress' : 'open',
@@ -146,180 +170,263 @@ export default function GigApplicantsScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else if (id) {
-              router.replace({ pathname: '/gigs/[id]', params: { id } });
-            } else {
-              router.replace('/(tabs)/gigs');
-            }
-          }}
-          style={styles.backBtn}
-        >
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back to Gig</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Applicants ({applicants.length})
-        </Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title={`Applicants (${applicants.length})`}
+        subtitle="Review proposals, open chat, or send counter-offers"
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else if (id) {
+            router.replace({ pathname: '/gigs/[id]', params: { id } });
+          } else {
+            router.replace('/(tabs)/gigs');
+          }
+        }}
+        maxWidth={960}
+      />
 
       {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.centeredBlock, { paddingHorizontal: 16, marginTop: 12 }]}>
+          <AlertBox tone="danger" message={error} />
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {!loading && (
-          <View style={{ marginBottom: 14 }}>
-            <NextStepBanner loopState={topLoopState} />
-          </View>
-        )}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.centeredBlock}>
+          {!loading && (
+            <View style={{ marginBottom: 14 }}>
+              <NextStepBanner loopState={topLoopState} />
+            </View>
+          )}
 
-        {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
-        ) : applicants.length === 0 ? (
-          <EmptyState
-            title="No applicants yet"
-            description="When freelancers submit proposals for this gig, their details and proposals will appear here."
-            actionTitle="Refresh"
-            onAction={loadApplicants}
-          />
-        ) : (
-          applicants.map((app) => {
-            const isBusy = actionBusy === app.id;
-            const isCounteringThis = counterAppId === app.id;
+          {!loading && applicants.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              <Chip
+                label="All"
+                count={applicants.length}
+                selected={statusFilter === 'all'}
+                onPress={() => setStatusFilter('all')}
+              />
+              <Chip
+                label="Pending"
+                count={applicants.filter((a) => a.status === 'applied').length}
+                selected={statusFilter === 'applied'}
+                onPress={() => setStatusFilter('applied')}
+              />
+              <Chip
+                label="Countered"
+                count={applicants.filter((a) => a.status === 'countered').length}
+                selected={statusFilter === 'countered'}
+                onPress={() => setStatusFilter('countered')}
+              />
+              <Chip
+                label="Accepted"
+                count={applicants.filter((a) => a.status === 'accepted').length}
+                selected={statusFilter === 'accepted'}
+                onPress={() => setStatusFilter('accepted')}
+              />
+              <Chip
+                label="Declined"
+                count={applicants.filter((a) => a.status === 'declined').length}
+                selected={statusFilter === 'declined'}
+                onPress={() => setStatusFilter('declined')}
+              />
+            </ScrollView>
+          )}
 
-            return (
-              <View
-                key={app.id}
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                ]}
-              >
-                {/* Header */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.freelancerCol}>
-                    <Text style={[styles.freelancerName, { color: theme.colors.text }]}>
-                      {app.freelancer?.display_name || 'Freelancer'}
-                    </Text>
-                    <Text style={[styles.freelancerStats, { color: theme.colors.muted }]}>
-                      ★ {Number(app.freelancer?.freelancer_rating_avg || 0).toFixed(1)} ({app.freelancer?.freelancer_rating_count || 0}) • {app.freelancer?.freelancer_completed_gigs || 0} completed
-                    </Text>
-                  </View>
-                  <Badge status={app.status} />
-                </View>
+          {loading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
+          ) : applicants.length === 0 ? (
+            <EmptyState
+              title="No applicants yet"
+              description="When freelancers submit proposals for this gig, their details and proposals will appear here."
+              actionTitle="Refresh"
+              onAction={loadApplicants}
+            />
+          ) : filteredApplicants.length === 0 ? (
+            <EmptyState
+              title="No matching proposals"
+              description="No proposals match the selected status filter."
+              actionTitle="Show All"
+              onAction={() => setStatusFilter('all')}
+            />
+          ) : (
+            <View style={isDesktop ? styles.desktopGrid : undefined}>
+              {filteredApplicants.map((app) => {
+                const isBusy = actionBusy === app.id;
+                const isCounteringThis = counterAppId === app.id;
+                const freelancerName = app.freelancer?.display_name || 'Freelancer';
 
-                {/* Proposal details */}
-                <View style={styles.proposalInfo}>
-                  <Text style={[styles.priceTag, { color: theme.colors.text }]}>
-                    Proposed: {formatPrice(app.proposed_price)}
-                  </Text>
-                  <Text style={[styles.daysTag, { color: theme.colors.muted }]}>
-                    ⏱️ {app.estimated_days} day(s) estimated
-                  </Text>
-                </View>
+                return (
+                  <Card
+                    key={app.id}
+                    tone="neo-glass"
+                    padding="md"
+                    style={[
+                      styles.card,
+                      isDesktop && styles.desktopGridItem,
+                    ]}
+                  >
+                    {/* Header with clickable profile avatar & link */}
+                    <View style={styles.cardHeader}>
+                      <Pressable
+                        style={styles.freelancerProfileTouch}
+                        onPress={() => {
+                          if (app.freelancer_id) {
+                            router.push({ pathname: '/profile/[id]', params: { id: app.freelancer_id } });
+                          }
+                        }}
+                      >
+                        <Avatar
+                          name={freelancerName}
+                          uri={(app.freelancer as any)?.avatar_url}
+                          size={44}
+                        />
+                        <View style={styles.freelancerCol}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={[styles.freelancerName, { color: theme.colors.text }]}>
+                              {freelancerName}
+                            </Text>
+                            {app.freelancer?.is_legit_verified ? (
+                              <LegitBadge size="small" role="freelancer" />
+                            ) : null}
+                          </View>
+                          <Text style={[styles.freelancerStats, { color: theme.colors.muted }]}>
+                            <Text style={{ color: theme.colors.warning }}>★</Text>{' '}
+                            {Number(app.freelancer?.freelancer_rating_avg || 0).toFixed(1)} ({app.freelancer?.freelancer_rating_count || 0}) • {app.freelancer?.freelancer_completed_gigs || 0} completed
+                          </Text>
+                          <Text style={[styles.viewProfileHint, { color: theme.colors.primary }]}>
+                            View Profile →
+                          </Text>
+                        </View>
+                      </Pressable>
+                      <Badge status={app.status} />
+                    </View>
 
-                {app.counter_price ? (
-                  <View style={[styles.counterBox, { backgroundColor: '#FEF1D6' }]}>
-                    <Text style={{ color: theme.colors.warning, fontWeight: '700', fontSize: 13 }}>
-                      Counteroffer: {formatPrice(app.counter_price)}
-                    </Text>
-                  </View>
-                ) : null}
+                    {/* Proposal details */}
+                    <View style={[styles.proposalInfo, { backgroundColor: theme.colors.surfaceAlt }]}>
+                      <Text style={[styles.priceTag, { color: theme.colors.text }]}>
+                        Proposed: {formatPrice(app.proposed_price)}
+                      </Text>
+                      <Text style={[styles.daysTag, { color: theme.colors.muted }]}>
+                        ⏱️ {app.estimated_days} day(s) estimated
+                      </Text>
+                    </View>
 
-                <View style={styles.messageBox}>
-                  <Text style={[styles.messageText, { color: theme.colors.text }]}>
-                    "{app.message}"
-                  </Text>
-                </View>
+                    {app.counter_price ? (
+                      <AlertBox
+                        tone="warning"
+                        message={`Counteroffer: ${formatPrice(app.counter_price)}`}
+                        style={{ marginBottom: 8 }}
+                      />
+                    ) : null}
 
-                <TouchableOpacity
-                  style={[
-                    styles.counterBtn,
-                    { borderColor: theme.colors.primary, marginBottom: 10, paddingVertical: 8 },
-                  ]}
-                  onPress={() => handleOpenApplicantChat(app)}
-                >
-                  <Text style={[styles.btnText, { color: theme.colors.primary }]}>
-                    💬 Open Chat with {app.freelancer?.display_name || 'Freelancer'}
-                  </Text>
-                </TouchableOpacity>
+                    <Card tone="inset" padding="sm" style={{ marginBottom: 12 }}>
+                      <Text style={[styles.messageText, { color: theme.colors.text }]}>
+                        "{app.message}"
+                      </Text>
+                    </Card>
 
-                {/* Counter Input Row */}
-                {isCounteringThis && (
-                  <View style={[styles.counterInputRow, { borderColor: theme.colors.border }]}>
-                    <Text style={[styles.counterLabel, { color: theme.colors.text }]}>Counter Fee (₱):</Text>
-                    <RNTextInput
-                      style={[styles.counterInput, { borderColor: theme.colors.border, color: theme.colors.text }]}
-                      placeholder="e.g. 1200"
-                      placeholderTextColor={theme.colors.muted}
-                      value={counterPriceStr}
-                      onChangeText={setCounterPriceStr}
-                      keyboardType="numeric"
+                    <Button
+                      title={`Open Chat with ${freelancerName}`}
+                      icon="chatbubble-ellipses-outline"
+                      variant="soft"
+                      size="sm"
+                      onPress={() => handleOpenApplicantChat(app)}
+                      style={{ marginBottom: 10 }}
                     />
-                    <TouchableOpacity
-                      style={[styles.counterSubmitBtn, { backgroundColor: theme.colors.primary }]}
-                      onPress={() => handleSendCounter(app.id)}
-                      disabled={isBusy}
-                    >
-                      <Text style={{ color: '#ffffff', fontWeight: '600' }}>Send</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.counterCancelBtn}
-                      onPress={() => setCounterAppId(null)}
-                    >
-                      <Text style={{ color: theme.colors.muted }}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
 
-                {/* Action buttons (only when status is 'applied') */}
-                {app.status === 'applied' && !isCounteringThis && (
-                  <View style={styles.actionButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.acceptBtn, { backgroundColor: theme.colors.primary }]}
-                      onPress={() => handleAccept(app)}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
-                      ) : (
-                        <Text style={styles.btnTextWhite}>Accept</Text>
-                      )}
-                    </TouchableOpacity>
+                    {/* Counter Input Row */}
+                    {isCounteringThis && (
+                      <View style={[styles.counterInputRow, { borderColor: theme.colors.border }]}>
+                        <View style={{ flex: 1, minWidth: 140 }}>
+                          <TextInput
+                            label="Counter Fee (₱)"
+                            prefixText="₱"
+                            placeholder="1200"
+                            value={counterPriceStr}
+                            onChangeText={setCounterPriceStr}
+                            keyboardType="numeric"
+                            containerStyle={{ marginBottom: 0 }}
+                          />
+                        </View>
+                        <Button
+                          title="Send"
+                          variant="primary"
+                          size="sm"
+                          fullWidth={false}
+                          loading={isBusy}
+                          disabled={isBusy}
+                          onPress={() => handleSendCounter(app.id)}
+                        />
+                        <Button
+                          title="Cancel"
+                          variant="ghost"
+                          size="sm"
+                          fullWidth={false}
+                          onPress={() => setCounterAppId(null)}
+                        />
+                      </View>
+                    )}
 
-                    <TouchableOpacity
-                      style={[styles.counterBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => {
-                        setCounterAppId(app.id);
-                        setCounterPriceStr('');
-                      }}
-                      disabled={isBusy}
-                    >
-                      <Text style={[styles.btnText, { color: theme.colors.text }]}>Counter</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.declineBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => handleDecline(app.id)}
-                      disabled={isBusy}
-                    >
-                      <Text style={[styles.btnText, { color: theme.colors.danger }]}>Decline</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
+                    {/* Action buttons (only when status is 'applied') */}
+                    {app.status === 'applied' && !isCounteringThis && (
+                      <View style={[styles.actionButtonsRow, { borderTopColor: theme.colors.border }]}>
+                        <Button
+                          title="Accept"
+                          variant="primary"
+                          size="sm"
+                          fullWidth={false}
+                          loading={isBusy}
+                          disabled={isBusy}
+                          onPress={() => handleAccept(app)}
+                          style={{ flex: 1.4 }}
+                        />
+                        <Button
+                          title="Counter"
+                          variant="secondary"
+                          size="sm"
+                          fullWidth={false}
+                          disabled={isBusy}
+                          onPress={() => {
+                            setCounterAppId(app.id);
+                            setCounterPriceStr('');
+                          }}
+                          style={{ flex: 1 }}
+                        />
+                        <Button
+                          title="Decline"
+                          variant="danger-soft"
+                          size="sm"
+                          fullWidth={false}
+                          disabled={isBusy}
+                          onPress={() => handleDecline(app.id, freelancerName)}
+                          style={{ flex: 1 }}
+                        />
+                      </View>
+                    )}
+                  </Card>
+                );
+              })}
+            </View>
+          )}
+        </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -327,46 +434,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: {
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
   },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    margin: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
+  centeredBlock: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
   },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
+  filterRow: {
+    gap: 8,
+    paddingBottom: 14,
+  },
+  desktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  desktopGridItem: {
+    width: '48.5%' as any,
+    marginBottom: 0,
   },
   card: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
     marginBottom: 14,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    marginBottom: 12,
+    gap: 10,
+  },
+  freelancerProfileTouch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
   freelancerCol: {
     flex: 1,
@@ -379,11 +482,19 @@ const styles = StyleSheet.create({
   freelancerStats: {
     fontSize: 12,
   },
+  viewProfileHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
   proposalInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   priceTag: {
     fontSize: 16,
@@ -392,17 +503,6 @@ const styles = StyleSheet.create({
   daysTag: {
     fontSize: 13,
   },
-  counterBox: {
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  messageBox: {
-    backgroundColor: '#F4F7FC',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
   messageText: {
     fontSize: 14,
     lineHeight: 20,
@@ -410,65 +510,16 @@ const styles = StyleSheet.create({
   },
   counterInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    flexWrap: 'wrap',
     gap: 8,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  counterLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  counterInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 14,
-  },
-  counterSubmitBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  counterCancelBtn: {
-    padding: 6,
   },
   actionButtonsRow: {
     flexDirection: 'row',
     gap: 8,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DCE4F2',
-  },
-  acceptBtn: {
-    flex: 1.5,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  counterBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  declineBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  btnTextWhite: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  btnText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

@@ -54,10 +54,6 @@ describe('Milestone 23 — Error Handling and Login/Logout Hardening (v5.4 Secti
       supaSrc.includes('refreshSessionSingleFlight'),
       'Must provide single-flight session refresh helper'
     );
-    assert.ok(
-      supaSrc.includes('withSessionRefreshRetry'),
-      'Must provide withSessionRefreshRetry that refreshes once and retries once on 401'
-    );
   });
 
   it('3. Root ErrorBoundary and OfflineBanner exist and are mounted in app/_layout.tsx', () => {

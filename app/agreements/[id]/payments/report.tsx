@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../../../theme';
+import { useAppTheme, useResponsiveLayout } from '../../../theme';
 import { paymentsService, PaymentMethod } from '../../../../services/payments';
 import { milestonesService, MilestoneItem } from '../../../../services/milestones';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../../../components/ui/Card';
+import { Chip } from '../../../../components/ui/Chip';
+import { TextInput } from '../../../../components/ui/TextInput';
 import { showToast } from '../../../../components/ui/Toast';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../../../constants/strings';
 
@@ -28,6 +29,7 @@ const PAYMENT_METHODS: { label: string; value: PaymentMethod }[] = [
 export default function ReportPaymentScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { insets } = useResponsiveLayout();
   const { id, agreedPrice, unpaidAmount } = useLocalSearchParams<{ id: string; agreedPrice?: string; unpaidAmount?: string }>();
 
   const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
@@ -128,312 +130,210 @@ export default function ReportPaymentScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
-        </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Report Payment</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title="Report Payment"
+        subtitle="Record direct external payment details & receipt proof"
+        onBack={safeNavigateBack}
+        maxWidth={600}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Transparency Banner */}
-        <View style={[styles.warningBanner, { backgroundColor: '#FEF1D6', borderColor: '#F6D58B' }]}>
-          <Text style={styles.warningTitle}>⚠️ External Payment Notice</Text>
-          <Text style={styles.warningText}>
-            Gigormoc does not process, hold, or guarantee money. Send funds directly to the freelancer using your preferred channel, then report the payment details here for their confirmation.
-          </Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.centeredBlock, { gap: 16 }]}>
+          {/* Transparency Banner */}
+          <AlertBox
+            tone="warning"
+            title="External Payment Notice"
+            message="Gigormoc does not process, hold, or guarantee money. Send funds directly to the freelancer using your preferred channel, then report the payment details here for their confirmation."
+          />
 
-        {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+          {error && (
+            <AlertBox tone="danger" message={error} />
+          )}
 
-        {/* Milestone Allocation (Optional) */}
-        {milestones.length > 0 && (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>Apply to Milestone (Optional)</Text>
+          {/* Milestone Allocation (Optional) */}
+          {milestones.length > 0 && (
+            <Card
+              tone="neo-glass"
+              padding="md"
+              headerTitle="Apply to Milestone (Optional)"
+              headerSubtitle="Link this payment to a specific project milestone"
+              headerIcon="flag-outline"
+            >
+              <View style={styles.methodGrid}>
+                <Chip
+                  label="General / Unallocated"
+                  selected={selectedMilestoneId === null}
+                  onPress={() => {
+                    setSelectedMilestoneId(null);
+                    if (unpaidAmount) setAmountStr((parseInt(unpaidAmount, 10) / 100).toString());
+                  }}
+                />
+                {milestones.map((ms) => {
+                  const isSelected = selectedMilestoneId === ms.id;
+                  return (
+                    <Chip
+                      key={ms.id}
+                      label={`${ms.seq}. ${ms.title} (${formatPrice(ms.amount)})`}
+                      selected={isSelected}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedMilestoneId(null);
+                        } else {
+                          setSelectedMilestoneId(ms.id);
+                          setAmountStr((ms.amount / 100).toString());
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </View>
+            </Card>
+          )}
+
+          {/* Method Picker */}
+          <Card
+            tone="neo-glass"
+            padding="md"
+            headerTitle="Payment Channel *"
+            headerSubtitle="Select how funds were sent"
+            headerIcon="wallet-outline"
+          >
             <View style={styles.methodGrid}>
-              <TouchableOpacity
-                style={[
-                  styles.methodChip,
-                  {
-                    borderColor: selectedMilestoneId === null ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: selectedMilestoneId === null ? theme.colors.primarySoft : theme.colors.surface,
-                  },
-                ]}
-                onPress={() => {
-                  setSelectedMilestoneId(null);
-                  if (unpaidAmount) setAmountStr((parseInt(unpaidAmount, 10) / 100).toString());
-                }}
-              >
-                <Text
-                  style={[
-                    styles.methodText,
-                    { color: selectedMilestoneId === null ? theme.colors.primary : theme.colors.text },
-                  ]}
-                >
-                  General / Unallocated
-                </Text>
-              </TouchableOpacity>
-              {milestones.map((ms) => {
-                const isSelected = selectedMilestoneId === ms.id;
-                return (
-                  <TouchableOpacity
-                    key={ms.id}
-                    style={[
-                      styles.methodChip,
-                      {
-                        borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: isSelected ? theme.colors.primarySoft : theme.colors.surface,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedMilestoneId(null);
-                      } else {
-                        setSelectedMilestoneId(ms.id);
-                        setAmountStr((ms.amount / 100).toString());
-                      }
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.methodText,
-                        { color: isSelected ? theme.colors.primary : theme.colors.text },
-                      ]}
-                    >
-                      {ms.seq}. {ms.title} ({formatPrice(ms.amount)})
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Method Picker */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Payment Channel *</Text>
-          <View style={styles.methodGrid}>
-            {PAYMENT_METHODS.map((m) => {
-              const isSelected = selectedMethod === m.value;
-              return (
-                <TouchableOpacity
+              {PAYMENT_METHODS.map((m) => (
+                <Chip
                   key={m.value}
-                  style={[
-                    styles.methodChip,
-                    {
-                      borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: isSelected ? theme.colors.primarySoft : theme.colors.surface,
-                    },
-                  ]}
+                  label={m.label}
+                  selected={selectedMethod === m.value}
                   onPress={() => setSelectedMethod(m.value)}
-                >
-                  <Text
-                    style={[
-                      styles.methodText,
-                      { color: isSelected ? theme.colors.primary : theme.colors.text },
-                    ]}
-                  >
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                />
+              ))}
+            </View>
+          </Card>
+
+          {/* Amount & Reference Number */}
+          <Card
+            tone="neo-glass"
+            padding="md"
+            headerTitle="Payment Details"
+            headerSubtitle="Enter the amount sent in PHP and transaction reference"
+            headerIcon="cash-outline"
+          >
+            <TextInput
+              label="Amount Paid (PHP ₱) *"
+              prefixText="₱"
+              placeholder="0.00"
+              keyboardType="numeric"
+              value={amountStr}
+              onChangeText={setAmountStr}
+            />
+
+            <TextInput
+              label="Reference / Transaction Number"
+              leftIcon="receipt-outline"
+              placeholder="e.g. 100982348571"
+              value={referenceNumber}
+              onChangeText={setReferenceNumber}
+              maxLength={100}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Receipt / Proof Upload & Link */}
+          <Card
+            tone="neo-glass"
+            padding="md"
+            headerTitle="Receipt Screenshot / Proof (Optional)"
+            headerSubtitle="Attach a transfer screenshot or external receipt link"
+            headerIcon="image-outline"
+            style={{ gap: 10 }}
+          >
+            <Button
+              title={uploadingReceipt ? 'Uploading Receipt...' : 'Upload Receipt Screenshot'}
+              icon="cloud-upload-outline"
+              variant="secondary"
+              onPress={handleUploadReceipt}
+              disabled={uploadingReceipt || submitting}
+              loading={uploadingReceipt}
+            />
+            {receiptPath ? (
+              <AlertBox
+                tone="success"
+                message={`Receipt Attached: ${receiptPath.split('/').pop() || receiptPath}`}
+                actionLabel="Remove"
+                onAction={() => setReceiptPath('')}
+              />
+            ) : null}
+            <TextInput
+              placeholder="Uploaded storage path or external receipt URL"
+              leftIcon="link-outline"
+              value={receiptPath}
+              onChangeText={setReceiptPath}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Additional Notes */}
+          <Card
+            tone="neo-glass"
+            padding="md"
+            headerTitle="Notes (Optional)"
+            headerIcon="chatbubble-outline"
+          >
+            <TextInput
+              placeholder="Add any message or details for the freelancer..."
+              multiline
+              numberOfLines={3}
+              value={notes}
+              onChangeText={setNotes}
+              maxLength={1000}
+              style={{ minHeight: 70 }}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* Submit Button */}
+          <View style={styles.submitContainer}>
+            <Button
+              title={submitting ? 'Submitting Report...' : 'Record Payment Report'}
+              variant="primary"
+              icon="checkmark-circle-outline"
+              onPress={handleSubmit}
+              disabled={!amountStr || submitting || uploadingReceipt}
+              loading={submitting}
+            />
           </View>
-        </View>
-
-        {/* Amount */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Amount Paid (PHP ₱) *</Text>
-          <TextInput
-            style={[
-              styles.textInput,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="0.00"
-            placeholderTextColor={theme.colors.muted}
-            keyboardType="numeric"
-            value={amountStr}
-            onChangeText={setAmountStr}
-          />
-        </View>
-
-        {/* Reference Number */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Reference / Transaction Number
-          </Text>
-          <TextInput
-            style={[
-              styles.textInput,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="e.g. 100982348571"
-            placeholderTextColor={theme.colors.muted}
-            value={referenceNumber}
-            onChangeText={setReferenceNumber}
-            maxLength={100}
-          />
-        </View>
-
-        {/* Receipt / Proof Upload & Link */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Receipt Screenshot / Proof (Optional)
-          </Text>
-          <Button
-            title={uploadingReceipt ? 'Uploading Receipt...' : '🧾 Upload Receipt Screenshot'}
-            variant="secondary"
-            onPress={handleUploadReceipt}
-            disabled={uploadingReceipt || submitting}
-            loading={uploadingReceipt}
-          />
-          <TextInput
-            style={[
-              styles.textInput,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="Uploaded storage path or external receipt URL"
-            placeholderTextColor={theme.colors.muted}
-            value={receiptPath}
-            onChangeText={setReceiptPath}
-          />
-        </View>
-
-        {/* Additional Notes */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Notes (Optional)</Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              { borderColor: theme.colors.border, color: theme.colors.text },
-            ]}
-            placeholder="Add any message or details for the freelancer..."
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            numberOfLines={3}
-            value={notes}
-            onChangeText={setNotes}
-            maxLength={1000}
-          />
-        </View>
-
-        {/* Submit Button */}
-        <View style={styles.submitContainer}>
-          <Button
-            title={submitting ? 'Submitting Report...' : 'Record Payment Report'}
-            variant="primary"
-            onPress={handleSubmit}
-            disabled={!amountStr || submitting || uploadingReceipt}
-            loading={submitting}
-          />
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  centeredBlock: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 16,
-  },
-  warningBanner: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 6,
-  },
-  warningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  warningText: {
-    fontSize: 13,
-    color: '#8c5000',
-    lineHeight: 18,
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   methodGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 4,
-  },
-  methodChip: {
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  methodText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-  errorCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#A31F2D',
   },
   submitContainer: {
     marginTop: 8,

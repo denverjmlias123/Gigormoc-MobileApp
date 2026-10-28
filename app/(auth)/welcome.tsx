@@ -13,13 +13,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme, lightFreelancerTheme } from '../theme';
+import { useAppTheme, lightFreelancerTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const USE_NATIVE = Platform.OS !== 'web';
-// RN supports CSS-style gradients through backgroundImage on recent versions and web.
 const gradient = (value: string, fallback: string) =>
   ({ backgroundColor: fallback, backgroundImage: value, experimental_backgroundImage: value } as any);
 
@@ -60,8 +59,7 @@ function useFloat(amplitude: number, duration: number, delay = 0) {
   return { transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -amplitude] }) }] };
 }
 
-/* ---------- Preview cards (illustrative preview content) ---------- */
-
+// Animated preview cards
 function GigPreview({ compact }: { compact?: boolean }) {
   const c = lightFreelancerTheme.colors;
   return (
@@ -111,7 +109,7 @@ function ProposalPreview() {
 
 function MilestonePreview() {
   return (
-    <View style={[styles.glassCard, styles.smallCard, { backgroundColor: '#12C48B' }]}>
+    <View style={[styles.glassCard, styles.smallCard, { backgroundColor: '#12C48B', borderColor: 'rgba(255,255,255,0.35)' }]}>
       <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
         <Ionicons name="checkmark" size={18} color="#FFFFFF" />
       </View>
@@ -128,32 +126,38 @@ function Showcase({ wide }: { wide: boolean }) {
   const f2 = useFloat(10, 3800, 400);
   const f3 = useFloat(7, 3000, 900);
   const enter = useEntrance(250);
-  const h = wide ? 440 : 250;
+  const h = wide ? 440 : 300;
 
   return (
     <Animated.View style={[{ height: h, width: '100%', maxWidth: 440, alignSelf: 'center' }, enter]}>
-      <Animated.View style={[styles.abs, wide ? { top: 20, left: 10, right: 40 } : { top: 0, left: 0, right: 24 }, f1]}>
+      <Animated.View style={[styles.abs, wide ? { top: 20, left: 10, right: 40 } : { top: 0, left: 0, right: 20 }, f1]}>
         <GigPreview compact={!wide} />
       </Animated.View>
-      <Animated.View style={[styles.abs, wide ? { top: 210, right: 0, left: 70 } : { top: 128, right: 0, left: 44 }, f2]}>
+      <Animated.View style={[styles.abs, wide ? { top: 210, right: 0, left: 70 } : { top: 146, right: 0, left: 32 }, f2]}>
         <ProposalPreview />
       </Animated.View>
-      <Animated.View style={[styles.abs, wide ? { top: 300, left: 0, right: 110 } : { top: 190, left: 0, right: 90 }, f3]}>
+      <Animated.View style={[styles.abs, wide ? { top: 300, left: 0, right: 110 } : { top: 222, left: 0, right: 64 }, f3]}>
         <MilestonePreview />
       </Animated.View>
     </Animated.View>
   );
 }
 
-/* ---------- Actions & trust ---------- */
-
 function PrimaryCta({ title, onPress }: { title: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.cta, gradient(BRAND, '#3A5DFF'), lightFreelancerTheme.shadow.glow, pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] }]}
+      style={({ pressed, hovered }: any) => [
+        styles.cta,
+        gradient(BRAND, '#3A5DFF'),
+        lightFreelancerTheme.shadow.glow,
+        Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+        hovered && { opacity: 0.94, transform: [{ translateY: -1 }] },
+        pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] },
+      ]}
     >
+      <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
       <Text style={styles.ctaText}>{title}</Text>
       <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
     </Pressable>
@@ -165,8 +169,15 @@ function GhostCta({ title, onPress }: { title: string; onPress: () => void }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.cta, styles.ghost, pressed && { backgroundColor: 'rgba(255,255,255,0.14)' }]}
+      style={({ pressed, hovered }: any) => [
+        styles.cta,
+        styles.ghost,
+        Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+        hovered && { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.36)' },
+        pressed && { backgroundColor: 'rgba(255,255,255,0.18)' },
+      ]}
     >
+      <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
       <Text style={styles.ctaText}>{title}</Text>
     </Pressable>
   );
@@ -183,6 +194,7 @@ export default function WelcomeScreen() {
   const theme = useAppTheme();
   const { authNotice, clearAuthNotice } = useAuth();
   const { width } = useWindowDimensions();
+  const { topSpace, bottomSpace } = useResponsiveLayout();
   const wide = width >= theme.layout.wideBreakpoint;
 
   const eBrand = useEntrance(0);
@@ -232,6 +244,7 @@ export default function WelcomeScreen() {
         <Pressable onPress={clearAuthNotice} accessibilityRole="alert" style={styles.notice}>
           <Ionicons name="information-circle" size={18} color="#9FB2FF" />
           <Text style={styles.noticeText}>{authNotice}</Text>
+          <Ionicons name="close" size={16} color="#9FB2FF" />
         </Pressable>
       ) : null}
       <View style={wide ? styles.ctaRowWide : styles.ctaCol}>
@@ -260,7 +273,11 @@ export default function WelcomeScreen() {
       <View pointerEvents="none" style={[styles.orb, { bottom: -140, left: -120, width: 420, height: 420, backgroundColor: '#1F7BFF', opacity: 0.28 }]} />
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, wide && styles.scrollWide]}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: wide ? 48 : topSpace + 12, paddingBottom: wide ? 48 : bottomSpace + 16 },
+          wide && styles.scrollWide,
+        ]}
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
@@ -277,7 +294,7 @@ export default function WelcomeScreen() {
         ) : (
           <View style={styles.mobileCol}>
             {copy}
-            <View style={{ marginTop: 28 }}>
+            <View style={{ marginTop: 24 }}>
               <Showcase wide={false} />
             </View>
             {actions}
@@ -291,17 +308,17 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
   orb: { position: 'absolute', borderRadius: 9999, ...(Platform.OS === 'web' ? ({ filter: 'blur(70px)' } as any) : null) },
-  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: Platform.OS === 'web' ? 32 : 64, paddingBottom: 32, justifyContent: 'center' },
-  scrollWide: { paddingHorizontal: 56, paddingVertical: 48 },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
+  scrollWide: { paddingHorizontal: 56 },
   mobileCol: { width: '100%', maxWidth: 520, alignSelf: 'center', flexGrow: 1, justifyContent: 'space-between' },
   wideGrid: { flexDirection: 'row', alignItems: 'center', gap: 56, width: '100%', maxWidth: 1160, alignSelf: 'center' },
   wideLeft: { flex: 1.05 },
   wideRight: { flex: 0.95 },
   copyWide: { marginBottom: 8 },
 
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 36 },
-  logoMark: { width: 44, height: 44 },
-  brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 },
+  logoMark: { width: 40, height: 40 },
+  brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
 
   pill: {
     flexDirection: 'row',
@@ -311,35 +328,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 9999,
-    backgroundColor: 'rgba(159,178,255,0.14)',
+    backgroundColor: 'rgba(159,178,255,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(159,178,255,0.28)',
-    marginBottom: 18,
+    borderColor: 'rgba(159,178,255,0.24)',
+    marginBottom: 16,
   },
-  pillText: { color: '#C9D4FF', fontSize: 12.5, fontWeight: '700', letterSpacing: 0.2 },
-  headline: { color: '#FFFFFF', fontSize: 44, lineHeight: 48, fontWeight: '800', letterSpacing: -1.6 },
-  headlineWide: { fontSize: 64, lineHeight: 68, letterSpacing: -2.4 },
+  pillText: { color: '#C9D4FF', fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
+  headline: { color: '#FFFFFF', fontSize: 40, lineHeight: 46, fontWeight: '800', letterSpacing: -1.2 },
+  headlineWide: { fontSize: 56, lineHeight: 62, letterSpacing: -1.8 },
   headlineAccent: { color: '#8FA6FF' },
-  sub: { color: '#AEB9E3', fontSize: 16.5, lineHeight: 25, marginTop: 16, maxWidth: 470 },
+  sub: { color: '#AEB9E3', fontSize: 16, lineHeight: 24, fontWeight: '400', marginTop: 14, maxWidth: 460 },
 
-  actions: { marginTop: 28, gap: 18 },
+  actions: { marginTop: 32, gap: 16 },
   actionsWide: { marginTop: 36, maxWidth: 520 },
   ctaCol: { gap: 12 },
   ctaRowWide: { flexDirection: 'row', gap: 12 },
   cta: {
-    minHeight: 56,
-    borderRadius: 18,
-    paddingHorizontal: 22,
+    minHeight: 54,
+    borderRadius: 16,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
   },
-  ctaText: { color: '#FFFFFF', fontSize: 16.5, fontWeight: '800', letterSpacing: -0.1 },
-  ghost: { backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)' },
-  trustRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 8 },
+  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: -0.1 },
+  ghost: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  trustRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 8, marginTop: 4 },
   trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustText: { color: '#8E9BC9', fontSize: 12.5, fontWeight: '600' },
+  trustText: { color: '#8E9BC9', fontSize: 13, fontWeight: '500' },
   notice: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -350,31 +367,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(159,178,255,0.3)',
   },
-  noticeText: { flex: 1, color: '#E3E9FF', fontSize: 13, fontWeight: '600' },
+  noticeText: { flex: 1, color: '#E3E9FF', fontSize: 13, fontWeight: '500' },
 
   // Preview cards
   abs: { position: 'absolute' },
   glassCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.8)',
     ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 24px 48px rgba(3, 6, 28, 0.45)' } as any)
-      : { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 12 }),
+      ? ({ boxShadow: '0 20px 40px rgba(3, 6, 28, 0.35)' } as any)
+      : { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8 }),
   },
-  smallCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  smallCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9999 },
-  tagText: { fontSize: 11.5, fontWeight: '800' },
+  tagText: { fontSize: 11, fontWeight: '700' },
   openDot: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   openDotInner: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#12C48B' },
-  openText: { color: '#0D7A58', fontSize: 12, fontWeight: '800' },
-  cardTitle: { color: '#0C1233', fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
-  cardPrice: { color: '#2F55F4', fontSize: 22, fontWeight: '800', letterSpacing: -0.5, marginVertical: 6 },
-  metaRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
+  openText: { color: '#0D7A58', fontSize: 12, fontWeight: '700' },
+  cardTitle: { color: '#0C1233', fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
+  cardPrice: { color: '#2F55F4', fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginVertical: 4 },
+  metaRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { color: '#5C6788', fontSize: 12.5, fontWeight: '600' },
-  avatarCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E8EDFF', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#2F55F4', fontWeight: '800', fontSize: 13 },
-  smallTitle: { color: '#0C1233', fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  metaText: { color: '#5C6788', fontSize: 12, fontWeight: '500' },
+  avatarCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8EDFF', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#2F55F4', fontWeight: '700', fontSize: 13 },
+  smallTitle: { color: '#0C1233', fontSize: 14, fontWeight: '600', marginBottom: 2 },
 });

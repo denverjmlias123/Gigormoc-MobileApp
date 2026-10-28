@@ -1,17 +1,17 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 
-export type ToastVariant = 'success' | 'error' | 'info';
+type ToastVariant = 'success' | 'error' | 'info';
 
-export interface ToastOptions {
+interface ToastOptions {
   message: string;
   variant?: ToastVariant;
   durationMs?: number;
 }
 
-export interface ToastContextValue {
+interface ToastContextValue {
   currentToast: (Required<ToastOptions> & { id: number }) | null;
   showToast: (messageOrOptions: string | ToastOptions, variant?: ToastVariant) => void;
   hideToast: () => void;
@@ -53,10 +53,6 @@ const ToastContext = createContext<ToastContextValue>({
   showToast: (msg, variant) => showToast(msg, variant),
   hideToast: () => {},
 });
-
-export function useToast(): ToastContextValue {
-  return useContext(ToastContext);
-}
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const theme = useAppTheme();
@@ -118,7 +114,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
-        setCurrentToast((prev) => (prev?.id === nextToast.id ? null : prev));
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: Platform.OS !== 'web',
+        }).start(() => {
+          setCurrentToast((prev) => (prev?.id === nextToast.id ? null : prev));
+        });
       }, durationMs);
     },
     [fadeAnim]

@@ -1,29 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
-import { authService } from '../../services/auth';
+import { useAppTheme, useResponsiveLayout } from '../theme';
+import { authService, RESEND_CONFIRMATION_COOLDOWN_SECONDS } from '../../services/auth';
 import { toAppError } from '../../lib/errors';
 import { Button } from '../../components/ui/Button';
+import { Card, AlertBox } from '../../components/ui/Card';
 
 export default function ConfirmEmailScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const params = useLocalSearchParams<{ email?: string }>();
   const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((current) => (current <= 1 ? 0 : current - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleResend = async () => {
-    if (!params.email || resending) return;
+    if (!params.email || resending || cooldown > 0) return;
     setStatusMessage(null);
     setErrorMessage(null);
     setResending(true);
     try {
       await authService.resendConfirmationEmail(params.email);
+      setCooldown(RESEND_CONFIRMATION_COOLDOWN_SECONDS);
       setStatusMessage('A fresh confirmation email has been sent. Please check your inbox and spam folder.');
     } catch (err: any) {
       const appErr = toAppError(err);
+      if (err?.retryAfterSeconds) {
+        setCooldown(err.retryAfterSeconds);
+      }
       setErrorMessage(appErr.message);
     } finally {
       setResending(false);
@@ -31,48 +47,70 @@ export default function ConfirmEmailScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Confirm Your Email</Text>
-        <Text style={[styles.description, { color: theme.colors.muted }]}>
-          We have sent a confirmation email to:
-        </Text>
-        <Text style={[styles.emailHighlight, { color: theme.colors.primary }]}>
-          {params.email || 'your email address'}
-        </Text>
-        <Text style={[styles.instructions, { color: theme.colors.text }]}>
-          Please check your inbox and click the confirmation link to activate your account.
-        </Text>
-
-        {statusMessage && (
-          <View style={[styles.banner, { backgroundColor: theme.colors.successSoft, borderColor: theme.colors.success }]}>
-            <Text style={[styles.bannerText, { color: theme.colors.successText }]}>{statusMessage}</Text>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: isWide ? 48 : topSpace + 12, paddingBottom: isWide ? 48 : bottomSpace + 16 },
+      ]}
+    >
+      <Card
+        tone={isWide ? 'neo-glass' : 'raised'}
+        padding="lg"
+        style={[styles.card, isWide && styles.cardWide]}
+      >
+        <View style={styles.content}>
+          <View style={[styles.iconCircle, { backgroundColor: theme.colors.primarySoft }]}>
+            <Ionicons name="mail-unread-outline" size={32} color={theme.colors.primary} />
           </View>
-        )}
+          <Text style={[styles.title, { color: theme.colors.text }]}>Confirm Your Email</Text>
+          <Text style={[styles.description, { color: theme.colors.muted }]}>
+            We have sent a confirmation email to:
+          </Text>
+          <Text style={[styles.emailHighlight, { color: theme.colors.primary }]}>
+            {params.email || 'your email address'}
+          </Text>
+          <Text style={[styles.instructions, { color: theme.colors.text }]}>
+            Please check your inbox and click the confirmation link to activate your account.
+          </Text>
 
-        {errorMessage && (
-          <View style={[styles.banner, { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.danger }]}>
-            <Text style={[styles.bannerText, { color: theme.colors.dangerText }]}>{errorMessage}</Text>
-          </View>
-        )}
-      </View>
+          {statusMessage && (
+            <AlertBox
+              tone="success"
+              message={statusMessage}
+              style={{ marginTop: 16, width: '100%' }}
+            />
+          )}
 
-      <View style={styles.footer}>
-        {params.email ? (
+          {errorMessage && (
+            <AlertBox
+              tone="danger"
+              message={errorMessage}
+              style={{ marginTop: 16, width: '100%' }}
+            />
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          {params.email ? (
+            <Button
+              title={resending ? 'Sending...' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Confirmation Email'}
+              variant="secondary"
+              icon="refresh-outline"
+              onPress={handleResend}
+              loading={resending}
+              disabled={resending || cooldown > 0}
+              fullWidth
+              style={{ marginBottom: 12 }}
+            />
+          ) : null}
           <Button
-            title={resending ? 'Sending...' : 'Resend Confirmation Email'}
-            variant="secondary"
-            onPress={handleResend}
-            loading={resending}
-            disabled={resending}
-            style={{ marginBottom: 12 }}
+            title="Go to Log In"
+            icon="log-in-outline"
+            onPress={() => router.replace('/(auth)/login')}
+            fullWidth
           />
-        ) : null}
-        <Button
-          title="Go to Log In"
-          onPress={() => router.replace('/(auth)/login')}
-        />
-      </View>
+        </View>
+      </Card>
     </View>
   );
 }
@@ -80,14 +118,31 @@ export default function ConfirmEmailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 460,
+    alignSelf: 'center',
+    gap: 24,
+  },
+  cardWide: {
+    padding: 36,
+    gap: 28,
   },
   content: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
+  },
+  iconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   title: {
     fontSize: 26,
@@ -102,7 +157,7 @@ const styles = StyleSheet.create({
   },
   emailHighlight: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -111,19 +166,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  banner: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    width: '100%',
-  },
-  bannerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   footer: {
-    marginBottom: 20,
+    width: '100%',
   },
 });

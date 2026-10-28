@@ -1,29 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../../theme';
+import { useAppTheme, useResponsiveLayout } from '../../theme';
 import { useAuth } from '../../../hooks/useAuth';
 import { applicationsService } from '../../../services/applications';
+import { gigsService, GigDetail } from '../../../services/gigs';
+import { formatPrice } from '../../../components/ui/GigCard';
 import { TextInput } from '../../../components/ui/TextInput';
 import { Button } from '../../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../../components/ui/Card';
 import { showToast } from '../../../components/ui/Toast';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../../constants/strings';
 
 export default function ApplyGigScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, insets } = useResponsiveLayout();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
 
+  const [gig, setGig] = useState<GigDetail | null>(null);
   const [priceStr, setPriceStr] = useState('');
   const [daysStr, setDaysStr] = useState('');
   const [message, setMessage] = useState('');
@@ -31,6 +34,22 @@ export default function ApplyGigScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    gigsService
+      .getGig(id)
+      .then((data) => {
+        if (active && data) setGig(data);
+      })
+      .catch(() => {
+        // non-blocking
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   const handleSubmit = async () => {
     if (!id || inFlightRef.current || loading || submitted) return;
@@ -85,73 +104,144 @@ export default function ApplyGigScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else if (id) {
-              router.replace({ pathname: '/gigs/[id]', params: { id } });
-            } else {
-              router.replace('/(tabs)/gigs');
-            }
-          }}
-          style={styles.backBtn}
-        >
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Apply for Gig</Text>
-      </View>
+      <PageHeaderBox
+        title="Apply for Gig"
+        subtitle={gig?.title || 'Submit your proposal & fee in PHP'}
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else if (id) {
+            router.replace({ pathname: '/gigs/[id]', params: { id } });
+          } else {
+            router.replace('/(tabs)/gigs');
+          }
+        }}
+        maxWidth={680}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.formContainer}>
+          {error && (
+            <AlertBox tone="danger" message={error} style={{ marginBottom: 16 }} />
+          )}
 
-        <View style={styles.noticeBox}>
-          <Text style={[styles.noticeTitle, { color: theme.colors.text }]}>Proposal Guidelines</Text>
-          <Text style={[styles.noticeText, { color: theme.colors.muted }]}>
-            State your total proposed fee in PHP and estimated delivery time. You can only submit one application per gig.
-          </Text>
+          {gig && (
+            <Card
+              tone="role"
+              padding="md"
+              accentPosition="left"
+              accentColor={theme.colors.primary}
+              style={{ marginBottom: 16 }}
+            >
+              <Text style={[styles.gigSummaryEyebrow, { color: theme.colors.primary }]}>
+                APPLYING FOR GIG
+              </Text>
+              <Text style={[styles.gigSummaryTitle, { color: theme.colors.text }]}>
+                {gig.title}
+              </Text>
+              <View style={styles.gigSummaryMetaRow}>
+                <View style={[styles.gigSummaryChip, { backgroundColor: theme.colors.surface }]}>
+                  <Text style={[styles.gigSummaryChipLabel, { color: theme.colors.muted }]}>
+                    Client Budget:
+                  </Text>
+                  <Text style={[styles.gigSummaryChipValue, { color: theme.colors.text }]}>
+                    {formatPrice(gig.price_min)}
+                    {gig.price_max && gig.price_max > gig.price_min
+                      ? ` – ${formatPrice(gig.price_max)}`
+                      : ''}
+                  </Text>
+                </View>
+                {gig.category_name && (
+                  <View style={[styles.gigSummaryChip, { backgroundColor: theme.colors.surface }]}>
+                    <Text style={[styles.gigSummaryChipLabel, { color: theme.colors.muted }]}>
+                      Category:
+                    </Text>
+                    <Text style={[styles.gigSummaryChipValue, { color: theme.colors.text }]}>
+                      {gig.category_name}
+                    </Text>
+                  </View>
+                )}
+                {gig.deadline && (
+                  <View style={[styles.gigSummaryChip, { backgroundColor: theme.colors.surface }]}>
+                    <Text style={[styles.gigSummaryChipLabel, { color: theme.colors.muted }]}>
+                      Target Date:
+                    </Text>
+                    <Text style={[styles.gigSummaryChipValue, { color: theme.colors.text }]}>
+                      {new Date(gig.deadline).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Card>
+          )}
+
+          <AlertBox
+            tone="info"
+            title="Proposal Guidelines"
+            message="State your total proposed fee in PHP and estimated delivery time. You can only submit one application per gig."
+            style={{ marginBottom: 16 }}
+          />
+
+          <Card
+            tone="neo-glass"
+            padding="lg"
+            headerTitle="Your Proposal"
+            headerSubtitle="Set your rate, timeline, and cover note"
+            headerIcon="paper-plane-outline"
+          >
+            <View style={isWide ? styles.twoColRow : undefined}>
+              <View style={isWide ? styles.colHalf : undefined}>
+                <TextInput
+                  label="Proposed Fee (₱) *"
+                  placeholder="1500"
+                  prefixText="₱"
+                  value={priceStr}
+                  onChangeText={setPriceStr}
+                  keyboardType="numeric"
+                  helperText="Total amount you expect to receive"
+                />
+              </View>
+              <View style={isWide ? styles.colHalf : undefined}>
+                <TextInput
+                  label="Estimated Days to Complete *"
+                  placeholder="e.g. 5"
+                  leftIcon="calendar-outline"
+                  value={daysStr}
+                  onChangeText={setDaysStr}
+                  keyboardType="numeric"
+                  helperText="Expected delivery timeframe"
+                />
+              </View>
+            </View>
+
+            <TextInput
+              label="Cover Note / Message *"
+              placeholder="Explain your approach, experience, and why you are the best fit for this project..."
+              value={message}
+              onChangeText={setMessage}
+              multiline
+              numberOfLines={5}
+              style={{ minHeight: 110 }}
+              maxLength={1000}
+              showCharCount
+            />
+
+            <Button
+              title="Submit Application"
+              rightIcon="send"
+              onPress={handleSubmit}
+              variant="primary"
+              loading={loading}
+              style={{ marginTop: 12 }}
+            />
+          </Card>
         </View>
-
-        <TextInput
-          label="Proposed Fee (₱) *"
-          placeholder="e.g. 1500"
-          value={priceStr}
-          onChangeText={setPriceStr}
-          keyboardType="numeric"
-          helperText="Total amount you expect to receive"
-        />
-
-        <TextInput
-          label="Estimated Days to Complete *"
-          placeholder="e.g. 5"
-          value={daysStr}
-          onChangeText={setDaysStr}
-          keyboardType="numeric"
-          helperText="Expected delivery timeframe"
-        />
-
-        <TextInput
-          label="Cover Note / Message *"
-          placeholder="Explain your approach, experience, and why you are the best fit for this project..."
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          numberOfLines={5}
-          style={{ minHeight: 110 }}
-        />
-
-        <Button
-          title="Submit Application"
-          onPress={handleSubmit}
-          variant="primary"
-          loading={loading}
-          style={{ marginTop: 12 }}
-        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -161,50 +251,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  backBtn: {
-    marginBottom: 6,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
   },
-  noticeBox: {
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#E4ECFF',
-    borderWidth: 1,
-    borderColor: '#E4ECFF',
-    marginBottom: 20,
+  formContainer: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
   },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+  gigSummaryEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
     marginBottom: 4,
   },
-  noticeText: {
-    fontSize: 13,
-    lineHeight: 18,
+  gigSummaryTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 10,
   },
-  errorBox: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
+  gigSummaryMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  gigSummaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D92D3E',
   },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
+  gigSummaryChipLabel: {
+    fontSize: 12,
+  },
+  gigSummaryChipValue: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  colHalf: {
+    flex: 1,
   },
 });

@@ -19,7 +19,7 @@ export interface ReviewItem {
   };
 }
 
-export interface SubmitReviewParams {
+interface SubmitReviewParams {
   agreementId: string;
   rating: number; // 1 to 5
   comment: string;

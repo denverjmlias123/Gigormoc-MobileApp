@@ -1,11 +1,31 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const rawKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const REQUEST_TIMEOUT_MS = 20000;
+function resolveSupabaseUrl(url: string): string {
+  if (!url) return '';
+  if (Platform.OS !== 'web' && (url.includes('127.0.0.1') || url.includes('localhost'))) {
+    const hostUri =
+      Constants.expoConfig?.hostUri ||
+      (Constants as any)?.manifest2?.extra?.expoClient?.hostUri ||
+      (Constants as any)?.manifest?.debuggerHost;
+    if (hostUri) {
+      const hostIp = hostUri.split(':')[0];
+      return url.replace(/127\.0\.0\.1|localhost/, hostIp);
+    }
+  }
+  return url;
+}
+
+export const supabaseUrl = resolveSupabaseUrl(rawUrl);
+const supabaseAnonKey = rawKey;
+
+export const REQUEST_TIMEOUT_MS = 6000;
 
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -62,11 +82,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 let refreshSessionInFlight: Promise<boolean> | null = null;
-let onSessionExpiredCallback: (() => Promise<void> | void) | null = null;
 
-export function registerSessionExpiredHandler(cb: (() => Promise<void> | void) | null) {
-  onSessionExpiredCallback = cb;
-}
+export function registerSessionExpiredHandler(_cb: (() => Promise<void> | void) | null) {}
 
 /**
  * Single-flight session refresh: concurrent 401/JWT-expired callers share one refresh request.
@@ -90,50 +107,3 @@ export async function refreshSessionSingleFlight(): Promise<boolean> {
   })();
   return refreshSessionInFlight;
 }
-
-export function isSessionExpiredError(err: unknown): boolean {
-  if (!err) return false;
-  const status = typeof (err as any)?.status === 'number' ? (err as any).status : 0;
-  const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
-  const msg = typeof (err as any)?.message === 'string' ? (err as any).message.toLowerCase() : '';
-  return (
-    status === 401 ||
-    code === 'PGRST301' ||
-    msg.includes('jwt expired') ||
-    msg.includes('invalid jwt') ||
-    msg.includes('refresh_token_not_found') ||
-    msg.includes('session_not_found')
-  );
-}
-
-/**
- * Runs an operation; if it fails with 401 / JWT expired, refreshes session once (single-flight)
- * and retries the call once. If still unauthorized, invokes the session-expired sign-out handler.
- */
-export async function withSessionRefreshRetry<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    if (!isSessionExpiredError(err)) {
-      throw err;
-    }
-    const refreshed = await refreshSessionSingleFlight();
-    if (!refreshed) {
-      if (onSessionExpiredCallback) {
-        await onSessionExpiredCallback();
-      }
-      const expErr: any = new Error('Your session expired. Please log in again.');
-      expErr.code = 'SESSION_EXPIRED';
-      throw expErr;
-    }
-    try {
-      return await fn();
-    } catch (retryErr) {
-      if (isSessionExpiredError(retryErr) && onSessionExpiredCallback) {
-        await onSessionExpiredCallback();
-      }
-      throw retryErr;
-    }
-  }
-}
-

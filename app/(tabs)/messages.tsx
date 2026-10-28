@@ -1,11 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Platform,
   TextInput as RNTextInput,
@@ -15,11 +13,14 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { chatService, ConversationSummary } from '../../services/chat';
 import { notificationsService } from '../../services/notifications';
 import { Avatar } from '../../components/ui/Avatar';
+import { IconButton } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Chip } from '../../components/ui/Chip';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { ErrorState } from '../../components/ui/ErrorState';
@@ -53,6 +54,7 @@ function formatMessageTime(dateStr: string | null | undefined): string {
 export default function MessagesScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const { user } = useAuth();
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -60,8 +62,9 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Search State
+  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   // Selected partner group for multi-thread picker modal
   const [selectedPartnerGroup, setSelectedPartnerGroup] = useState<PartnerConversationGroup | null>(null);
@@ -135,11 +138,15 @@ export default function MessagesScreen() {
     return list;
   }, [conversations]);
 
-  // Filter partner groups by search query
+  // Filter partner groups by search query & unread filter
   const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return partnerGroups;
+    let base = partnerGroups;
+    if (unreadOnly) {
+      base = base.filter((g) => g.is_unread);
+    }
+    if (!searchQuery.trim()) return base;
     const q = searchQuery.toLowerCase().trim();
-    return partnerGroups.filter((g) => {
+    return base.filter((g) => {
       const matchesName = g.partner_name.toLowerCase().includes(q);
       const matchesMsg = g.threads.some((t) =>
         t.last_message_content?.toLowerCase().includes(q)
@@ -149,7 +156,12 @@ export default function MessagesScreen() {
       );
       return matchesName || matchesMsg || matchesGig;
     });
-  }, [partnerGroups, searchQuery]);
+  }, [partnerGroups, searchQuery, unreadOnly]);
+
+  const unreadGroupCount = useMemo(
+    () => partnerGroups.filter((g) => g.is_unread).length,
+    [partnerGroups]
+  );
 
   const navigateToConversation = useCallback(
     (thread: ConversationSummary, partnerName: string) => {
@@ -198,43 +210,74 @@ export default function MessagesScreen() {
       <View
         style={[
           styles.header,
-          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+            paddingTop: isWide ? 24 : topSpace,
+          },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Messages</Text>
-        <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
-          Conversations with clients and freelancers
-        </Text>
+        <View style={styles.headerInner}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Messages</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
+            Conversations with clients and freelancers
+          </Text>
 
-        {/* Search bar */}
-        {partnerGroups.length > 0 && (
-          <View
-            style={[
-              styles.searchBox,
-              { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radii.input },
-            ]}
-          >
-            <Ionicons name="search" size={18} color={theme.colors.muted} />
-            <RNTextInput
-              style={[styles.searchInput, { color: theme.colors.text }]}
-              placeholder="Search by contact name, gig title, or message..."
-              placeholderTextColor={theme.colors.muted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-            />
-            {searchQuery ? (
-              <Pressable
-                onPress={() => setSearchQuery('')}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
+          {/* Search bar & filter chips */}
+          {partnerGroups.length > 0 && (
+            <>
+              <View
+                style={[
+                  styles.searchBox,
+                  {
+                    backgroundColor: theme.colors.surfaceAlt,
+                    borderRadius: theme.radii.input,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
               >
-                <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
-              </Pressable>
-            ) : null}
-          </View>
-        )}
+                <Ionicons name="search" size={18} color={theme.colors.muted} />
+                <RNTextInput
+                  style={[
+                    styles.searchInput,
+                    { color: theme.colors.text },
+                    Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                  ]}
+                  placeholder="Search by contact name, gig title, or message..."
+                  placeholderTextColor={theme.colors.muted}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  returnKeyType="search"
+                />
+                {searchQuery ? (
+                  <Pressable
+                    onPress={() => setSearchQuery('')}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                  >
+                    <Ionicons name="close-circle" size={18} color={theme.colors.muted} />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={styles.filterPillsRow}>
+                <Chip
+                  label="All"
+                  count={partnerGroups.length}
+                  selected={!unreadOnly}
+                  onPress={() => setUnreadOnly(false)}
+                />
+                <Chip
+                  label="Unread"
+                  count={unreadGroupCount > 0 ? unreadGroupCount : undefined}
+                  selected={unreadOnly}
+                  onPress={() => setUnreadOnly(true)}
+                />
+              </View>
+            </>
+          )}
+        </View>
       </View>
 
       {/* Body */}
@@ -252,9 +295,12 @@ export default function MessagesScreen() {
         <EmptyState
           icon="search-outline"
           title="No conversations found"
-          description="Try checking for typos or searching with a different keyword."
-          actionTitle="Clear search"
-          onAction={() => setSearchQuery('')}
+          description="Try checking for typos or clearing your active filter."
+          actionTitle="Clear filter"
+          onAction={() => {
+            setSearchQuery('');
+            setUnreadOnly(false);
+          }}
         />
       ) : (
         <FlatList
@@ -270,7 +316,7 @@ export default function MessagesScreen() {
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
-                loadConversations();
+                void loadConversations();
               }}
               tintColor={theme.colors.primary}
             />
@@ -287,18 +333,22 @@ export default function MessagesScreen() {
         onRequestClose={() => setSelectedPartnerGroup(null)}
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, !isWide && styles.modalOverlaySheet]}
           onPress={() => setSelectedPartnerGroup(null)}
         >
           <Pressable
             style={[
               styles.modalContent,
+              !isWide && [styles.modalContentSheet, { paddingBottom: bottomSpace }],
               { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
               theme.shadow.card,
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHeader}>
+            {!isWide && (
+              <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
+            )}
+            <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
               <Avatar
                 name={selectedPartnerGroup?.partner_name}
                 imageUri={selectedPartnerGroup?.partner_avatar}
@@ -312,39 +362,30 @@ export default function MessagesScreen() {
                   Select a project thread to view:
                 </Text>
               </View>
-              <TouchableOpacity
+              <IconButton
+                icon="close"
+                variant="ghost"
+                size="sm"
                 onPress={() => setSelectedPartnerGroup(null)}
-                hitSlop={8}
-                accessibilityRole="button"
                 accessibilityLabel="Close"
-              >
-                <Ionicons name="close-circle" size={24} color={theme.colors.muted} />
-              </TouchableOpacity>
+              />
             </View>
 
             <ScrollView
-              style={{ maxHeight: 320 }}
+              style={{ maxHeight: 340 }}
               contentContainerStyle={styles.modalScrollContent}
               showsVerticalScrollIndicator={false}
             >
               {selectedPartnerGroup?.threads.map((thread) => (
-                <TouchableOpacity
+                <Card
                   key={thread.id}
-                  style={[
-                    styles.modalThreadCard,
-                    {
-                      backgroundColor: thread.is_unread
-                        ? theme.colors.surfaceAlt
-                        : theme.colors.surface,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
+                  tone={thread.is_unread ? 'role' : 'raised'}
+                  padding="sm"
                   onPress={() => {
                     const partner = selectedPartnerGroup.partner_name;
                     setSelectedPartnerGroup(null);
                     navigateToConversation(thread, partner);
                   }}
-                  activeOpacity={0.7}
                 >
                   <View style={styles.modalThreadTop}>
                     <View style={styles.modalThreadTitleRow}>
@@ -391,10 +432,10 @@ export default function MessagesScreen() {
                         { backgroundColor: theme.colors.primary },
                       ]}
                     >
-                      <Text style={styles.modalUnreadText}>New message</Text>
+                      <Text style={[styles.modalUnreadText, { color: theme.colors.heroText }]}>New message</Text>
                     </View>
                   )}
-                </TouchableOpacity>
+                </Card>
               ))}
             </ScrollView>
           </Pressable>
@@ -419,20 +460,11 @@ const PartnerCard = React.memo(function PartnerCard({
   const isMultiGig = item.threads.length > 1;
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.convCard,
-        {
-          backgroundColor: item.is_unread ? theme.colors.surfaceAlt : theme.glass.surface,
-          borderColor: theme.glass.border,
-          borderWidth: 1,
-        },
-        theme.shadow.neoGlass,
-      ]}
+    <Card
+      tone={item.is_unread ? 'role' : 'neo-glass'}
+      padding="md"
+      style={styles.convCard}
       onPress={() => onPress(item)}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.partner_name}, ${item.threads.length} projects`}
     >
       <Avatar
         name={item.partner_name || 'U'}
@@ -498,21 +530,27 @@ const PartnerCard = React.memo(function PartnerCard({
             {item.latest_thread.last_message_content || 'No messages yet.'}
           </Text>
           {item.is_unread && (
-            <View style={[styles.unreadDot, { backgroundColor: theme.colors.primary }]} />
+            <View style={[styles.unreadBadgePill, { backgroundColor: theme.colors.primary }]}>
+              <Text style={[styles.unreadBadgeText, { color: theme.colors.heroText }]}>{item.unread_count}</Text>
+            </View>
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </Card>
   );
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 56,
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerInner: {
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
   },
   headerTitle: {
     fontSize: 24,
@@ -530,28 +568,29 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     height: 44,
+    borderWidth: 1,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     height: '100%',
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  filterPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
   },
   listContent: {
     padding: 16,
     paddingBottom: 32,
     gap: 10,
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
   },
   convCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
     gap: 14,
   },
   convDetails: {
@@ -598,25 +637,51 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  unreadBadgePill: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
     marginLeft: 8,
+  },
+  unreadBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
+  modalOverlaySheet: {
+    justifyContent: 'flex-end',
+    padding: 0,
+  },
   modalContent: {
     width: '100%',
-    maxWidth: 440,
-    borderRadius: 20,
+    maxWidth: 460,
+    borderRadius: 22,
     borderWidth: 1,
     padding: 18,
+  },
+  modalContentSheet: {
+    maxWidth: '100%',
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingTop: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -624,7 +689,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
   },
   modalHeaderTitleCol: {
     flex: 1,
@@ -640,11 +704,6 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     gap: 8,
     paddingVertical: 10,
-  },
-  modalThreadCard: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
   },
   modalThreadTop: {
     flexDirection: 'row',
@@ -677,7 +736,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   modalUnreadText: {
-    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
   },

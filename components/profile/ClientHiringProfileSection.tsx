@@ -2,13 +2,16 @@ import React, { RefObject } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
+  TextInput as RNTextInput,
   StyleSheet,
 } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 import { Category } from '../../services/profile';
 import { strings } from '../../constants/strings';
+import { Card } from '../ui/Card';
+import { TextInput } from '../ui/TextInput';
+import { Chip } from '../ui/Chip';
+import { Button } from '../ui/Button';
 
 interface ClientHiringProfileSectionProps {
   clientType: 'individual' | 'business' | 'organization' | 'other' | '';
@@ -25,7 +28,7 @@ interface ClientHiringProfileSectionProps {
   customCategoryInput: string;
   setCustomCategoryInput: (val: string) => void;
   onAddCustomCategory: () => void;
-  customCategoryInputRef: RefObject<TextInput | null>;
+  customCategoryInputRef: RefObject<RNTextInput | null>;
   totalSelectedInterests: number;
   maxHiringInterests: number;
   fieldErrors: Record<string, string>;
@@ -54,11 +57,11 @@ export const ClientHiringProfileSection: React.FC<ClientHiringProfileSectionProp
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.roleSection, { borderColor: theme.colors.border }]}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-        Client Hiring Details
-      </Text>
-
+    <Card
+      headerTitle="Client Hiring Details"
+      headerIcon="business-outline"
+      style={styles.roleSection}
+    >
       {/* Client Type */}
       <View style={styles.inputGroup}>
         <Text style={[styles.label, { color: theme.colors.text }]}>Client Type</Text>
@@ -66,61 +69,28 @@ export const ClientHiringProfileSection: React.FC<ClientHiringProfileSectionProp
           {strings.profile.clientTypeOptions.map((opt) => {
             const selected = clientType === opt.value;
             return (
-              <TouchableOpacity
+              <Chip
                 key={opt.value}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: selected
-                      ? theme.colors.primarySoft
-                      : theme.colors.surface,
-                  },
-                ]}
+                label={opt.label}
+                selected={selected}
                 onPress={() => setClientType(selected ? '' : opt.value)}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.primary : theme.colors.text,
-                    fontWeight: selected ? '700' : '500',
-                    fontSize: 13,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                size="sm"
+              />
             );
           })}
         </View>
       </View>
 
       {/* Business Name */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>
-          Business or Organization Name (Optional, 2–60 characters)
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              borderColor: fieldErrors.businessName
-                ? theme.colors.danger
-                : theme.colors.border,
-              color: theme.colors.text,
-            },
-          ]}
-          value={businessName}
-          onChangeText={setBusinessName}
-          placeholder="e.g. Ormoc Print Shop"
-          placeholderTextColor={theme.colors.muted}
-          maxLength={60}
-        />
-        {fieldErrors.businessName ? (
-          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-            {fieldErrors.businessName}
-          </Text>
-        ) : null}
-      </View>
+      <TextInput
+        label="Business or Organization Name (Optional, 2–60 characters)"
+        value={businessName}
+        onChangeText={setBusinessName}
+        placeholder="e.g. Ormoc Print Shop"
+        maxLength={60}
+        error={fieldErrors.businessName}
+        containerStyle={styles.inputGroup}
+      />
 
       {/* Hiring Interests (up to 8 categories) */}
       <View style={styles.inputGroup}>
@@ -136,92 +106,47 @@ export const ClientHiringProfileSection: React.FC<ClientHiringProfileSectionProp
             {categoriesList.map((cat) => {
               const selected = selectedCategoryIds.includes(cat.id);
               return (
-                <TouchableOpacity
+                <Chip
                   key={cat.id}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: selected ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: selected
-                        ? theme.colors.primarySoft
-                        : theme.colors.surface,
-                    },
-                  ]}
+                  label={cat.name}
+                  selected={selected}
                   onPress={() => toggleHiringCategory(cat.id)}
-                >
-                  <Text
-                    style={{
-                      color: selected ? theme.colors.primary : theme.colors.text,
-                      fontWeight: selected ? '700' : '500',
-                      fontSize: 13,
-                    }}
-                  >
-                    {selected ? '✓ ' : ''}
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
+                  size="sm"
+                />
               );
             })}
           </View>
         ) : null}
 
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+        <View style={styles.addRow}>
           <TextInput
-            ref={customCategoryInputRef as any}
-            style={[
-              styles.input,
-              {
-                flex: 1,
-                borderColor: theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
+            ref={customCategoryInputRef}
             value={customCategoryInput}
             onChangeText={setCustomCategoryInput}
             placeholder={strings.onboarding.addCustomCategoryPlaceholder}
-            placeholderTextColor={theme.colors.muted}
             maxLength={50}
+            containerStyle={styles.addInputWrap}
           />
-          <TouchableOpacity
-            style={[
-              styles.addBtn,
-              { backgroundColor: theme.colors.primary },
-            ]}
+          <Button
+            title="Add"
             onPress={onAddCustomCategory}
-          >
-            <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
-          </TouchableOpacity>
+            variant="primary"
+            size="sm"
+            icon="add"
+          />
         </View>
 
         {customCategories.length > 0 ? (
           <View style={[styles.chipsWrap, { marginTop: 10 }]}>
             {customCategories.map((catName) => (
-              <View
+              <Chip
                 key={catName}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: theme.colors.primary,
-                    backgroundColor: theme.colors.primarySoft,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: theme.colors.primary,
-                    fontWeight: '700',
-                    fontSize: 13,
-                  }}
-                >
-                  {catName}
-                </Text>
-                <TouchableOpacity onPress={() => removeCustomCategory(catName)}>
-                  <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
-                </TouchableOpacity>
-              </View>
+                label={catName}
+                selected
+                onPress={() => removeCustomCategory(catName)}
+                onRemove={() => removeCustomCategory(catName)}
+                size="sm"
+              />
             ))}
           </View>
         ) : null}
@@ -234,68 +159,33 @@ export const ClientHiringProfileSection: React.FC<ClientHiringProfileSectionProp
       </View>
 
       {/* About Hiring */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>
-          What kind of help do you usually hire for? (Optional)
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            styles.textArea,
-            {
-              borderColor: fieldErrors.aboutHiring
-                ? theme.colors.danger
-                : theme.colors.border,
-              color: theme.colors.text,
-            },
-          ]}
-          value={aboutHiring}
-          onChangeText={setAboutHiring}
-          placeholder="e.g. Graphic design, store errands, equipment maintenance..."
-          placeholderTextColor={theme.colors.muted}
-          multiline
-          numberOfLines={3}
-          maxLength={300}
-          textAlignVertical="top"
-        />
-        {fieldErrors.aboutHiring ? (
-          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-            {fieldErrors.aboutHiring}
-          </Text>
-        ) : null}
-      </View>
-    </View>
+      <TextInput
+        label="What kind of help do you usually hire for? (Optional)"
+        value={aboutHiring}
+        onChangeText={setAboutHiring}
+        placeholder="e.g. Graphic design, store errands, equipment maintenance..."
+        multiline
+        numberOfLines={3}
+        maxLength={300}
+        showCharCount
+        error={fieldErrors.aboutHiring}
+        containerStyle={{ marginBottom: 0 }}
+      />
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
   roleSection: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
     marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-  },
-  textArea: {
-    minHeight: 80,
   },
   fieldError: {
     fontSize: 12,
@@ -309,16 +199,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  addBtn: {
-    justifyContent: 'center',
+  addRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    gap: 8,
+    marginTop: 10,
+  },
+  addInputWrap: {
+    flex: 1,
+    marginBottom: 0,
   },
 });

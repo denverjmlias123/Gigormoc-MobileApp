@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
+import { Card, PageHeaderBox } from '../../components/ui/Card';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { showToast } from '../../components/ui/Toast';
 import { confirmDialog } from '../../lib/dialog';
@@ -13,6 +14,7 @@ import { sessionService, UserSession } from '../../services/sessions';
 export default function SessionsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { bottomPad } = useResponsiveLayout();
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,9 @@ export default function SessionsScreen() {
     }
   }, []);
 
-  useEffect(() => { void loadSessions(); }, [loadSessions]);
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
 
   const handleEndOtherSessions = async () => {
     if (busy) return;
@@ -60,53 +64,123 @@ export default function SessionsScreen() {
     }
   };
 
-  const formatLastActive = (value: string) => new Date(value).toLocaleString('en-PH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const formatLastActive = (value: string) =>
+    new Date(value).toLocaleString('en-PH', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+
+  const getDeviceIcon = (platform: string): React.ComponentProps<typeof Ionicons>['name'] => {
+    const lower = (platform || '').toLowerCase();
+    if (lower.includes('ios') || lower.includes('android') || lower.includes('mobile')) {
+      return 'phone-portrait-outline';
+    }
+    return 'laptop-outline';
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.auth.sessionsTitle}</Text>
-      <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>{strings.auth.sessionsSubtitle}</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <PageHeaderBox
+        title={strings.auth.sessionsTitle}
+        subtitle={strings.auth.sessionsSubtitle}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))}
+        maxWidth={680}
+      />
 
-      {loading ? <ActivityIndicator accessibilityLabel={strings.common.loading} color={theme.colors.primary} /> : null}
-      {!loading && error ? <ErrorState message={error} onRetry={loadSessions} /> : null}
-      {!loading && !error && sessions.length === 0 ? (
-        <Card><Text style={[theme.type.body, { color: theme.colors.muted }]}>{strings.auth.sessionsEmpty}</Text></Card>
-      ) : null}
-      {!loading && !error ? sessions.map((item) => (
-        <Card key={item.id} style={styles.sessionCard}>
-          <View style={styles.sessionHeader}>
-            <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>{item.device_label}</Text>
-            {item.id === currentId ? (
-              <Text style={[theme.type.small, { color: theme.colors.primary }]}>{strings.auth.sessionsThisDevice}</Text>
-            ) : null}
-          </View>
-          <Text style={[theme.type.small, { color: theme.colors.muted }]}>
-            {item.ended_at ? strings.auth.sessionsEnded : strings.auth.sessionsLastActive(formatLastActive(item.last_seen_at))}
-          </Text>
-          <Text style={[theme.type.small, { color: theme.colors.muted }]}>{item.platform.toUpperCase()}</Text>
-        </Card>
-      )) : null}
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(bottomPad, 32) },
+        ]}
+      >
+        <View style={styles.innerWrap}>
+          {loading ? (
+            <ActivityIndicator
+              accessibilityLabel={strings.common.loading}
+              color={theme.colors.primary}
+            />
+          ) : null}
+          {!loading && error ? <ErrorState message={error} onRetry={loadSessions} /> : null}
+          {!loading && !error && sessions.length === 0 ? (
+            <Card tone="neo-glass" padding="md">
+              <Text style={[theme.type.body, { color: theme.colors.muted }]}>
+                {strings.auth.sessionsEmpty}
+              </Text>
+            </Card>
+          ) : null}
+          {!loading && !error
+            ? sessions.map((item) => (
+                <Card
+                  key={item.id}
+                  tone={item.id === currentId ? 'tinted-primary' : 'neo-glass'}
+                  padding="md"
+                  style={styles.sessionCard}
+                >
+                  <View style={styles.sessionHeader}>
+                    <View style={styles.sessionTitleRow}>
+                      <Ionicons
+                        name={getDeviceIcon(item.platform)}
+                        size={18}
+                        color={item.id === currentId ? theme.colors.primary : theme.colors.muted}
+                      />
+                      <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
+                        {item.device_label}
+                      </Text>
+                    </View>
+                    {item.id === currentId ? (
+                      <Text
+                        style={[
+                          theme.type.small,
+                          { color: theme.colors.primary, fontWeight: '700' },
+                        ]}
+                      >
+                        {strings.auth.sessionsThisDevice}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+                    {item.ended_at
+                      ? strings.auth.sessionsEnded
+                      : strings.auth.sessionsLastActive(formatLastActive(item.last_seen_at))}
+                  </Text>
+                  <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+                    {item.platform.toUpperCase()}
+                  </Text>
+                </Card>
+              ))
+            : null}
 
-      {!loading && !error && sessions.some((item) => !item.ended_at && item.id !== currentId) ? (
-        <Button
-          title={strings.auth.sessionsLogOutOthers}
-          onPress={handleEndOtherSessions}
-          loading={busy}
-          disabled={busy}
-          variant="secondary"
-        />
-      ) : null}
-      <Button title={strings.common.back} variant="ghost" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} />
-    </ScrollView>
+          {!loading && !error && sessions.some((item) => !item.ended_at && item.id !== currentId) ? (
+            <Button
+              title={strings.auth.sessionsLogOutOthers}
+              icon="log-out-outline"
+              onPress={handleEndOtherSessions}
+              loading={busy}
+              disabled={busy}
+              variant="danger-soft"
+            />
+          ) : null}
+          <Button
+            title={strings.common.back}
+            variant="ghost"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))}
+          />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingTop: 56, gap: 12 },
-  subtitle: { marginBottom: 8 },
+  container: { flex: 1 },
+  content: { padding: 20 },
+  innerWrap: {
+    maxWidth: 680,
+    width: '100%',
+    alignSelf: 'center',
+    gap: 12,
+  },
   sessionCard: { gap: 6 },
   sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sessionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

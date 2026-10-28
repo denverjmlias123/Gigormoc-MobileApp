@@ -12,7 +12,6 @@ describe('Milestone 25 — Success Feedback and Notifications for Every Step (v5
     const layoutSrc = fs.readFileSync(path.join(ROOT, 'app/_layout.tsx'), 'utf8');
 
     assert.ok(toastSrc.includes('export function showToast'), 'Must export showToast');
-    assert.ok(toastSrc.includes('export function useToast'), 'Must export useToast');
     assert.ok(toastSrc.includes('export const ToastProvider'), 'Must export ToastProvider');
     assert.ok(toastSrc.includes('accessibilityRole="alert"'), 'Toast must be accessible alert');
     assert.ok(toastSrc.includes('accessibilityLiveRegion="polite"'), 'Toast must use polite live region');

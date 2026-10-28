@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { Button } from './Button';
+import { Card } from './Card';
 import { strings } from '../../constants/strings';
 
 interface ErrorStateProps {
@@ -17,19 +18,48 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.dangerSoft, borderRadius: theme.radii.card }]}>
-      <Ionicons name="cloud-offline-outline" size={32} color={theme.colors.dangerText} style={styles.icon} />
-      <Text style={[styles.title, { color: theme.colors.dangerText }]}>{strings.common.errorTitle}</Text>
+    <Card
+      padding="lg"
+      accentPosition="top"
+      accentColor={theme.colors.danger}
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.dangerSoft,
+          borderColor: theme.colors.danger,
+        },
+      ]}
+    >
+      <View style={[styles.iconWrap, { backgroundColor: theme.colors.surface }]}>
+        <Ionicons name="cloud-offline-outline" size={28} color={theme.colors.dangerText} />
+      </View>
+      <Text style={[styles.title, { color: theme.colors.dangerText }]}>
+        {strings.common.errorTitle}
+      </Text>
       <Text style={[styles.message, { color: theme.colors.dangerText }]}>{message}</Text>
-      {onRetry && <Button title={strings.common.retry} onPress={onRetry} variant="danger" style={styles.retryBtn} />}
-    </View>
+      {onRetry && (
+        <Button
+          title={strings.common.retry}
+          onPress={onRetry}
+          variant="danger"
+          size="md"
+          icon="refresh"
+        />
+      )}
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { padding: 24, alignItems: 'center', marginVertical: 16 },
-  icon: { marginBottom: 8 },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
-  message: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 16 },
-  retryBtn: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 22 },
+  container: { alignItems: 'center', marginVertical: 16 },
+  iconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  title: { fontSize: 17, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
+  message: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 16, maxWidth: 440 },
 });

@@ -4,11 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { profileService, Skill, Category } from '../../services/profile';
 import { aiService } from '../../services/ai';
@@ -17,6 +19,8 @@ import { confirmDialog } from '../../lib/dialog';
 import { runConfirmedLogout } from '../../utils/confirmedLogout';
 import { ClientHiringDetailsCard } from '../../components/onboarding/ClientHiringDetailsCard';
 import { FreelancerSkillSections } from '../../components/onboarding/FreelancerSkillSections';
+import { Card, AlertBox, StickyFooterBox } from '../../components/ui/Card';
+import { Button, IconButton } from '../../components/ui/Button';
 
 const MAX_HIRING_INTERESTS = 8;
 const MAX_PROFILE_SKILLS = 15;
@@ -24,6 +28,7 @@ const MAX_PROFILE_SKILLS = 15;
 export default function OnboardingStep2SkillsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace } = useResponsiveLayout();
   const { profile, refreshProfile, signOut } = useAuth();
 
   const isHire = profile?.active_mode === 'hire';
@@ -359,10 +364,6 @@ export default function OnboardingStep2SkillsScreen() {
     }
   };
 
-  /**
-   * Saves selected skills via add_profile_skills RPC, then re-fetches from the database
-   * via getUserSkills(profile.id) and displays "Saved".
-   */
   const handleSaveSkills = async (): Promise<boolean> => {
     if (!profile?.id) return false;
     setSaveError(null);
@@ -565,18 +566,128 @@ export default function OnboardingStep2SkillsScreen() {
     router.push('/(onboarding)/step3-profile');
   };
 
+  const trayCard = (
+    <Card
+      headerTitle={`${strings.onboarding.yourSkillsTrayLabel} (${selectedSkillTray.length}/${MAX_PROFILE_SKILLS})`}
+      headerIcon="ribbon-outline"
+      headerRight={
+        skillsSaved ? (
+          <View style={[styles.savedBadge, { backgroundColor: theme.colors.successSoft }]}>
+            <Text style={[styles.savedBadgeText, { color: theme.colors.successText }]}>
+              ✓ {strings.onboarding.skillsSavedText}
+            </Text>
+          </View>
+        ) : undefined
+      }
+      style={styles.card}
+    >
+      {zeroSkillsWarning && (
+        <AlertBox
+          tone="warning"
+          message={strings.onboarding.zeroSkillsWarning}
+          style={{ marginBottom: 10 }}
+        />
+      )}
+
+      {selectedSkillTray.length === 0 ? (
+        <Text style={[styles.cardDesc, { color: theme.colors.muted, marginBottom: 0 }]}>
+          {strings.onboarding.yourSkillsEmptyHint}
+        </Text>
+      ) : (
+        <>
+          <View style={[styles.chipsWrap, { marginBottom: 12 }]}>
+            {selectedSkillTray.map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor:
+                      item.origin === 'saved'
+                        ? theme.colors.primary
+                        : theme.colors.primarySoft,
+                    borderColor: theme.colors.primary,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  },
+                ]}
+                onPress={() => handleRemoveTrayItem(item)}
+                disabled={saving}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    {
+                      color: item.origin === 'saved' ? theme.colors.heroText : theme.colors.primary,
+                      fontWeight: '700',
+                      marginRight: 6,
+                    },
+                  ]}
+                >
+                  {item.name}
+                </Text>
+                {item.isPendingReview && (
+                  <View style={styles.pendingPill}>
+                    <Text style={[styles.pendingPillText, { color: theme.colors.heroText }]}>
+                      {strings.onboarding.pendingReviewBadge}
+                    </Text>
+                  </View>
+                )}
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={item.origin === 'saved' ? theme.colors.heroText : theme.colors.primary}
+                  style={{ marginLeft: 4 }}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Button
+            title={saving ? strings.onboarding.savingSkillsText : strings.onboarding.saveSkillsBtn}
+            onPress={handleSaveSkills}
+            variant="soft"
+            size="sm"
+            icon="checkmark-circle-outline"
+            loading={saving}
+            disabled={saving}
+            fullWidth
+          />
+        </>
+      )}
+    </Card>
+  );
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { paddingTop: isWide ? 36 : topSpace + 8 }]}
+    >
       <View style={styles.header}>
         <View style={styles.topRow}>
-          <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>
-            Onboarding 2 of 3
-          </Text>
-          <TouchableOpacity onPress={handleSignOut} disabled={signingOut}>
-            <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '600' }}>
-              Log Out
+          <View style={styles.topLeftRow}>
+            <IconButton
+              icon="arrow-back"
+              variant="secondary"
+              size="sm"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(onboarding)/step1-mode'))}
+              accessibilityLabel="Back to Step 1"
+            />
+            <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>
+              Step 2 of 3
             </Text>
-          </TouchableOpacity>
+          </View>
+          <Button
+            title="Log Out"
+            variant="ghost"
+            size="xs"
+            icon="log-out-outline"
+            onPress={handleSignOut}
+            disabled={signingOut}
+          />
+        </View>
+        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressFill, { width: '66%', backgroundColor: theme.colors.primary }]} />
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {isHire ? strings.onboarding.hiringTitle : strings.onboarding.skillsTitle}
@@ -587,221 +698,163 @@ export default function OnboardingStep2SkillsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {catalogError ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{catalogError}</Text>
-            <TouchableOpacity onPress={() => setCatalogAttempt((attempt) => attempt + 1)} accessibilityRole="button">
-              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>{strings.common.retry}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        {saveError && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{saveError}</Text>
-          </View>
-        )}
+        <View style={styles.inner}>
+          {catalogError ? (
+            <AlertBox
+              tone="danger"
+              message={catalogError}
+              actionLabel={strings.common.retry}
+              onAction={() => setCatalogAttempt((attempt) => attempt + 1)}
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
+          {saveError && (
+            <AlertBox
+              tone="danger"
+              message={saveError}
+              style={{ marginBottom: 16 }}
+            />
+          )}
 
-        {isHire ? (
-          <ClientHiringDetailsCard
-            clientType={clientType}
-            setClientType={setClientType}
-            businessName={businessName}
-            setBusinessName={setBusinessName}
-            aboutHiring={aboutHiring}
-            setAboutHiring={setAboutHiring}
-            catalogCategories={catalogCategories}
-            catalogLoading={loading}
-            selectedCategoryIds={selectedCategoryIds}
-            toggleCatalogCategory={toggleCatalogCategory}
-            helpDescription={helpDescription}
-            setHelpDescription={setHelpDescription}
-            aiCategorySuggestions={aiCategorySuggestions}
-            onSuggestCategories={handleSuggestCategories}
-            aiLoading={aiLoading}
-            aiError={aiError}
-            selectedCustomCategories={selectedCustomCategories}
-            toggleCustomCategory={toggleCustomCategory}
-            customCategoryInput={customCategoryInput}
-            setCustomCategoryInput={setCustomCategoryInput}
-            onAddCustomCategory={handleAddCustomCategory}
-            totalSelectedInterests={totalSelectedInterests}
-            maxHiringInterests={MAX_HIRING_INTERESTS}
-          />
-        ) : (
-          <>
-            {/* Section 4 Rule 1 & 2: "Your skills (n)" Tray at the top of the screen */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-              ]}
-            >
-              <View style={styles.trayHeaderRow}>
-                <Text style={[styles.cardTitle, { color: theme.colors.text, marginBottom: 0 }]}>
-                  {strings.onboarding.yourSkillsTrayLabel} ({selectedSkillTray.length}/{MAX_PROFILE_SKILLS})
-                </Text>
-                {skillsSaved && (
-                  <View style={[styles.savedBadge, { backgroundColor: '#DCFCE7' }]}>
-                    <Text style={styles.savedBadgeText}>✓ {strings.onboarding.skillsSavedText}</Text>
-                  </View>
-                )}
-              </View>
-
-              {zeroSkillsWarning && (
-                <View style={styles.warningBanner}>
-                  <Text style={styles.warningText}>{strings.onboarding.zeroSkillsWarning}</Text>
-                </View>
-              )}
-
-              {selectedSkillTray.length === 0 ? (
-                <Text style={[styles.cardDesc, { color: theme.colors.muted, marginTop: 6, marginBottom: 0 }]}>
-                  {strings.onboarding.yourSkillsEmptyHint}
-                </Text>
-              ) : (
-                <>
-                  <View style={[styles.chipsWrap, { marginTop: 10, marginBottom: 12 }]}>
-                    {selectedSkillTray.map((item) => (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor:
-                              item.origin === 'saved'
-                                ? theme.colors.primary
-                                : theme.colors.primarySoft,
-                            borderColor: theme.colors.primary,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                          },
-                        ]}
-                        onPress={() => handleRemoveTrayItem(item)}
-                        disabled={saving}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            {
-                              color: item.origin === 'saved' ? '#ffffff' : theme.colors.primary,
-                              fontWeight: '600',
-                              marginRight: 6,
-                            },
-                          ]}
-                        >
-                          {item.name}
-                        </Text>
-                        {item.isPendingReview && (
-                          <View style={styles.pendingPill}>
-                            <Text style={styles.pendingPillText}>
-                              {strings.onboarding.pendingReviewBadge}
-                            </Text>
-                          </View>
-                        )}
-                        <Text
-                          style={{
-                            color: item.origin === 'saved' ? '#ffffff' : theme.colors.primary,
-                            fontWeight: '700',
-                            marginLeft: 2,
-                          }}
-                        >
-                          ×
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.saveTrayBtn,
-                      { backgroundColor: theme.colors.primary },
-                      saving && { opacity: 0.7 },
-                    ]}
-                    onPress={handleSaveSkills}
-                    disabled={saving}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.saveTrayBtnText}>
-                      {saving ? strings.onboarding.savingSkillsText : strings.onboarding.saveSkillsBtn}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-
-            <FreelancerSkillSections
-              workDescription={workDescription}
-              setWorkDescription={setWorkDescription}
-              aiSuggestions={aiSuggestions}
-              selectedAiSkills={selectedAiSkills}
-              toggleAiSkill={toggleAiSkill}
-              savedSkills={savedSkills}
+          {isHire ? (
+            <ClientHiringDetailsCard
+              clientType={clientType}
+              setClientType={setClientType}
+              businessName={businessName}
+              setBusinessName={setBusinessName}
+              aboutHiring={aboutHiring}
+              setAboutHiring={setAboutHiring}
+              catalogCategories={catalogCategories}
+              catalogLoading={loading}
+              selectedCategoryIds={selectedCategoryIds}
+              toggleCatalogCategory={toggleCatalogCategory}
+              helpDescription={helpDescription}
+              setHelpDescription={setHelpDescription}
+              aiCategorySuggestions={aiCategorySuggestions}
+              onSuggestCategories={handleSuggestCategories}
               aiLoading={aiLoading}
               aiError={aiError}
-              onSuggestSkills={handleSuggestSkills}
-              catalogSkills={catalogSkills}
-              catalogLoading={loading}
-              selectedCatalogIds={selectedCatalogIds}
-              toggleCatalogSkill={toggleCatalogSkill}
-              customInput={customInput}
-              setCustomInput={setCustomInput}
-              onAddCustomSkill={handleAddCustomSkill}
+              selectedCustomCategories={selectedCustomCategories}
+              toggleCustomCategory={toggleCustomCategory}
+              customCategoryInput={customCategoryInput}
+              setCustomCategoryInput={setCustomCategoryInput}
+              onAddCustomCategory={handleAddCustomCategory}
+              totalSelectedInterests={totalSelectedInterests}
+              maxHiringInterests={MAX_HIRING_INTERESTS}
             />
-          </>
-        )}
+          ) : isWide ? (
+            <View style={styles.wideTwoCol}>
+              <View style={styles.wideLeftCol}>
+                <FreelancerSkillSections
+                  workDescription={workDescription}
+                  setWorkDescription={setWorkDescription}
+                  aiSuggestions={aiSuggestions}
+                  selectedAiSkills={selectedAiSkills}
+                  toggleAiSkill={toggleAiSkill}
+                  savedSkills={savedSkills}
+                  aiLoading={aiLoading}
+                  aiError={aiError}
+                  onSuggestSkills={handleSuggestSkills}
+                  catalogSkills={catalogSkills}
+                  catalogLoading={loading}
+                  selectedCatalogIds={selectedCatalogIds}
+                  toggleCatalogSkill={toggleCatalogSkill}
+                  customInput={customInput}
+                  setCustomInput={setCustomInput}
+                  onAddCustomSkill={handleAddCustomSkill}
+                />
+              </View>
+              <View style={styles.wideRightCol}>
+                {trayCard}
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Active profile skills tray */}
+              {trayCard}
+
+              <FreelancerSkillSections
+                workDescription={workDescription}
+                setWorkDescription={setWorkDescription}
+                aiSuggestions={aiSuggestions}
+                selectedAiSkills={selectedAiSkills}
+                toggleAiSkill={toggleAiSkill}
+                savedSkills={savedSkills}
+                aiLoading={aiLoading}
+                aiError={aiError}
+                onSuggestSkills={handleSuggestSkills}
+                catalogSkills={catalogSkills}
+                catalogLoading={loading}
+                selectedCatalogIds={selectedCatalogIds}
+                toggleCatalogSkill={toggleCatalogSkill}
+                customInput={customInput}
+                setCustomInput={setCustomInput}
+                onAddCustomSkill={handleAddCustomSkill}
+              />
+            </>
+          )}
+        </View>
       </ScrollView>
 
       {/* Footer Navigation */}
-      <View
-        style={[
-          styles.footer,
-          { backgroundColor: theme.colors.background, borderTopColor: theme.colors.border },
-        ]}
-      >
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: theme.colors.primary },
-            saving && { opacity: 0.7 },
-          ]}
+      <StickyFooterBox maxWidth={520}>
+        <Button
+          title="Continue"
           onPress={handleContinue}
+          loading={saving}
           disabled={saving}
-          activeOpacity={0.8}
-        >
-          {saving ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.skipButton} onPress={handleSkip} disabled={saving}>
-          <Text style={{ color: theme.colors.muted, textAlign: 'center' }}>
-            {strings.onboarding.skipForNow}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          rightIcon="arrow-forward"
+          fullWidth
+        />
+        <Button
+          title={strings.onboarding.skipForNow}
+          onPress={handleSkip}
+          variant="ghost"
+          size="sm"
+          disabled={saving}
+          fullWidth
+          style={{ marginTop: 4 }}
+        />
+      </StickyFooterBox>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
   header: {
     paddingHorizontal: 20,
     marginBottom: 12,
+    width: '100%',
+    maxWidth: 1000,
+    alignSelf: 'center',
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
+  },
+  topLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 18,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
   },
   stepIndicator: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   title: {
     fontSize: 26,
@@ -816,16 +869,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
+  inner: {
+    width: '100%',
+    maxWidth: 1000,
+    alignSelf: 'center',
   },
-  trayHeaderRow: {
+  wideTwoCol: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 20,
+  },
+  wideLeftCol: {
+    flex: 1.35,
+  },
+  wideRightCol: {
+    flex: 0.85,
+  },
+  card: {
+    marginBottom: 16,
   },
   savedBadge: {
     paddingHorizontal: 10,
@@ -833,22 +894,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   savedBadgeText: {
-    color: '#15803D',
     fontSize: 12,
     fontWeight: '700',
-  },
-  warningBanner: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-  },
-  warningText: {
-    color: '#B45309',
-    fontSize: 13,
-    fontWeight: '600',
   },
   pendingPill: {
     backgroundColor: 'rgba(255,255,255,0.22)',
@@ -858,25 +905,8 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   pendingPillText: {
-    color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',
-  },
-  saveTrayBtn: {
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveTrayBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
   },
   cardDesc: {
     fontSize: 13,
@@ -890,39 +920,11 @@ const styles = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
   },
   chipText: {
     fontSize: 13,
-  },
-  errorBanner: {
-    backgroundColor: '#FDE8EA',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#D92D3E',
-    fontSize: 14,
-  },
-  footer: {
-    padding: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  button: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skipButton: {
-    marginTop: 12,
-    padding: 8,
   },
 });

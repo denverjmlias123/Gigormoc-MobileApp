@@ -3,6 +3,7 @@ node_modules/
 dist/
 web-build/
 .env
+.env.*
 .env.local
 .env*.local
 *.log
@@ -11,7 +12,7 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
-node_modules
+graphify-out/
 supabase/.temp/
 
 # Supabase CLI local state

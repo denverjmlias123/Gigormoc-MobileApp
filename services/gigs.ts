@@ -3,6 +3,7 @@ import { runOnce } from '../lib/singleFlight';
 import { GigSummary } from '../components/ui/GigCard';
 import { Category } from './profile';
 import { aiService } from './ai';
+import { offlineSyncService } from './offlineSync';
 
 export interface GigDetail extends GigSummary {
   description: string;
@@ -52,7 +53,7 @@ export interface SimilarCategory {
   similarity_score: number;
 }
 
-export interface GetGigsFilter {
+interface GetGigsFilter {
   categoryId?: string;
   workType?: 'remote' | 'face_to_face' | 'hybrid';
   searchQuery?: string;
@@ -207,37 +208,52 @@ export const gigsService = {
   },
 
   async getMyGigs(clientId: string): Promise<GigSummary[]> {
-    const { data, error } = await supabase
-      .from('gigs')
-      .select(`
-        id,
-        title,
-        price_min,
-        price_max,
-        work_type,
-        area,
-        application_deadline,
-        deadline,
-        status,
-        category:categories(name)
-      `)
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false });
+    const fetchRemote = async () => {
+      const { data, error } = await supabase
+        .from('gigs')
+        .select(`
+          id,
+          title,
+          price_min,
+          price_max,
+          work_type,
+          area,
+          application_deadline,
+          deadline,
+          status,
+          category:categories(name)
+        `)
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      category_name: row.category?.name,
-      price_min: row.price_min,
-      price_max: row.price_max,
-      work_type: row.work_type,
-      area: row.area,
-      application_deadline: row.application_deadline,
-      deadline: row.deadline,
-      status: row.status,
-    }));
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        category_name: row.category?.name,
+        price_min: row.price_min,
+        price_max: row.price_max,
+        work_type: row.work_type,
+        area: row.area,
+        application_deadline: row.application_deadline,
+        deadline: row.deadline,
+        status: row.status,
+      }));
+    };
+
+    const getCached = async () => {
+      return offlineSyncService.getCachedMyGigs();
+    };
+
+    const { data } = await offlineSyncService.withOfflineFallback(
+      fetchRemote,
+      getCached,
+      async (res) => {
+        await offlineSyncService.cacheMyGigs(res);
+      }
+    );
+    return data;
   },
 
   async createDraftGig(params: CreateGigParams & { requestId?: string }): Promise<{ id: string }> {
@@ -246,6 +262,17 @@ export const gigsService = {
       async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated.');
+
+        const isUuid = (val?: string | null) =>
+          Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim()));
+
+        // Guard against non-UUID category_id (e.g. offline temporary id 'cat-1')
+        if (params.category_id && !isUuid(params.category_id)) {
+          if (!params.category_name) {
+            params.category_name = params.category_id;
+          }
+          params.category_id = null;
+        }
 
         const { data, error } = await supabase.rpc('create_draft_gig', {
           p_title: params.title,
@@ -272,9 +299,13 @@ export const gigsService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated.');
 
-    let categoryId = params.category_id || null;
-    if (!categoryId && params.category_name) {
-      categoryId = await this.getOrCreateCategory(params.category_name);
+    const isUuid = (val?: string | null) =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim()));
+
+    let categoryId = isUuid(params.category_id) ? params.category_id : null;
+    const catName = params.category_name || (!categoryId && params.category_id ? params.category_id : null);
+    if (!categoryId && catName) {
+      categoryId = await this.getOrCreateCategory(catName);
     }
 
     const { error } = await supabase
@@ -339,14 +370,23 @@ export const gigsService = {
     try {
       const aiRes = await aiService.suggestGigCategory({ title, description });
       if (aiRes.suggestions && aiRes.suggestions.length > 0) {
+        const browseCats = await this.getBrowseCategories().catch(() => []);
         return {
-          suggestions: aiRes.suggestions.map((s) => ({
-            id: s.category_id,
-            name: s.name,
-            slug: s.slug,
-            match_reason: s.reason,
-            source: 'ai' as const,
-          })),
+          suggestions: aiRes.suggestions.map((s) => {
+            const matchedDb = browseCats.find(
+              (c) =>
+                c.id === s.category_id ||
+                c.name.trim().toLowerCase() === s.name.trim().toLowerCase() ||
+                c.slug === s.slug
+            );
+            return {
+              id: matchedDb ? matchedDb.id : s.category_id,
+              name: matchedDb ? matchedDb.name : s.name,
+              slug: matchedDb ? matchedDb.slug : s.slug,
+              match_reason: s.reason,
+              source: 'ai' as const,
+            };
+          }),
           proposed_new_category: aiRes.proposed_new_category || null,
           usedFallback: false,
         };

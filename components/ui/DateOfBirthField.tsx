@@ -39,13 +39,14 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
       style: {
         boxSizing: 'border-box',
         width: '100%',
-        minHeight: 50,
-        padding: '12px 14px',
+        minHeight: 54,
+        padding: '12px 16px',
         fontSize: 16,
         color: theme.colors.text,
-        backgroundColor: theme.colors.surface,
-        border: `1px solid ${error ? theme.colors.danger : theme.colors.border}`,
+        backgroundColor: theme.colors.surfaceAlt,
+        border: `${error ? '2px' : '1px'} solid ${error ? theme.colors.danger : theme.colors.border}`,
         borderRadius: theme.radii.input,
+        outline: 'none',
       },
     });
 
@@ -63,13 +64,21 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
     setVisible(true);
   };
 
-  const handleNativeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+  const handleValueChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setVisible(false);
+      return;
+    }
     if (Platform.OS === 'ios') {
       if (selectedDate) setDraftDate(selectedDate);
       return;
     }
     setVisible(false);
-    if (event.type === 'set' && selectedDate) onChange(formatLocalIsoDate(selectedDate));
+    if (selectedDate) onChange(formatLocalIsoDate(selectedDate));
+  };
+
+  const handleDismiss = () => {
+    setVisible(false);
   };
 
   return (
@@ -83,10 +92,11 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
         style={({ pressed }) => [
           styles.valueButton,
           {
-            backgroundColor: theme.colors.surface,
+            backgroundColor: theme.colors.surfaceAlt,
             borderColor: error ? theme.colors.danger : theme.colors.border,
+            borderWidth: error ? 2 : 1,
             borderRadius: theme.radii.input,
-            opacity: pressed ? 0.8 : 1,
+            opacity: pressed ? 0.85 : 1,
           },
         ]}
       >
@@ -101,7 +111,7 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
           display="default"
           minimumDate={minimumDate}
           maximumDate={maximumDate}
-          onChange={handleNativeChange}
+          onChange={handleValueChange}
         />
       ) : null}
 
@@ -116,12 +126,13 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
                 display="spinner"
                 minimumDate={minimumDate}
                 maximumDate={maximumDate}
-                onChange={handleNativeChange}
+                onChange={handleValueChange}
               />
               <View style={styles.actions}>
-                <Button title={strings.common.cancel} variant="secondary" onPress={() => setVisible(false)} />
+                <Button title={strings.common.cancel} variant="secondary" style={{ flex: 1 }} onPress={() => setVisible(false)} />
                 <Button
                   title={strings.common.save}
+                  style={{ flex: 1 }}
                   onPress={() => {
                     onChange(formatLocalIsoDate(draftDate));
                     setVisible(false);
@@ -138,10 +149,10 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  valueButton: { minHeight: 50, justifyContent: 'center', paddingHorizontal: 14, borderWidth: 1 },
-  error: { fontSize: 12, marginTop: 4, fontWeight: '600' },
+  label: { fontSize: 13.5, fontWeight: '700', marginBottom: 7, letterSpacing: 0.1 },
+  valueButton: { minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, borderWidth: 1 },
+  error: { fontSize: 12, marginTop: 5, fontWeight: '600' },
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  modalCard: { padding: 20, paddingBottom: 32, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 12 },
 });

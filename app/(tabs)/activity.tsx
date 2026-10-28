@@ -4,12 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
+  Pressable,
   RefreshControl,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import {
   applicationsService,
@@ -24,6 +23,9 @@ import { chatService } from '../../services/chat';
 import { notificationsService } from '../../services/notifications';
 import { GigSummary, formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Chip, SegmentedControl } from '../../components/ui/Chip';
 import { ScreenBackground } from '../../components/ui/ScreenBackground';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
@@ -38,17 +40,23 @@ import {
   computeAgreementLoopState,
   computePreAgreementLoopState,
 } from '../../components/ui/Timeline';
+import { ClientApplicantReport } from '../../components/reports/ClientApplicantReport';
+import { FreelancerApplicationReport } from '../../components/reports/FreelancerApplicationReport';
+
+type ActivityFilter = 'all' | 'action_needed' | 'active' | 'past';
+type ActivityTab = 'primary' | 'agreements' | 'reports';
 
 export default function ActivityScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, isDesktop, topSpace } = useResponsiveLayout();
   const { user, profile } = useAuth();
 
   const isFindWork = profile?.active_mode === 'find_work';
   const isHire = profile?.active_mode === 'hire';
-  const viewerRole: 'client' | 'freelancer' = isHire ? 'client' : 'freelancer';
 
-  const [activeTab, setActiveTab] = useState<'primary' | 'agreements'>('primary');
+  const [activeTab, setActiveTab] = useState<ActivityTab>('primary');
+  const [statusFilter, setStatusFilter] = useState<ActivityFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -152,7 +160,7 @@ export default function ActivityScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    void loadData();
   };
 
   const handleOpenApplicationChat = useCallback(async (applicationId: string, partnerName: string) => {
@@ -203,7 +211,15 @@ export default function ActivityScreen() {
   }, [loadData, router]);
 
   const renderFreelancerPrimaryTab = () => {
-    if (myApplications.length === 0) {
+    const filteredApps = myApplications.filter((app) => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'action_needed') return app.status === 'countered';
+      if (statusFilter === 'active') return app.status === 'applied' || app.status === 'accepted';
+      if (statusFilter === 'past') return ['declined', 'withdrawn'].includes(app.status) || app.status_reason === 'gig_deleted';
+      return true;
+    });
+
+    if (filteredApps.length === 0) {
       return (
         <EmptyState
           title="No applications yet"
@@ -215,8 +231,8 @@ export default function ActivityScreen() {
     }
 
     return (
-      <View style={styles.list}>
-        {myApplications.map((app) => {
+      <View style={[styles.list, isDesktop && styles.gridList]}>
+        {filteredApps.map((app) => {
           const deleted = app.status_reason === 'gig_deleted';
           const preLoop = computePreAgreementLoopState({
             viewerRole: 'freelancer',
@@ -227,21 +243,18 @@ export default function ActivityScreen() {
           const isBusy = counterBusyId === app.id;
 
           return (
-            <View
+            <Card
               key={app.id}
-              style={[
-                styles.card,
-                theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
-              ]}
+              tone="neo-glass"
+              padding="md"
+              style={[styles.card, isDesktop && styles.gridCardItem]}
             >
-              <TouchableOpacity
+              <Pressable
                 onPress={() => {
                   if (app.gig_id && !deleted) {
                     router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } });
                   }
                 }}
-                activeOpacity={deleted ? 1 : 0.7}
               >
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -258,11 +271,13 @@ export default function ActivityScreen() {
                     {formatPrice(app.proposed_price)}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </Pressable>
 
               {/* Compact Shared Timeline & Next Step Banner */}
               {deleted ? (
-                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted, marginVertical: 10 }]}>{strings.gigs.deletedGigProposalDesc}</Text>
+                <Text style={[styles.cardMetaLabel, { color: theme.colors.muted, marginVertical: 10 }]}>
+                  {strings.gigs.deletedGigProposalDesc}
+                </Text>
               ) : (
                 <>
                   <Timeline
@@ -282,58 +297,56 @@ export default function ActivityScreen() {
               {/* Counteroffer response actions if status === 'countered' */}
               {!deleted && app.status === 'countered' && app.counter_price && (
                 <View style={styles.counterActionRow}>
-                  <TouchableOpacity
-                    style={[styles.counterAcceptBtn, { backgroundColor: theme.colors.primary }]}
+                  <Button
+                    title={isBusy ? 'Saving...' : `Accept ${formatPrice(app.counter_price)}`}
+                    variant="primary"
+                    size="sm"
+                    fullWidth={false}
+                    loading={isBusy}
+                    disabled={isBusy}
                     onPress={() => handleRespondToCounter(app, 'accept')}
+                    style={{ flexGrow: 1 }}
+                  />
+                  <Button
+                    title="Decline"
+                    variant="danger-soft"
+                    size="sm"
+                    fullWidth={false}
                     disabled={isBusy}
-                  >
-                    <Text style={styles.counterBtnTextWhite}>
-                      {isBusy ? 'Saving...' : `Accept ${formatPrice(app.counter_price)}`}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.danger }]}
                     onPress={() => handleRespondToCounter(app, 'decline')}
+                  />
+                  <Button
+                    title="Withdraw"
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
                     disabled={isBusy}
-                  >
-                    <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>
-                      Decline
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.border }]}
                     onPress={() => handleRespondToCounter(app, 'withdraw')}
-                    disabled={isBusy}
-                  >
-                    <Text style={{ color: theme.colors.muted, fontWeight: '600', fontSize: 13 }}>
-                      Withdraw
-                    </Text>
-                  </TouchableOpacity>
+                  />
                 </View>
               )}
 
               {/* Withdraw action if proposal is pending (status === 'applied') */}
               {!deleted && app.status === 'applied' && (
                 <View style={[styles.counterActionRow, { justifyContent: 'flex-end' }]}>
-                  <TouchableOpacity
-                    style={[styles.counterDeclineBtn, { borderColor: theme.colors.border }]}
-                    onPress={() => handleRespondToCounter(app, 'withdraw')}
+                  <Button
+                    title={isBusy ? 'Processing...' : 'Withdraw Proposal'}
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
                     disabled={isBusy}
-                  >
-                    <Text style={{ color: theme.colors.muted, fontWeight: '600', fontSize: 13 }}>
-                      {isBusy ? 'Processing...' : 'Withdraw Proposal'}
-                    </Text>
-                  </TouchableOpacity>
+                    onPress={() => handleRespondToCounter(app, 'withdraw')}
+                  />
                 </View>
               )}
 
-              <View style={styles.cardFooter}>
+              <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.cardFooterText, { color: theme.colors.muted }]}>
                   Est. {app.estimated_days} day{app.estimated_days > 1 ? 's' : ''} • Applied{' '}
                   {new Date(app.created_at).toLocaleDateString()}
                 </Text>
               </View>
-            </View>
+            </Card>
           );
         })}
       </View>
@@ -341,7 +354,11 @@ export default function ActivityScreen() {
   };
 
   const renderClientPrimaryTab = () => {
-    const openGigs = myGigs.filter((gig) => gig.status === 'open');
+    const openGigs = myGigs.filter((gig) => gig.status === 'open').filter((gig) => {
+      const pendingApplicants = gigApplicantCounts[gig.id] || 0;
+      if (statusFilter === 'action_needed') return pendingApplicants > 0;
+      return true;
+    });
     if (openGigs.length === 0) {
       return (
         <EmptyState
@@ -354,7 +371,7 @@ export default function ActivityScreen() {
     }
 
     return (
-      <View style={styles.list}>
+      <View style={[styles.list, isDesktop && styles.gridList]}>
         {openGigs.map((gig) => {
           const pendingApplicants = gigApplicantCounts[gig.id] || 0;
           const preLoop = computePreAgreementLoopState({
@@ -364,17 +381,14 @@ export default function ActivityScreen() {
           });
 
           return (
-            <TouchableOpacity
+            <Card
               key={gig.id}
-              style={[
-                styles.card,
-                theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
-              ]}
+              tone="neo-glass"
+              padding="md"
+              style={[styles.card, isDesktop && styles.gridCardItem]}
               onPress={() => {
                 router.push({ pathname: '/gigs/[id]/applicants', params: { id: gig.id } });
               }}
-              activeOpacity={0.7}
             >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -411,12 +425,12 @@ export default function ActivityScreen() {
                 }
               />
 
-              <View style={styles.cardFooter}>
+              <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.cardFooterLink, { color: theme.colors.primary }]}>
                   👥 View Applicants {pendingApplicants > 0 ? `(${pendingApplicants})` : ''} ›
                 </Text>
               </View>
-            </TouchableOpacity>
+            </Card>
           );
         })}
       </View>
@@ -424,7 +438,14 @@ export default function ActivityScreen() {
   };
 
   const renderAgreementsTab = () => {
-    if (myAgreements.length === 0) {
+    const filteredAgreements = myAgreements.filter((agr) => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'active' || statusFilter === 'action_needed') return agr.status === 'active';
+      if (statusFilter === 'past') return ['completed', 'cancelled', 'disputed'].includes(agr.status);
+      return true;
+    });
+
+    if (filteredAgreements.length === 0) {
       return (
         <EmptyState
           title="No active agreements"
@@ -434,8 +455,8 @@ export default function ActivityScreen() {
     }
 
     return (
-      <View style={styles.list}>
-        {myAgreements.map((agr) => {
+      <View style={[styles.list, isDesktop && styles.gridList]}>
+        {filteredAgreements.map((agr) => {
           const isAgrClient = user?.id === agr.client_id;
           const counterParty = isAgrClient ? agr.freelancer : agr.client;
           const roleLabel = isAgrClient ? 'Freelancer' : 'Client';
@@ -454,17 +475,14 @@ export default function ActivityScreen() {
             });
 
           return (
-            <TouchableOpacity
+            <Card
               key={agr.id}
-              style={[
-                styles.card,
-                theme.shadow.neoGlass,
-                { backgroundColor: theme.glass.surface, borderColor: theme.glass.border },
-              ]}
+              tone="neo-glass"
+              padding="md"
+              style={[styles.card, isDesktop && styles.gridCardItem]}
               onPress={() => {
                 router.push({ pathname: '/agreements/[id]', params: { id: agr.id } });
               }}
-              activeOpacity={0.7}
             >
               <View style={styles.cardHeader}>
                 <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -510,7 +528,7 @@ export default function ActivityScreen() {
                 }
               />
 
-              <View style={styles.cardFooter}>
+              <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                 <Text style={[styles.cardFooterText, { color: theme.colors.muted }]}>
                   Deadline: {new Date(agr.deadline).toLocaleDateString()}
                 </Text>
@@ -518,7 +536,7 @@ export default function ActivityScreen() {
                   View Agreement ›
                 </Text>
               </View>
-            </TouchableOpacity>
+            </Card>
           );
         })}
       </View>
@@ -527,58 +545,80 @@ export default function ActivityScreen() {
 
   return (
     <ScreenBackground style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
-        <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
-          {isFindWork
-            ? 'Track your proposals & active work'
-            : 'Manage your posted gigs & agreements'}
-        </Text>
-      </View>
+      <View
+        style={[
+          styles.topArea,
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+            paddingTop: isWide ? 24 : topSpace,
+          },
+        ]}
+      >
+        <View style={styles.topAreaInner}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Activity</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.muted }]}>
+              {isFindWork
+                ? 'Track your proposals & active work'
+                : 'Manage your posted gigs & agreements'}
+            </Text>
+          </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'primary' && [
-              styles.tabItemActive,
-              { borderBottomColor: theme.colors.primary },
-            ],
-          ]}
-          onPress={() => setActiveTab('primary')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: activeTab === 'primary' ? theme.colors.primary : theme.colors.muted },
-            ]}
-          >
-            {isFindWork ? 'Proposals' : 'Applicants'}
-          </Text>
-        </TouchableOpacity>
+          {/* Segmented Control Tabs */}
+          <View style={[styles.tabBar, isWide && { maxWidth: 520 }]}>
+            <SegmentedControl<ActivityTab>
+              options={[
+                { value: 'primary', label: isFindWork ? 'Proposals' : 'Applicants' },
+                {
+                  value: 'agreements',
+                  label: isFindWork ? 'Jobs' : 'Hired',
+                  count: myAgreements.length > 0 ? myAgreements.length : undefined,
+                },
+                { value: 'reports', label: 'Reports', icon: 'bar-chart-outline' },
+              ]}
+              value={activeTab}
+              onChange={(nextTab) => {
+                if (nextTab === 'reports') {
+                  setActiveTab('reports');
+                } else {
+                  setActiveTab(nextTab);
+                }
+              }}
+            />
+          </View>
 
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'agreements' && [
-              styles.tabItemActive,
-              { borderBottomColor: theme.colors.primary },
-            ],
-          ]}
-          onPress={() => setActiveTab('agreements')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: activeTab === 'agreements' ? theme.colors.primary : theme.colors.muted },
-            ]}
-          >
-            {isFindWork ? 'Jobs' : 'Hired'}{' '}
-            {myAgreements.length > 0 ? `(${myAgreements.length})` : ''}
-          </Text>
-        </TouchableOpacity>
+          {/* Status Filter Chips (hidden when viewing reports) */}
+          {activeTab !== 'reports' && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChipsRow}
+            >
+              <Chip
+                label="All"
+                selected={statusFilter === 'all'}
+                onPress={() => setStatusFilter('all')}
+              />
+              <Chip
+                label="Action Needed"
+                selected={statusFilter === 'action_needed'}
+                onPress={() => setStatusFilter('action_needed')}
+              />
+              <Chip
+                label="Active"
+                selected={statusFilter === 'active'}
+                onPress={() => setStatusFilter('active')}
+              />
+              <Chip
+                label="Past"
+                selected={statusFilter === 'past'}
+                onPress={() => setStatusFilter('past')}
+              />
+            </ScrollView>
+          )}
+        </View>
       </View>
 
       {/* Content */}
@@ -589,17 +629,25 @@ export default function ActivityScreen() {
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {loadError ? (
-            <ErrorState message={loadError} onRetry={loadData} />
-          ) : activeTab === 'primary' ? (
-            isFindWork ? (
-              renderFreelancerPrimaryTab()
+          <View style={styles.scrollInner}>
+            {loadError ? (
+              <ErrorState message={loadError} onRetry={loadData} />
+            ) : activeTab === 'reports' ? (
+              isFindWork ? (
+                <FreelancerApplicationReport />
+              ) : (
+                <ClientApplicantReport clientId={user?.id || ''} />
+              )
+            ) : activeTab === 'primary' ? (
+              isFindWork ? (
+                renderFreelancerPrimaryTab()
+              ) : (
+                renderClientPrimaryTab()
+              )
             ) : (
-              renderClientPrimaryTab()
-            )
-          ) : (
-            renderAgreementsTab()
-          )}
+              renderAgreementsTab()
+            )}
+          </View>
         </ScrollView>
       )}
     </ScreenBackground>
@@ -609,56 +657,61 @@ export default function ActivityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
+  },
+  topArea: {
+    borderBottomWidth: 1,
+  },
+  topAreaInner: {
+    maxWidth: 1120,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingBottom: 10,
   },
   headerTitle: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
     fontSize: 14,
     marginTop: 4,
   },
   tabBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
   },
-  tabItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabItemActive: {},
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+  filterChipsRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
     flexGrow: 1,
   },
+  scrollInner: {
+    maxWidth: 1120,
+    width: '100%',
+    alignSelf: 'center',
+  },
   list: {
     gap: 12,
   },
+  gridList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
   card: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
     gap: 8,
+  },
+  gridCardItem: {
+    flexBasis: '48.8%',
+    flexGrow: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -668,7 +721,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     flex: 1,
   },
   cardRow: {
@@ -689,26 +742,9 @@ const styles = StyleSheet.create({
   },
   counterActionRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
-  },
-  counterAcceptBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  counterDeclineBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  counterBtnTextWhite: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 13,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -717,13 +753,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#DCE4F2',
   },
   cardFooterText: {
     fontSize: 12,
   },
   cardFooterLink: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

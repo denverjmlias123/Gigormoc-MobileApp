@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
+import { Platform, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 
 /**
  * Gigormoc design tokens.
  *
- * One blue family, two personalities:
- *  - freelancer ("find_work"): bright cobalt, energetic, built for discovering gigs
- *  - client ("hire"):          deep navy, steadier, built for managing hires
+ * Distinct dual-role personalities:
+ *  - freelancer ("find_work"): Electric Cobalt + Emerald Mint accents, energetic, built for discovering gigs
+ *  - client ("hire"):          Executive Deep Ormoc Navy + Warm Amber/Gold accents, steady, built for managing hires
  * Screens read colors from useAppTheme(); the palette switches with profile.active_mode.
  */
 
@@ -16,6 +18,8 @@ type Palette = {
   primarySoft: string;
   primaryText: string; // text/icon color placed on top of `primary`
   accent: string;
+  roleAccent: string;
+  roleAccentSoft: string;
   heroBg: string; // large header surfaces
   heroText: string;
   heroMuted: string;
@@ -23,26 +27,30 @@ type Palette = {
 };
 
 const freelancerPalette: Palette = {
-  primary: '#2F55F4',
-  primaryDark: '#1B34B8',
-  primarySoft: '#E8EDFF',
+  primary: '#2563EB',
+  primaryDark: '#1D4ED8',
+  primarySoft: '#DBEAFE',
   primaryText: '#FFFFFF',
-  accent: '#22C7FF',
-  heroBg: '#2F55F4',
+  accent: '#10B981',
+  roleAccent: '#059669',
+  roleAccentSoft: '#D1FAE5',
+  heroBg: '#1D4ED8',
   heroText: '#FFFFFF',
-  heroMuted: '#D3DCFF',
+  heroMuted: '#DBEAFE',
   heroChip: 'rgba(255,255,255,0.18)',
 };
 
 const clientPalette: Palette = {
-  primary: '#2A47C9',
+  primary: '#1E3A8A',
   primaryDark: '#0B1445',
-  primarySoft: '#E9EDFB',
+  primarySoft: '#E0E7FF',
   primaryText: '#FFFFFF',
-  accent: '#6C8CFF',
+  accent: '#F59E0B',
+  roleAccent: '#D97706',
+  roleAccentSoft: '#FEF3C7',
   heroBg: '#0B1445',
   heroText: '#FFFFFF',
-  heroMuted: '#B4C0EC',
+  heroMuted: '#C7D2FE',
   heroChip: 'rgba(255,255,255,0.14)',
 };
 
@@ -50,11 +58,15 @@ const base = {
   bg: '#EAF0FA',
   background: '#EAF0FA',
   surface: '#FFFFFF',
-  surfaceAlt: '#EEF1FB',
+  surfaceAlt: '#EEF2FA',
+  insetBg: '#F4F7FC',
+  insetBorder: '#E2E9F5',
+  cardHeaderBg: '#F9FBFF',
+  focusRing: 'rgba(37, 99, 235, 0.32)',
   text: '#0C1233',
   muted: '#5C6788',
-  border: '#E2E7F5',
-  borderStrong: '#C3CCE6',
+  border: '#DCE4F2',
+  borderStrong: '#B9C6E0',
   // Brand extras used by the first screen and highlights
   ink: '#070B26', // deepest navy, used for immersive surfaces
   spark: '#FFB524', // warm highlight (ratings, "new" dots)
@@ -65,6 +77,8 @@ const base = {
   successText: '#0D5E43',
   warning: '#B45309',
   warningSoft: '#FEF1D6',
+  warningText: '#92400E',
+  primaryContrast: '#FFFFFF',
   danger: '#D92D3E',
   dangerSoft: '#FDE8EA',
   dangerText: '#A31F2D',
@@ -78,26 +92,33 @@ const buildTheme = (mode: AppMode) => ({
   isClient: mode === 'client',
   isFreelancer: mode === 'freelancer',
   modeLabel: mode === 'client' ? 'Hiring' : 'Freelancing',
-  colors: { ...base, ...(mode === 'client' ? clientPalette : freelancerPalette) },
+  colors: {
+    ...base,
+    bg: mode === 'client' ? '#EDF2F9' : '#EAF1FB',
+    background: mode === 'client' ? '#EDF2F9' : '#EAF1FB',
+    ...(mode === 'client' ? clientPalette : freelancerPalette),
+  },
   spacing: { xs: 4, s: 8, sm: 12, m: 16, l: 24, xl: 32, xxl: 48 },
   // Radii step up with importance: inputs < chips < buttons < cards < sheets.
   radii: { chip: 10, input: 14, button: 16, card: 22, sheet: 32, pill: 9999 },
   // Responsive helpers: content never stretches past `maxWidth` on web/tablet.
-  layout: { maxWidth: 960, wideBreakpoint: 900 },
+  layout: { maxWidth: 1120, formMaxWidth: 640, wideBreakpoint: 900, desktopBreakpoint: 1024 },
   gradients: {
-    brand: 'linear-gradient(135deg, #2F55F4 0%, #6C4DFF 100%)',
+    brand: 'linear-gradient(135deg, #2563EB 0%, #6C4DFF 100%)',
     ink: 'linear-gradient(160deg, #0B1445 0%, #070B26 100%)',
     sunrise: 'linear-gradient(135deg, #FFB524 0%, #FF6B8A 100%)',
-    primary: (mode === 'client' ? ['#2A47C9', '#172554'] : ['#2F55F4', '#4F46E5']) as [string, string],
-    hero: (mode === 'client' ? ['#0B1445', '#172554'] : ['#2F55F4', '#3730A3']) as [string, string],
+    primary: (mode === 'client' ? ['#1E3A8A', '#0B1445'] : ['#2563EB', '#4F46E5']) as [string, string],
+    accent: (mode === 'client' ? ['#D97706', '#F59E0B'] : ['#059669', '#10B981']) as [string, string],
+    hero: (mode === 'client' ? ['#0B1445', '#1E3A8A'] : ['#1D4ED8', '#3730A3']) as [string, string],
     surface: ['#FFFFFF', '#F8FAFE'] as [string, string],
     emerald: ['#059669', '#10B981'] as [string, string],
+    danger: ['#DC2626', '#B91C1C'] as [string, string],
   },
   glass: {
     surface: '#FFFFFF',
-    surfaceSubtle: 'rgba(255, 255, 255, 0.90)',
-    border: '#E2E7F5',
-    borderSubtle: 'rgba(226, 231, 245, 0.6)',
+    surfaceSubtle: 'rgba(255, 255, 255, 0.92)',
+    border: '#DCE4F2',
+    borderSubtle: 'rgba(220, 228, 242, 0.65)',
     highlight: '#FFFFFF',
     darkSurface: 'rgba(11, 20, 69, 0.85)',
     darkBorder: 'rgba(255, 255, 255, 0.15)',
@@ -137,12 +158,23 @@ const buildTheme = (mode: AppMode) => ({
       boxShadow: '0 4px 8px rgba(12, 18, 51, 0.06), 0 20px 40px rgba(12, 18, 51, 0.14)',
     } as any,
     glow: {
-      shadowColor: mode === 'client' ? '#2A47C9' : '#2F55F4',
+      shadowColor: mode === 'client' ? '#1E3A8A' : '#2563EB',
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.35,
       shadowRadius: 24,
       elevation: 5,
-      boxShadow: '0 10px 30px rgba(47, 85, 244, 0.45)',
+      boxShadow:
+        mode === 'client'
+          ? '0 10px 28px rgba(30, 58, 138, 0.38)'
+          : '0 10px 28px rgba(37, 99, 235, 0.42)',
+    } as any,
+    stickyDock: {
+      shadowColor: '#0C1233',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 16,
+      elevation: 8,
+      boxShadow: '0 -4px 20px rgba(12, 18, 51, 0.06)',
     } as any,
   },
 });
@@ -159,6 +191,37 @@ export const theme = lightFreelancerTheme;
 export const ThemeContext = createContext<Theme>(theme);
 
 export const useAppTheme = () => useContext(ThemeContext);
+
+export const useResponsiveLayout = () => {
+  const { width, height } = useWindowDimensions();
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Fallback when rendered outside SafeAreaProvider
+  }
+  const isWeb = Platform.OS === 'web';
+  const isPhone = width < 640;
+  const isTablet = width >= 640 && width < 1024;
+  const isDesktop = width >= 1024;
+  const isWide = width >= 900;
+
+  return {
+    width,
+    height,
+    isWeb,
+    isPhone,
+    isTablet,
+    isDesktop,
+    isWide,
+    insets,
+    topSpace: isWeb ? 24 : Math.max(insets.top + 10, 48),
+    bottomSpace: isWeb ? 24 : Math.max(insets.bottom + 12, 20),
+    topPad: isWeb ? 24 : Math.max(insets.top + 10, 48),
+    bottomPad: isWeb ? 24 : Math.max(insets.bottom + 12, 20),
+    pagePadding: isPhone ? 16 : 24,
+  };
+};
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { profile } = useAuth();

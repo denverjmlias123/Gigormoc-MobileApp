@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
 import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 import { showToast } from '../../components/ui/Toast';
 import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { OtpInput } from '../../components/ui/OtpInput';
 import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
@@ -15,6 +16,7 @@ import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyCheck
 export default function ChangePasswordScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { bottomPad } = useResponsiveLayout();
   const { user, profile, refreshProfile } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
@@ -90,51 +92,105 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {!profile?.must_change_password && (
-        <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} style={styles.backButton}>
-            <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
-          </TouchableOpacity>
-          <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>{strings.auth.changePassword}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      )}
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={[theme.type.title, { color: theme.colors.text }]}>{strings.auth.changePassword}</Text>
-        <Text style={[theme.type.body, styles.subtitle, { color: theme.colors.muted }]}>{strings.auth.passwordCurrentRequired}</Text>
-        {error ? <Text accessibilityRole="alert" style={[theme.type.body, styles.error, { color: theme.colors.dangerText }]}>{error}</Text> : null}
-        {notice ? <Text accessibilityLiveRegion="polite" style={[theme.type.body, styles.notice, { color: theme.colors.successText }]}>{notice}</Text> : null}
-        <TextInput label={strings.auth.currentPassword} value={currentPassword} onChangeText={setCurrentPassword} isPassword autoCapitalize="none" autoComplete="current-password" />
-        <TextInput label={strings.auth.newPassword} value={password} onChangeText={setPassword} isPassword autoCapitalize="none" autoComplete="new-password" />
-        <PasswordPolicyChecklist password={password} email={user?.email ?? ''} displayName={profile?.display_name ?? ''} />
-        <TextInput label={strings.auth.confirmNewPassword} value={confirmation} onChangeText={setConfirmation} isPassword autoCapitalize="none" autoComplete="new-password" />
-        {needsReauthentication ? (
-          <>
-            <OtpInput
-              label={strings.auth.passwordReauthCodeLabel}
-              value={reauthCode}
-              onChangeText={setReauthCode}
-              disabled={requestingCode || saving}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title={strings.auth.changePassword}
+        subtitle={strings.auth.passwordCurrentRequired}
+        onBack={
+          !profile?.must_change_password
+            ? () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))
+            : undefined
+        }
+        maxWidth={560}
+      />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: 24,
+            paddingBottom: Math.max(bottomPad, 32),
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.innerWrap}>
+          {error ? <AlertBox tone="danger" message={error} style={{ marginBottom: 16 }} /> : null}
+          {notice ? <AlertBox tone="success" message={notice} style={{ marginBottom: 16 }} /> : null}
+
+          <Card tone="neo-glass" padding="lg" style={styles.card}>
+            <TextInput
+              label={strings.auth.currentPassword}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="current-password"
             />
-            <Button title={strings.auth.passwordReauthSendAgain} variant="secondary" onPress={async () => {
-              if (requestingCode) return;
-              setRequestingCode(true);
-              setError(null);
-              setNotice(null);
-              setReauthCode('');
-              try {
-                await authService.requestPasswordReauthentication();
-                setNotice(strings.auth.passwordReauthCodeSent);
-              } catch (err: any) {
-                setError(toAppError(err, strings.errors.generic).message);
-              } finally {
-                setRequestingCode(false);
-              }
-            }} loading={requestingCode} disabled={requestingCode || saving} />
-          </>
-        ) : null}
-        <Button title={strings.common.save} onPress={handleSave} loading={saving} disabled={saving || requestingCode} />
+            <TextInput
+              label={strings.auth.newPassword}
+              value={password}
+              onChangeText={setPassword}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+            <PasswordPolicyChecklist
+              password={password}
+              email={user?.email ?? ''}
+              displayName={profile?.display_name ?? ''}
+            />
+            <TextInput
+              label={strings.auth.confirmNewPassword}
+              value={confirmation}
+              onChangeText={setConfirmation}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+            {needsReauthentication ? (
+              <View style={{ gap: 12 }}>
+                <OtpInput
+                  label={strings.auth.passwordReauthCodeLabel}
+                  value={reauthCode}
+                  onChangeText={setReauthCode}
+                  disabled={requestingCode || saving}
+                />
+                <Button
+                  title={strings.auth.passwordReauthSendAgain}
+                  variant="secondary"
+                  onPress={async () => {
+                    if (requestingCode) return;
+                    setRequestingCode(true);
+                    setError(null);
+                    setNotice(null);
+                    setReauthCode('');
+                    try {
+                      await authService.requestPasswordReauthentication();
+                      setNotice(strings.auth.passwordReauthCodeSent);
+                    } catch (err: any) {
+                      setError(toAppError(err, strings.errors.generic).message);
+                    } finally {
+                      setRequestingCode(false);
+                    }
+                  }}
+                  loading={requestingCode}
+                  disabled={requestingCode || saving}
+                />
+              </View>
+            ) : null}
+            <Button
+              title={strings.common.save}
+              icon="lock-closed-outline"
+              onPress={handleSave}
+              loading={saving}
+              disabled={saving || requestingCode}
+            />
+          </Card>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -142,29 +198,13 @@ export default function ChangePasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 52 : 36,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  content: { flexGrow: 1, paddingHorizontal: 24 },
+  innerWrap: {
+    maxWidth: 560,
+    width: '100%',
+    alignSelf: 'center',
   },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+  card: {
+    gap: 4,
   },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  content: { flexGrow: 1, padding: 24, paddingTop: 24 },
-  subtitle: { marginTop: 8, marginBottom: 24 },
-  error: { marginBottom: 16 },
-  notice: { marginBottom: 16 },
 });

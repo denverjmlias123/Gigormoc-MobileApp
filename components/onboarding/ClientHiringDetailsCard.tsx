@@ -3,13 +3,15 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
-  TextInput,
 } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 import { Category } from '../../services/profile';
 import { strings } from '../../constants/strings';
+import { Card, AlertBox } from '../ui/Card';
+import { TextInput } from '../ui/TextInput';
+import { Chip } from '../ui/Chip';
+import { Button } from '../ui/Button';
 
 interface ClientHiringDetailsCardProps {
   clientType: 'individual' | 'business' | 'organization' | 'other' | '';
@@ -67,122 +69,83 @@ export const ClientHiringDetailsCard: React.FC<ClientHiringDetailsCardProps> = (
   return (
     <>
       {/* Client Type */}
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-        ]}
+      <Card
+        headerTitle="Who are you hiring as?"
+        headerSubtitle="Let freelancers know if you are hiring for yourself, a small business, or an organization."
+        headerIcon="business-outline"
+        style={styles.card}
       >
-        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-          Who are you hiring as?
-        </Text>
-        <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-          Let freelancers know if you are hiring for yourself, a small business, or an organization.
-        </Text>
         <View style={styles.chipsWrap}>
           {strings.profile.clientTypeOptions.map((opt) => {
             const selected = clientType === opt.value;
             return (
-              <TouchableOpacity
+              <Chip
                 key={opt.value}
-                style={[
-                  styles.chip,
-                  { borderColor: theme.colors.border },
-                  selected && {
-                    backgroundColor: theme.colors.primary,
-                    borderColor: theme.colors.primary,
-                  },
-                ]}
-                onPress={() => setClientType(selected ? '' : opt.value)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: selected ? '#ffffff' : theme.colors.text },
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                label={opt.label}
+                selected={selected}
+                onPress={() => {
+                  const next = selected ? '' : opt.value;
+                  setClientType(next);
+                  if (next === 'individual') {
+                    setBusinessName('');
+                  }
+                }}
+              />
             );
           })}
         </View>
 
-        <Text style={[styles.subLabel, { color: theme.colors.text, marginTop: 14 }]}>
-          Business or Organization Name (Optional, 2–60 characters)
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            { borderColor: theme.colors.border, color: theme.colors.text, marginBottom: 0 },
-          ]}
-          placeholder="e.g. Ormoc Print Shop"
-          placeholderTextColor={theme.colors.muted}
-          value={businessName}
-          onChangeText={setBusinessName}
-          maxLength={60}
-        />
-      </View>
+        {clientType !== 'individual' && (
+          <TextInput
+            label="Business or Organization Name (Optional, 2–60 characters)"
+            placeholder="e.g. Ormoc Print Shop"
+            value={businessName}
+            onChangeText={setBusinessName}
+            maxLength={60}
+            containerStyle={{ marginTop: 14, marginBottom: 0 }}
+          />
+        )}
+      </Card>
 
       {/* AI Category Suggestions for Clients */}
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-        ]}
+      <Card
+        headerTitle="Suggest Categories with AI"
+        headerSubtitle="Describe what you usually need help with, and our assistant will suggest relevant categories."
+        headerIcon="sparkles-outline"
+        style={styles.card}
       >
-        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-          🤖 Suggest Categories with AI
-        </Text>
-        <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-          Describe what you usually need help with, and our assistant will suggest relevant categories.
-        </Text>
-
         <TextInput
-          style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text }]}
           placeholder={strings.onboarding.aiCategoriesPlaceholder}
-          placeholderTextColor={theme.colors.muted}
           value={helpDescription}
           onChangeText={setHelpDescription}
           multiline
           numberOfLines={2}
+          containerStyle={{ marginBottom: 12 }}
         />
 
         {aiError && (
-          <View style={styles.inlineError}>
-            <Text style={styles.inlineErrorText}>{aiError}</Text>
-            <TouchableOpacity onPress={onSuggestCategories} style={{ marginTop: 4 }}>
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Retry</Text>
-            </TouchableOpacity>
-          </View>
+          <AlertBox
+            tone="danger"
+            message={aiError}
+            actionLabel="Retry"
+            onAction={onSuggestCategories}
+            style={{ marginBottom: 12 }}
+          />
         )}
 
-        <TouchableOpacity
-          style={[
-            styles.aiBtn,
-            { backgroundColor: theme.colors.primarySoft },
-            aiLoading && { opacity: 0.7 },
-          ]}
+        <Button
+          title={aiLoading ? strings.onboarding.suggestingCategories : strings.onboarding.suggestCategoriesBtn}
           onPress={onSuggestCategories}
+          variant="ai"
+          size="md"
+          icon="sparkles"
+          loading={aiLoading}
           disabled={aiLoading}
-          activeOpacity={0.8}
-        >
-          {aiLoading ? (
-            <View style={styles.btnRow}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text style={[styles.aiBtnText, { color: theme.colors.primary, marginLeft: 8 }]}>
-                {strings.onboarding.suggestingCategories}
-              </Text>
-            </View>
-          ) : (
-            <Text style={[styles.aiBtnText, { color: theme.colors.primary }]}>
-              {strings.onboarding.suggestCategoriesBtn}
-            </Text>
-          )}
-        </TouchableOpacity>
+          fullWidth
+        />
 
         {aiCategorySuggestions.length > 0 && (
-          <View style={styles.suggestionsContainer}>
+          <Card tone="inset" padding="sm" style={styles.suggestionsContainer}>
             <Text style={[styles.subLabel, { color: theme.colors.text }]}>
               Suggested Categories (tap to toggle):
             </Text>
@@ -197,53 +160,31 @@ export const ClientHiringDetailsCard: React.FC<ClientHiringDetailsCardProps> = (
                       (c) => c.toLowerCase() === catName.toLowerCase()
                     );
                 return (
-                  <TouchableOpacity
+                  <Chip
                     key={catName}
-                    style={[
-                      styles.chip,
-                      { borderColor: theme.colors.border },
-                      selected && {
-                        backgroundColor: theme.colors.primary,
-                        borderColor: theme.colors.primary,
-                      },
-                    ]}
+                    label={`${selected ? '' : '+ '}${catName}`}
+                    selected={selected}
+                    size="sm"
                     onPress={() =>
                       catalogMatch
                         ? toggleCatalogCategory(catalogMatch.id)
                         : toggleCustomCategory(catName)
                     }
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: selected ? '#ffffff' : theme.colors.text },
-                      ]}
-                    >
-                      {selected ? '✓ ' : '+ '}
-                      {catName}
-                    </Text>
-                  </TouchableOpacity>
+                  />
                 );
               })}
             </View>
-          </View>
+          </Card>
         )}
-      </View>
+      </Card>
 
       {/* Hiring Interests Catalog & Custom Category Input */}
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-        ]}
+      <Card
+        headerTitle={`Hiring Interests (${totalSelectedInterests}/${maxHiringInterests})`}
+        headerSubtitle={`Pick up to ${maxHiringInterests} categories of work you usually hire for.`}
+        headerIcon="grid-outline"
+        style={styles.card}
       >
-        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-          Hiring Interests ({totalSelectedInterests}/{maxHiringInterests})
-        </Text>
-        <Text style={[styles.cardDesc, { color: theme.colors.muted }]}>
-          Pick up to {maxHiringInterests} categories of work you usually hire for.
-        </Text>
-
         {catalogLoading ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: 12 }} />
         ) : catalogCategories.length > 0 ? (
@@ -251,28 +192,13 @@ export const ClientHiringDetailsCard: React.FC<ClientHiringDetailsCardProps> = (
             {catalogCategories.map((cat) => {
               const selected = selectedCategoryIds.includes(cat.id);
               return (
-                <TouchableOpacity
+                <Chip
                   key={cat.id}
-                  style={[
-                    styles.chip,
-                    { borderColor: theme.colors.border },
-                    selected && {
-                      backgroundColor: theme.colors.primary,
-                      borderColor: theme.colors.primary,
-                    },
-                  ]}
+                  label={cat.name}
+                  selected={selected}
+                  size="sm"
                   onPress={() => toggleCatalogCategory(cat.id)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      { color: selected ? '#ffffff' : theme.colors.text },
-                    ]}
-                  >
-                    {selected ? '✓ ' : ''}
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
+                />
               );
             })}
           </View>
@@ -280,172 +206,82 @@ export const ClientHiringDetailsCard: React.FC<ClientHiringDetailsCardProps> = (
 
         <View style={styles.customInputRow}>
           <TextInput
-            style={[
-              styles.input,
-              {
-                flex: 1,
-                borderColor: theme.colors.border,
-                color: theme.colors.text,
-                marginBottom: 0,
-              },
-            ]}
             placeholder={strings.onboarding.addCustomCategoryPlaceholder}
-            placeholderTextColor={theme.colors.muted}
             value={customCategoryInput}
             onChangeText={setCustomCategoryInput}
             maxLength={50}
+            containerStyle={styles.customInputWrap}
           />
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
+          <Button
+            title="Add"
             onPress={onAddCustomCategory}
-          >
-            <Text style={{ color: '#ffffff', fontWeight: '600' }}>Add</Text>
-          </TouchableOpacity>
+            variant="primary"
+            size="sm"
+            icon="add"
+          />
         </View>
 
         {selectedCustomCategories.length > 0 && (
           <View style={[styles.chipsWrap, { marginTop: 12 }]}>
             {selectedCustomCategories.map((catName) => (
-              <View
+              <Chip
                 key={catName}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: theme.colors.primarySoft,
-                    borderColor: theme.colors.primary,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  },
-                ]}
-              >
-                <Text style={{ color: theme.colors.primary, marginRight: 6 }}>{catName}</Text>
-                <TouchableOpacity onPress={() => toggleCustomCategory(catName)}>
-                  <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>×</Text>
-                </TouchableOpacity>
-              </View>
+                label={catName}
+                selected
+                size="sm"
+                onPress={() => toggleCustomCategory(catName)}
+                onRemove={() => toggleCustomCategory(catName)}
+              />
             ))}
           </View>
         )}
-      </View>
+      </Card>
 
       {/* About Hiring */}
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-        ]}
+      <Card
+        headerTitle="What kind of work do you usually need? (Optional)"
+        headerIcon="document-text-outline"
+        style={styles.card}
       >
-        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-          What kind of work do you usually need? (Optional)
-        </Text>
         <TextInput
-          style={[
-            styles.input,
-            {
-              borderColor: theme.colors.border,
-              color: theme.colors.text,
-              minHeight: 80,
-              marginBottom: 4,
-            },
-          ]}
           placeholder="e.g. Weekly store errands, graphic design for promotions, aircon maintenance..."
-          placeholderTextColor={theme.colors.muted}
           value={aboutHiring}
           onChangeText={setAboutHiring}
           multiline
           numberOfLines={3}
           maxLength={300}
-          textAlignVertical="top"
+          showCharCount
+          containerStyle={{ marginBottom: 0 }}
         />
-        <Text style={{ fontSize: 12, color: theme.colors.muted }}>
-          {aboutHiring.trim().length}/300 characters
-        </Text>
-      </View>
+      </Card>
     </>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
     marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 13,
-  },
   subLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  aiBtn: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  btnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inlineError: {
-    backgroundColor: '#FDE8EA',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  inlineErrorText: {
-    color: '#D92D3E',
-    fontSize: 13,
   },
   suggestionsContainer: {
     marginTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 12,
   },
   customInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  addBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+  customInputWrap: {
+    flex: 1,
+    marginBottom: 0,
   },
 });

@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../../../theme';
+import { useAppTheme, useResponsiveLayout } from '../../../theme';
 import { milestonesService, DefineMilestoneParam } from '../../../../services/milestones';
 import { formatPrice } from '../../../../components/ui/GigCard';
 import { Button } from '../../../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../../../components/ui/Card';
+import { TextInput } from '../../../../components/ui/TextInput';
 import { showToast } from '../../../../components/ui/Toast';
 import { mapSqlErrorToFriendlyMessage, strings } from '../../../../constants/strings';
 
@@ -25,6 +26,7 @@ interface MilestoneDraft {
 export default function SetupMilestonesScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, insets } = useResponsiveLayout();
   const { id, agreedPrice } = useLocalSearchParams<{ id: string; agreedPrice: string }>();
 
   const targetPriceCentavos = parseInt(agreedPrice || '0', 10);
@@ -50,6 +52,30 @@ export default function SetupMilestonesScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    milestonesService
+      .getAgreementMilestones(id)
+      .then((existing) => {
+        if (active && existing && existing.length > 0) {
+          setMilestones(
+            existing.map((m) => ({
+              title: m.title,
+              description: m.description || '',
+              amountStr: (m.amount / 100).toString(),
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // non-blocking fallback to default draft
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   const navigateAfterSuccess = () => {
     if (id) {
@@ -152,47 +178,57 @@ export default function SetupMilestonesScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Cancel</Text>
-        </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]}>Define Milestones</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <PageHeaderBox
+        title="Define Milestones"
+        subtitle="Break down deliverables totaling the agreed contract price"
+        onBack={safeNavigateBack}
+        maxWidth={720}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Budget Match Tracker */}
+      {/* Sticky Budget Match Tracker */}
+      <View
+        style={[
+          styles.stickyTrackerWrapper,
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <View
           style={[
             styles.trackerCard,
+            styles.centeredBlock,
             {
-              backgroundColor: isSumValid ? '#DDF5EA' : '#FEF1D6',
-              borderColor: isSumValid ? '#9BD9BE' : '#F6D58B',
+              backgroundColor: isSumValid ? theme.colors.successSoft : theme.colors.warningSoft,
+              borderColor: isSumValid ? theme.colors.success : theme.colors.warning,
             },
           ]}
         >
           <View style={styles.trackerRow}>
-            <Text style={styles.trackerLabel}>Agreed Total:</Text>
-            <Text style={styles.trackerValue}>{formatPrice(targetPriceCentavos)}</Text>
+            <Text style={[styles.trackerLabel, { color: theme.colors.text }]}>Agreed Total:</Text>
+            <Text style={[styles.trackerValue, { color: theme.colors.text }]}>{formatPrice(targetPriceCentavos)}</Text>
           </View>
           <View style={styles.trackerRow}>
-            <Text style={styles.trackerLabel}>Milestones Sum:</Text>
+            <Text style={[styles.trackerLabel, { color: theme.colors.text }]}>Milestones Sum:</Text>
             <Text
               style={[
                 styles.trackerValue,
-                { color: isSumValid ? '#12805C' : '#B45309' },
+                { color: isSumValid ? theme.colors.successText : theme.colors.warningText },
               ]}
             >
               {formatPrice(currentTotalCentavos)}
             </Text>
           </View>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
           <Text
             style={[
               styles.trackerStatus,
-              { color: isSumValid ? '#12805C' : '#B45309' },
+              { color: isSumValid ? theme.colors.successText : theme.colors.warningText },
             ]}
           >
             {isSumValid
@@ -202,148 +238,127 @@ export default function SetupMilestonesScreen() {
               : `₱${(Math.abs(differenceCentavos) / 100).toLocaleString()} over agreed total`}
           </Text>
         </View>
+      </View>
 
-        {error && (
-          <View style={[styles.errorCard, { backgroundColor: '#FDE8EA', borderColor: '#F3A6AE' }]}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.centeredBlock, { gap: 16 }]}>
+          {error && (
+            <AlertBox tone="danger" message={error} />
+          )}
 
-        {/* Milestone Rows */}
-        {milestones.map((m, idx) => (
-          <View
-            key={idx}
-            style={[
-              styles.milestoneCard,
-              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-            ]}
-          >
-            <View style={styles.milestoneCardHeader}>
-              <Text style={[styles.milestoneIndex, { color: theme.colors.text }]}>
-                Milestone #{idx + 1}
-              </Text>
-              {milestones.length > 1 && (
-                <TouchableOpacity onPress={() => handleRemoveMilestone(idx)}>
-                  <Text style={[styles.removeText, { color: theme.colors.danger }]}>Remove</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          {/* Milestone Rows */}
+          {milestones.map((m, idx) => (
+            <Card
+              key={idx}
+              tone="neo-glass"
+              padding="md"
+              headerTitle={`Milestone #${idx + 1}`}
+              headerIcon="flag-outline"
+              headerRight={
+                milestones.length > 1 ? (
+                  <Button
+                    title="Remove"
+                    variant="danger-soft"
+                    size="xs"
+                    fullWidth={false}
+                    icon="trash-outline"
+                    onPress={() => handleRemoveMilestone(idx)}
+                  />
+                ) : undefined
+              }
+            >
+              <View style={isWide ? styles.twoColRow : styles.stackCol}>
+                <View style={isWide ? { flex: 1.6 } : undefined}>
+                  <TextInput
+                    label="Title *"
+                    placeholder="e.g. Design Wireframes, Backend Integration"
+                    value={m.title}
+                    onChangeText={(val) => handleUpdate(idx, 'title', val)}
+                    maxLength={120}
+                  />
+                </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Title *</Text>
+                <View style={isWide ? { flex: 1 } : undefined}>
+                  <TextInput
+                    label="Amount (PHP ₱) *"
+                    prefixText="₱"
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    value={m.amountStr}
+                    onChangeText={(val) => handleUpdate(idx, 'amountStr', val)}
+                  />
+                </View>
+              </View>
+
               <TextInput
-                style={[
-                  styles.textInput,
-                  { borderColor: theme.colors.border, color: theme.colors.text },
-                ]}
-                placeholder="e.g. Design Wireframes, Backend Integration"
-                placeholderTextColor={theme.colors.muted}
-                value={m.title}
-                onChangeText={(val) => handleUpdate(idx, 'title', val)}
-                maxLength={120}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                Amount (PHP ₱) *
-              </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { borderColor: theme.colors.border, color: theme.colors.text },
-                ]}
-                placeholder="0.00"
-                placeholderTextColor={theme.colors.muted}
-                keyboardType="numeric"
-                value={m.amountStr}
-                onChangeText={(val) => handleUpdate(idx, 'amountStr', val)}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                Deliverables Description
-              </Text>
-              <TextInput
-                style={[
-                  styles.textArea,
-                  { borderColor: theme.colors.border, color: theme.colors.text },
-                ]}
+                label="Deliverables Description"
                 placeholder="Describe what must be delivered for this milestone to be approved..."
-                placeholderTextColor={theme.colors.muted}
                 multiline
                 numberOfLines={3}
                 value={m.description}
                 onChangeText={(val) => handleUpdate(idx, 'description', val)}
                 maxLength={1000}
+                style={{ minHeight: 70 }}
+                containerStyle={{ marginBottom: 0 }}
               />
-            </View>
+            </Card>
+          ))}
+
+          {/* Add Milestone Button */}
+          {milestones.length < 5 && (
+            <Button
+              title={`Add Another Milestone (${milestones.length}/5)`}
+              variant="secondary"
+              icon="add-circle-outline"
+              onPress={handleAddMilestone}
+            />
+          )}
+
+          {/* Submit */}
+          <View style={styles.submitContainer}>
+            <Button
+              title={submitting ? 'Saving Milestones...' : 'Save & Initialize Milestones'}
+              variant="primary"
+              icon="checkmark-done-outline"
+              onPress={handleSubmit}
+              disabled={!isSumValid || submitting}
+              loading={submitting}
+            />
           </View>
-        ))}
-
-        {/* Add Milestone Button */}
-        {milestones.length < 5 && (
-          <TouchableOpacity
-            style={[styles.addButton, { borderColor: theme.colors.primary }]}
-            onPress={handleAddMilestone}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.addButtonText, { color: theme.colors.primary }]}>
-              + Add Another Milestone ({milestones.length}/5)
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Submit */}
-        <View style={styles.submitContainer}>
-          <Button
-            title={submitting ? 'Saving Milestones...' : 'Save & Initialize Milestones'}
-            variant="primary"
-            onPress={handleSubmit}
-            disabled={!isSumValid || submitting}
-            loading={submitting}
-          />
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  centeredBlock: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
+  stickyTrackerWrapper: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 16,
   },
   trackerCard: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+    borderRadius: 14,
+    padding: 14,
+    gap: 6,
   },
   trackerRow: {
     flexDirection: 'row',
@@ -352,86 +367,27 @@ const styles = StyleSheet.create({
   },
   trackerLabel: {
     fontSize: 14,
-    color: '#374151',
     fontWeight: '500',
   },
   trackerValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
   },
   divider: {
     height: 1,
-    backgroundColor: '#d1d5db',
-    marginVertical: 4,
+    marginVertical: 2,
   },
   trackerStatus: {
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },
-  errorCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    color: '#A31F2D',
-  },
-  milestoneCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
+  twoColRow: {
+    flexDirection: 'row',
     gap: 12,
   },
-  milestoneCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  milestoneIndex: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  removeText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-  addButton: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+  stackCol: {
+    gap: 0,
   },
   submitContainer: {
     marginTop: 8,

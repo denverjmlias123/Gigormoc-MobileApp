@@ -2,18 +2,20 @@ import React, { RefObject } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
+  TextInput as RNTextInput,
   StyleSheet,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../../app/theme';
 import { strings } from '../../constants/strings';
+import { Card } from '../ui/Card';
+import { TextInput } from '../ui/TextInput';
+import { Chip } from '../ui/Chip';
+import { Button } from '../ui/Button';
 
 interface FreelancerWorkSectionProps {
   headline: string;
   setHeadline: (val: string) => void;
-  headlineInputRef: RefObject<TextInput | null>;
+  headlineInputRef: RefObject<RNTextInput | null>;
   startingRateNote: string;
   setStartingRateNote: (val: string) => void;
   workTypes: string[];
@@ -23,6 +25,7 @@ interface FreelancerWorkSectionProps {
   experienceYears: 'lt_1' | '1_3' | '3_5' | '5_plus' | '';
   setExperienceYears: (val: 'lt_1' | '1_3' | '3_5' | '5_plus' | '') => void;
   onNavigatePortfolio: () => void;
+  onNavigateSkills?: () => void;
   fieldErrors: Record<string, string>;
 }
 
@@ -39,42 +42,29 @@ export const FreelancerWorkSection: React.FC<FreelancerWorkSectionProps> = ({
   experienceYears,
   setExperienceYears,
   onNavigatePortfolio,
+  onNavigateSkills,
   fieldErrors,
 }) => {
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.roleSection, { borderColor: theme.colors.border }]}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-        Freelancer Work Details
-      </Text>
-
+    <Card
+      headerTitle="Freelancer Work Details"
+      headerIcon="briefcase-outline"
+      style={styles.roleSection}
+    >
       {/* Headline */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>
-          Headline (up to 80 characters)
-        </Text>
-        <TextInput
-          ref={headlineInputRef as any}
-          style={[
-            styles.input,
-            {
-              borderColor: fieldErrors.headline ? theme.colors.danger : theme.colors.border,
-              color: theme.colors.text,
-            },
-          ]}
-          value={headline}
-          onChangeText={setHeadline}
-          placeholder="e.g. Phone repair and tutoring in Cogon"
-          placeholderTextColor={theme.colors.muted}
-          maxLength={80}
-        />
-        {fieldErrors.headline ? (
-          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-            {fieldErrors.headline}
-          </Text>
-        ) : null}
-      </View>
+      <TextInput
+        ref={headlineInputRef}
+        label="Headline (up to 80 characters)"
+        value={headline}
+        onChangeText={setHeadline}
+        placeholder="e.g. Phone repair and tutoring in Cogon"
+        maxLength={80}
+        showCharCount
+        error={fieldErrors.headline}
+        containerStyle={styles.inputGroup}
+      />
 
       {/* Work types offered */}
       <View style={styles.inputGroup}>
@@ -83,29 +73,13 @@ export const FreelancerWorkSection: React.FC<FreelancerWorkSectionProps> = ({
           {strings.profile.workTypeOptions.map((opt) => {
             const selected = workTypes.includes(opt.value);
             return (
-              <TouchableOpacity
+              <Chip
                 key={opt.value}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: selected
-                      ? theme.colors.primarySoft
-                      : theme.colors.surface,
-                  },
-                ]}
+                label={opt.label}
+                selected={selected}
                 onPress={() => toggleWorkType(opt.value)}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.primary : theme.colors.text,
-                    fontWeight: selected ? '700' : '500',
-                    fontSize: 13,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                size="sm"
+              />
             );
           })}
         </View>
@@ -118,29 +92,13 @@ export const FreelancerWorkSection: React.FC<FreelancerWorkSectionProps> = ({
           {strings.profile.availabilityOptions.map((opt) => {
             const selected = availability === opt.value;
             return (
-              <TouchableOpacity
+              <Chip
                 key={opt.value}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: selected
-                      ? theme.colors.primarySoft
-                      : theme.colors.surface,
-                  },
-                ]}
+                label={opt.label}
+                selected={selected}
                 onPress={() => setAvailability(selected ? '' : opt.value)}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.primary : theme.colors.text,
-                    fontWeight: selected ? '700' : '500',
-                    fontSize: 13,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                size="sm"
+              />
             );
           })}
         </View>
@@ -153,129 +111,76 @@ export const FreelancerWorkSection: React.FC<FreelancerWorkSectionProps> = ({
           {strings.profile.experienceOptions.map((opt) => {
             const selected = experienceYears === opt.value;
             return (
-              <TouchableOpacity
+              <Chip
                 key={opt.value}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: selected
-                      ? theme.colors.primarySoft
-                      : theme.colors.surface,
-                  },
-                ]}
+                label={opt.label}
+                selected={selected}
                 onPress={() => setExperienceYears(selected ? '' : opt.value)}
-              >
-                <Text
-                  style={{
-                    color: selected ? theme.colors.primary : theme.colors.text,
-                    fontWeight: selected ? '700' : '500',
-                    fontSize: 13,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
+                size="sm"
+              />
             );
           })}
         </View>
       </View>
 
       {/* Typical Starting Rate Note */}
-      <View style={styles.inputGroup}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>
-          Typical Starting Rate Note (Optional)
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              borderColor: fieldErrors.startingRateNote
-                ? theme.colors.danger
-                : theme.colors.border,
-              color: theme.colors.text,
-            },
-          ]}
-          value={startingRateNote}
-          onChangeText={setStartingRateNote}
-          placeholder="e.g. Starts at ₱300/session depending on scope"
-          placeholderTextColor={theme.colors.muted}
-          maxLength={120}
+      <TextInput
+        label="Typical Starting Rate Note (Optional)"
+        value={startingRateNote}
+        onChangeText={setStartingRateNote}
+        placeholder="e.g. Starts at ₱300/session depending on scope"
+        maxLength={120}
+        error={fieldErrors.startingRateNote}
+        containerStyle={styles.inputGroup}
+      />
+
+      {/* Quick Links: Portfolio & Skills */}
+      <View style={styles.quickLinksRow}>
+        <Button
+          title="Manage Portfolio Items"
+          onPress={onNavigatePortfolio}
+          variant="secondary"
+          size="sm"
+          icon="folder-open-outline"
+          rightIcon="arrow-forward"
         />
-        {fieldErrors.startingRateNote ? (
-          <Text style={[styles.fieldError, { color: theme.colors.dangerText }]}>
-            {fieldErrors.startingRateNote}
-          </Text>
+
+        {onNavigateSkills ? (
+          <Button
+            title="Manage Skills"
+            onPress={onNavigateSkills}
+            variant="secondary"
+            size="sm"
+            icon="construct-outline"
+            rightIcon="arrow-forward"
+          />
         ) : null}
       </View>
-
-      {/* Portfolio Link */}
-      <TouchableOpacity
-        style={[styles.portfolioLinkBtn, { borderColor: theme.colors.border }]}
-        onPress={onNavigatePortfolio}
-      >
-        <Ionicons name="folder-open-outline" size={18} color={theme.colors.primary} />
-        <Text style={[styles.portfolioLinkText, { color: theme.colors.primary }]}>
-          Manage Portfolio Items →
-        </Text>
-      </TouchableOpacity>
-    </View>
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
   roleSection: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
     marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-  },
-  fieldError: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  portfolioLinkBtn: {
+  quickLinksRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 1,
+    flexWrap: 'wrap',
+    gap: 10,
     marginTop: 4,
-  },
-  portfolioLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

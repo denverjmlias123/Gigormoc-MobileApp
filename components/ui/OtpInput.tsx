@@ -178,9 +178,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
+    maxWidth: 400,
+    width: '100%',
+    alignSelf: 'center',
   },
   box: {
     flex: 1,
+    maxWidth: 56,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',

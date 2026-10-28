@@ -10,17 +10,19 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { authService } from '../../services/auth';
 import { strings } from '../../constants/strings';
 import { clearSignupDraft, getSignupDraft, setSignupDraft } from '../../lib/signupDraft';
 import { PasswordPolicyChecklist } from '../../components/ui/PasswordPolicyChecklist';
 import { TextInput } from '../../components/ui/TextInput';
-import { Button } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
 
 export default function SignUpStep1Screen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const params = useLocalSearchParams<{ duplicateEmail?: string; email?: string }>();
 
   const [displayName, setDisplayName] = useState('');
@@ -32,7 +34,7 @@ export default function SignUpStep1Screen() {
   const [error, setError] = useState<string | null>(null);
   const [isDuplicateEmail, setIsDuplicateEmail] = useState(params.duplicateEmail === '1');
 
-  // Field-level inline errors (where & why)
+  // Field validation states
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -128,178 +130,215 @@ export default function SignUpStep1Screen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>{strings.auth.signupStep1Indicator}</Text>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step1Title}</Text>
-
-        {error && (
-          <View
-            style={[
-              styles.errorBox,
-              { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger },
-            ]}
-          >
-            <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
-            {isDuplicateEmail && (
-              <View style={styles.dupActionsRow}>
-                <TouchableOpacity
-                  style={[styles.dupActionBtn, { backgroundColor: theme.colors.primary }]}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/login',
-                      params: { email: authService.normalizeEmail(email) },
-                    })
-                  }
-                >
-                  <Text style={styles.dupActionBtnText}>{strings.auth.duplicateEmailLoginBtn}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dupActionBtnOutline,
-                    { borderColor: theme.colors.primary, backgroundColor: theme.colors.surface },
-                  ]}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/forgot-password',
-                      params: { email: authService.normalizeEmail(email) },
-                    })
-                  }
-                >
-                  <Text style={[styles.dupActionBtnOutlineText, { color: theme.colors.primary }]}>
-                    {strings.auth.duplicateEmailResetBtn}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={styles.inputGroup}>
-          <TextInput
-            label={strings.auth.signupDisplayNameLabel}
-            value={displayName}
-            onChangeText={(val) => {
-              setDisplayName(val);
-              if (displayNameError) setDisplayNameError(null);
-            }}
-            placeholder={strings.auth.signupDisplayNamePlaceholder}
-            autoCapitalize="words"
-            maxLength={50}
-            returnKeyType="next"
-            error={displayNameError}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <TextInput
-            label={strings.auth.signupEmailLabel}
-            value={email}
-            onChangeText={(val) => {
-              setEmail(val);
-              if (isDuplicateEmail) {
-                setIsDuplicateEmail(false);
-                setError(null);
-              }
-              if (emailError) setEmailError(null);
-            }}
-            placeholder={strings.auth.signupEmailPlaceholder}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            returnKeyType="next"
-            error={emailError}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <TextInput
-            label={strings.auth.signupPasswordLabel}
-            value={password}
-            onChangeText={(val) => {
-              setPassword(val);
-              if (passwordError) setPasswordError(null);
-            }}
-            placeholder="e.g. Min 8 chars, 1 uppercase, 1 symbol"
-            isPassword
-            autoCapitalize="none"
-            autoComplete="new-password"
-            returnKeyType="next"
-            error={passwordError}
-          />
-          <PasswordPolicyChecklist password={password} email={email} displayName={displayName} />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <TextInput
-            label={strings.auth.signupConfirmPasswordLabel}
-            value={confirmPassword}
-            onChangeText={(val) => {
-              setConfirmPassword(val);
-              if (confirmPasswordError) setConfirmPasswordError(null);
-            }}
-            placeholder="e.g. Re-enter matching password"
-            isPassword
-            autoCapitalize="none"
-            autoComplete="new-password"
-            returnKeyType="done"
-            error={confirmPasswordError}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => {
-            setTermsAccepted(!termsAccepted);
-            if (termsError) setTermsError(null);
-          }}
-          activeOpacity={0.8}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: termsAccepted }}
-          accessibilityLabel={strings.auth.signupTermsLabel}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: isWide ? 40 : topSpace + 8, paddingBottom: isWide ? 40 : bottomSpace + 16 },
+          isWide && styles.scrollContentWide,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Card
+          tone={isWide ? 'neo-glass' : 'raised'}
+          padding="lg"
+          style={[styles.formCard, isWide && styles.formCardWide]}
         >
-          <View
-            style={[
-              styles.checkbox,
-              { borderColor: termsError ? theme.colors.danger : theme.colors.border },
-              termsAccepted && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-          >
-            {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+          <View style={styles.headerTopRow}>
+            <IconButton
+              icon="arrow-back"
+              variant="secondary"
+              size="sm"
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(auth)/welcome');
+                }
+              }}
+              accessibilityLabel="Back"
+            />
+            <Text style={[styles.stepIndicator, { color: theme.colors.muted }]}>{strings.auth.signupStep1Indicator}</Text>
           </View>
-          <Text style={[styles.checkboxLabel, { color: termsError ? theme.colors.dangerText : theme.colors.text }]}>
-            {strings.auth.signupTermsLabel}
-          </Text>
-        </TouchableOpacity>
-        {termsError ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 12, gap: 4 }}>
-            <Ionicons name="alert-circle" size={14} color={theme.colors.dangerText} />
-            <Text style={{ color: theme.colors.dangerText, fontSize: 12, fontWeight: '600' }}>
-              {termsError}
+
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+            <View style={[styles.progressFill, { width: '50%', backgroundColor: theme.colors.primary }]} />
+          </View>
+
+          <Text style={[styles.title, { color: theme.colors.text }]}>{strings.auth.step1Title}</Text>
+
+          {error && (
+            <View
+              style={[
+                styles.errorBox,
+                { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.danger, borderLeftColor: theme.colors.danger },
+              ]}
+            >
+              <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{error}</Text>
+              {isDuplicateEmail && (
+                <View style={styles.dupActionsRow}>
+                  <Button
+                    title={strings.auth.duplicateEmailLoginBtn}
+                    size="sm"
+                    variant="primary"
+                    icon="log-in-outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(auth)/login',
+                        params: { email: authService.normalizeEmail(email) },
+                      })
+                    }
+                  />
+                  <Button
+                    title={strings.auth.duplicateEmailResetBtn}
+                    size="sm"
+                    variant="secondary"
+                    icon="key-outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(auth)/forgot-password',
+                        params: { email: authService.normalizeEmail(email) },
+                      })
+                    }
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label={strings.auth.signupDisplayNameLabel}
+              value={displayName}
+              onChangeText={(val) => {
+                setDisplayName(val);
+                if (displayNameError) setDisplayNameError(null);
+              }}
+              placeholder={strings.auth.signupDisplayNamePlaceholder}
+              autoCapitalize="words"
+              maxLength={50}
+              returnKeyType="next"
+              leftIcon="person-outline"
+              error={displayNameError}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label={strings.auth.signupEmailLabel}
+              value={email}
+              onChangeText={(val) => {
+                setEmail(val);
+                if (isDuplicateEmail) {
+                  setIsDuplicateEmail(false);
+                  setError(null);
+                }
+                if (emailError) setEmailError(null);
+              }}
+              placeholder={strings.auth.signupEmailPlaceholder}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              returnKeyType="next"
+              leftIcon="mail-outline"
+              error={emailError}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label={strings.auth.signupPasswordLabel}
+              value={password}
+              onChangeText={(val) => {
+                setPassword(val);
+                if (passwordError) setPasswordError(null);
+              }}
+              placeholder="e.g. Min 8 chars, 1 uppercase, 1 symbol"
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+              returnKeyType="next"
+              leftIcon="lock-closed-outline"
+              error={passwordError}
+            />
+            <PasswordPolicyChecklist password={password} email={email} displayName={displayName} />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label={strings.auth.signupConfirmPasswordLabel}
+              value={confirmPassword}
+              onChangeText={(val) => {
+                setConfirmPassword(val);
+                if (confirmPasswordError) setConfirmPasswordError(null);
+              }}
+              placeholder="e.g. Re-enter matching password"
+              isPassword
+              autoCapitalize="none"
+              autoComplete="new-password"
+              returnKeyType="done"
+              leftIcon="shield-checkmark-outline"
+              onSubmitEditing={handleNext}
+              error={confirmPasswordError}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => {
+              setTermsAccepted(!termsAccepted);
+              if (termsError) setTermsError(null);
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: termsAccepted }}
+            accessibilityLabel={strings.auth.signupTermsLabel}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                { borderColor: termsError ? theme.colors.danger : theme.colors.border },
+                termsAccepted && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+              ]}
+            >
+              {termsAccepted && <Ionicons name="checkmark" size={14} color={theme.colors.heroText} />}
+            </View>
+            <Text style={[styles.checkboxLabel, { color: termsError ? theme.colors.dangerText : theme.colors.text }]}>
+              {strings.auth.signupTermsLabel}
             </Text>
-          </View>
-        ) : null}
+          </TouchableOpacity>
+          {termsError ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 12, gap: 4 }}>
+              <Ionicons name="alert-circle" size={14} color={theme.colors.dangerText} />
+              <Text style={{ color: theme.colors.dangerText, fontSize: 12, fontWeight: '600' }}>
+                {termsError}
+              </Text>
+            </View>
+          ) : null}
 
-        <Button
-          title={strings.auth.signupContinue}
-          onPress={handleNext}
-          loading={pending}
-          disabled={pending}
-          style={styles.continueButton}
-        />
+          <Button
+            title={strings.auth.signupContinue}
+            onPress={handleNext}
+            loading={pending}
+            disabled={pending}
+            rightIcon="arrow-forward"
+            fullWidth
+            style={styles.continueButton}
+          />
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => {
-            clearSignupDraft();
-            router.push('/(auth)/login');
-          }}
-        >
-          <Text style={{ color: theme.colors.muted }}>
-            {strings.auth.signupAlreadyAccount} <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>{strings.auth.duplicateEmailLoginBtn}</Text>
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => {
+              clearSignupDraft();
+              router.push('/(auth)/login');
+            }}
+          >
+            <Text style={{ color: theme.colors.muted }}>
+              {strings.auth.signupAlreadyAccount} <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>{strings.auth.duplicateEmailLoginBtn}</Text>
+            </Text>
+          </TouchableOpacity>
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -310,24 +349,52 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 40,
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  scrollContentWide: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  formCard: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+  },
+  formCardWide: {
+    padding: 36,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
   },
   stepIndicator: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
   },
   title: {
     fontSize: 26,
     fontWeight: '700',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   errorBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderLeftWidth: 4,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
   },
   errorText: {
     fontSize: 14,
@@ -335,43 +402,12 @@ const styles = StyleSheet.create({
   },
   dupActionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     marginTop: 12,
   },
-  dupActionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  dupActionBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dupActionBtnOutline: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  dupActionBtnOutlineText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
   inputGroup: {
     marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -383,13 +419,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderWidth: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
   checkmark: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: 'bold',
   },

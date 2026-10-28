@@ -4,13 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   Linking,
 } from 'react-native';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '../theme';
+import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { applicationsService, AgreementItem } from '../../services/applications';
 import { milestonesService, MilestoneItem } from '../../services/milestones';
@@ -22,6 +21,7 @@ import { notificationsService } from '../../services/notifications';
 import { formatPrice } from '../../components/ui/GigCard';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Card, AlertBox, PageHeaderBox } from '../../components/ui/Card';
 import {
   Timeline,
   NextStepBanner,
@@ -37,6 +37,7 @@ import { AgreementReviewsCard } from '../../components/agreements/AgreementRevie
 export default function AgreementDetailScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { isWide, isDesktop, insets } = useResponsiveLayout();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
 
@@ -368,287 +369,330 @@ export default function AgreementDetailScreen() {
     }
   }
 
+  const milestonesHeaderRight =
+    isClient && milestones.length === 0 ? (
+      <Button
+        title="Setup Milestones"
+        variant="primary"
+        size="sm"
+        fullWidth={false}
+        icon="add-circle-outline"
+        onPress={() => {
+          router.push({
+            pathname: '/agreements/[id]/milestones/setup',
+            params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+          });
+        }}
+      />
+    ) : isClient && milestones.length > 0 && milestones.every((m) => m.status === 'pending') ? (
+      <Button
+        title="Edit Milestones"
+        variant="secondary"
+        size="sm"
+        fullWidth={false}
+        icon="create-outline"
+        onPress={() => {
+          router.push({
+            pathname: '/agreements/[id]/milestones/setup',
+            params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
+          });
+        }}
+      />
+    ) : undefined;
+
+  const milestonesCard = (
+    <Card
+      tone="neo-glass"
+      padding="md"
+      headerTitle="Milestones"
+      headerSubtitle={
+        milestones.length > 0
+          ? `${approvedMilestonesCount} of ${milestones.length} approved`
+          : 'No milestones set yet'
+      }
+      headerIcon="flag-outline"
+      headerRight={milestonesHeaderRight}
+      style={{ gap: 12 }}
+    >
+      {milestones.length === 0 ? (
+        <Card tone="inset" padding="sm">
+          <Text style={[styles.emptyMilestonesText, { color: theme.colors.muted }]}>
+            {isClient
+              ? 'Define 1 to 5 project milestones totaling exactly ' + formatPrice(agreement.agreed_price) + '.'
+              : 'The client will define milestones for this agreement.'}
+          </Text>
+        </Card>
+      ) : (
+        <View style={styles.milestonesList}>
+          {milestones.map((m) => {
+            const canSubmit = isFreelancer && (m.status === 'pending' || m.status === 'revision_requested');
+            const canReview = isClient && m.status === 'submitted';
+
+            return (
+              <Card
+                key={m.id}
+                tone="inset"
+                padding="md"
+                style={{ gap: 8 }}
+              >
+                <View style={styles.milestoneTop}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.milestoneSeqTitle, { color: theme.colors.text }]}>
+                      #{m.seq} {m.title}
+                    </Text>
+                    {m.description ? (
+                      <Text style={[styles.milestoneDesc, { color: theme.colors.muted }]} numberOfLines={2}>
+                        {m.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Badge status={m.status} />
+                </View>
+
+                {m.status === 'revision_requested' && m.revision_feedback ? (
+                  <AlertBox
+                    tone="warning"
+                    title="Revision Feedback:"
+                    message={m.revision_feedback}
+                    style={{ marginTop: 4 }}
+                  />
+                ) : null}
+
+                <View style={styles.milestoneBottom}>
+                  <Text style={[styles.milestoneAmount, { color: theme.colors.primary }]}>
+                    {formatPrice(m.amount)}
+                  </Text>
+                  <Text style={[styles.milestoneRevisions, { color: theme.colors.muted }]}>
+                    {m.revision_count > 0 ? `Revisions: ${m.revision_count}/2` : ''}
+                  </Text>
+                </View>
+
+                {/* Action buttons */}
+                {canSubmit && (
+                  <View style={styles.milestoneActionRow}>
+                    <Button
+                      title={m.status === 'revision_requested' ? 'Resubmit Deliverable' : 'Submit Work'}
+                      variant="primary"
+                      size="sm"
+                      icon="cloud-upload-outline"
+                      onPress={() => {
+                        router.push({
+                          pathname: '/agreements/[id]/milestones/[milestoneId]/submit',
+                          params: {
+                            id: agreement.id,
+                            milestoneId: m.id,
+                            title: m.title,
+                            revisionCount: m.revision_count.toString(),
+                            revisionFeedback: m.revision_feedback || '',
+                          },
+                        });
+                      }}
+                    />
+                  </View>
+                )}
+
+                {canReview && (
+                  <View style={styles.milestoneActionRow}>
+                    <Button
+                      title="Review Submitted Work"
+                      variant="primary"
+                      size="sm"
+                      icon="checkmark-done-outline"
+                      onPress={() => {
+                        router.push({
+                          pathname: '/agreements/[id]/milestones/[milestoneId]/review',
+                          params: {
+                            id: agreement.id,
+                            milestoneId: m.id,
+                            title: m.title,
+                            revisionCount: m.revision_count.toString(),
+                          },
+                        });
+                      }}
+                    />
+                  </View>
+                )}
+              </Card>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Complete Agreement Button */}
+      {agreement.status === 'active' && (
+        <View style={styles.completeAgreementContainer}>
+          <Button
+            title={completing ? 'Completing Agreement...' : 'Complete Agreement'}
+            variant="success"
+            icon="checkmark-circle-outline"
+            onPress={handleCompleteAgreement}
+            disabled={!canCompleteAgreement || completing}
+            loading={completing}
+          />
+          {!canCompleteAgreement && (
+            <Text style={[styles.completeRequirementsHint, { color: theme.colors.muted }]}>
+              {!allMilestonesApproved
+                ? '• All milestones must be approved.'
+                : !isFullyPaid
+                ? '• Total confirmed payments must equal agreed price.'
+                : hasPaymentDisputes
+                ? '• All payment disputes must be resolved.'
+                : hasPendingPaymentReports
+                ? '• All payment reports must be confirmed by the freelancer.'
+                : ''}
+            </Text>
+          )}
+        </View>
+      )}
+    </Card>
+  );
+
+  const termsNode = (
+    <AgreementTermsCard
+      agreement={agreement}
+      onViewGig={() => {
+        if (agreement.gig_id) {
+          router.push({ pathname: '/gigs/[id]', params: { id: agreement.gig_id } });
+        }
+      }}
+      onOpenChat={handleOpenChat}
+      onReport={() => {
+        router.push({
+          pathname: '/reports/new',
+          params: {
+            targetType: 'agreement',
+            targetId: agreement.id,
+            targetTitle: agreement.gig?.title || 'Agreement',
+          },
+        });
+      }}
+      onCancelAgreement={handleCancelAgreement}
+    />
+  );
+
+  const paymentsNode = (
+    <PaymentsEvidenceCard
+      payments={payments}
+      confirmedPaymentsCentavos={confirmedPaymentsCentavos}
+      agreedPrice={agreement.agreed_price}
+      isClient={isClient}
+      isFreelancer={isFreelancer}
+      agreementStatus={agreement.status}
+      confirmingPaymentId={confirmingPaymentId}
+      onReportPayment={() => {
+        router.push({
+          pathname: '/agreements/[id]/payments/report',
+          params: {
+            id: agreement.id,
+            agreedPrice: agreement.agreed_price.toString(),
+            unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
+          },
+        });
+      }}
+      onOpenReceipt={handleOpenReceipt}
+      onConfirmPayment={handleConfirmPayment}
+      onDisputePayment={(p) => {
+        router.push({
+          pathname: '/agreements/[id]/payments/[paymentId]/dispute',
+          params: {
+            id: agreement.id,
+            paymentId: p.id,
+            amount: p.amount.toString(),
+            method: p.payment_method,
+          },
+        });
+      }}
+    />
+  );
+
+  const reviewsNode = (
+    <AgreementReviewsCard
+      agreement={agreement}
+      reviews={reviews}
+      currentUserId={user?.id}
+      isClient={isClient}
+      isFreelancer={isFreelancer}
+      onViewClientProfile={() => {
+        if (agreement.client_id) {
+          router.push({ pathname: '/profile/[id]', params: { id: agreement.client_id } });
+        }
+      }}
+      onViewFreelancerProfile={() => {
+        if (agreement.freelancer_id) {
+          router.push({ pathname: '/profile/[id]', params: { id: agreement.freelancer_id } });
+        }
+      }}
+      onLeaveReview={() => {
+        const targetName = isClient
+          ? agreement.freelancer?.display_name || 'Freelancer'
+          : agreement.client?.display_name || 'Client';
+        const targetRole = isClient ? 'freelancer' : 'client';
+        router.push({
+          pathname: '/agreements/[id]/review',
+          params: { id: agreement.id, targetName, targetRole },
+        });
+      }}
+    />
+  );
+
+  const timelineNode = (
+    <Timeline
+      currentStage={loopState.currentStage}
+      viewerRole={viewerRole}
+      loopState={loopState}
+      collapsible={!isWide}
+      defaultCollapsed={!isWide}
+    />
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Bar */}
-      <View style={[styles.topBar, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={safeNavigateBack} style={styles.backButton}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          Agreement
-        </Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <PageHeaderBox
+        title="Agreement Workspace"
+        subtitle={agreement.gig?.title || 'Project Contract'}
+        onBack={safeNavigateBack}
+        rightAction={<Badge status={agreement.status} />}
+        maxWidth={1160}
+      />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+        ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Next Step Banner */}
-        <NextStepBanner
-          loopState={loopState}
-          actionLabel={bannerActionLabel}
-          onActionPress={bannerActionPress}
-          onOpenChatPress={handleOpenChat}
-        />
+        <View style={styles.workspaceContainer}>
+          {/* Next Step Banner */}
+          <NextStepBanner
+            loopState={loopState}
+            actionLabel={bannerActionLabel}
+            onActionPress={bannerActionPress}
+            onOpenChatPress={handleOpenChat}
+          />
 
-        {/* Shared Relationship Timeline */}
-        <Timeline
-          currentStage={loopState.currentStage}
-          viewerRole={viewerRole}
-          loopState={loopState}
-        />
-
-        {/* Agreement Status & Terms */}
-        <AgreementTermsCard
-          agreement={agreement}
-          onViewGig={() => {
-            if (agreement.gig_id) {
-              router.push({ pathname: '/gigs/[id]', params: { id: agreement.gig_id } });
-            }
-          }}
-          onOpenChat={handleOpenChat}
-          onReport={() => {
-            router.push({
-              pathname: '/reports/new',
-              params: {
-                targetType: 'agreement',
-                targetId: agreement.id,
-                targetTitle: agreement.gig?.title || 'Agreement',
-              },
-            });
-          }}
-          onCancelAgreement={handleCancelAgreement}
-        />
-
-        {/* Milestones Section */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Milestones</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.colors.muted }]}>
-                {milestones.length > 0
-                  ? `${approvedMilestonesCount} of ${milestones.length} approved`
-                  : 'No milestones set yet'}
-              </Text>
-            </View>
-
-            {isClient && milestones.length === 0 && (
-              <Button
-                title="Setup Milestones"
-                variant="primary"
-                onPress={() => {
-                  router.push({
-                    pathname: '/agreements/[id]/milestones/setup',
-                    params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
-                  });
-                }}
-              />
-            )}
-            {isClient && milestones.length > 0 && milestones.every((m) => m.status === 'pending') && (
-              <Button
-                title="Edit Milestones"
-                variant="secondary"
-                onPress={() => {
-                  router.push({
-                    pathname: '/agreements/[id]/milestones/setup',
-                    params: { id: agreement.id, agreedPrice: agreement.agreed_price.toString() },
-                  });
-                }}
-              />
-            )}
-          </View>
-
-          {milestones.length === 0 ? (
-            <View style={styles.emptyMilestonesBox}>
-              <Text style={[styles.emptyMilestonesText, { color: theme.colors.muted }]}>
-                {isClient
-                  ? 'Define 1 to 5 project milestones totaling exactly ' + formatPrice(agreement.agreed_price) + '.'
-                  : 'The client will define milestones for this agreement.'}
-              </Text>
+          {isDesktop ? (
+            <View style={styles.desktopColumns}>
+              <View style={styles.desktopMainCol}>
+                {milestonesCard}
+                {paymentsNode}
+                {reviewsNode}
+              </View>
+              <View style={styles.desktopSideCol}>
+                {termsNode}
+                {timelineNode}
+              </View>
             </View>
           ) : (
-            <View style={styles.milestonesList}>
-              {milestones.map((m) => {
-                const canSubmit = isFreelancer && (m.status === 'pending' || m.status === 'revision_requested');
-                const canReview = isClient && m.status === 'submitted';
-
-                return (
-                  <View
-                    key={m.id}
-                    style={[styles.milestoneRowCard, { borderColor: theme.colors.border }]}
-                  >
-                    <View style={styles.milestoneTop}>
-                      <View style={{ flex: 1, marginRight: 8 }}>
-                        <Text style={[styles.milestoneSeqTitle, { color: theme.colors.text }]}>
-                          #{m.seq} {m.title}
-                        </Text>
-                        {m.description ? (
-                          <Text style={[styles.milestoneDesc, { color: theme.colors.muted }]} numberOfLines={2}>
-                            {m.description}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Badge status={m.status} />
-                    </View>
-
-                    {m.status === 'revision_requested' && m.revision_feedback ? (
-                      <View style={{ backgroundColor: '#FEF3C7', borderColor: '#F59E0B', borderWidth: 1, borderRadius: 8, padding: 10, marginTop: 8 }}>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#B45309', marginBottom: 2 }}>
-                          Revision Feedback:
-                        </Text>
-                        <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
-                          {m.revision_feedback}
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    <View style={styles.milestoneBottom}>
-                      <Text style={[styles.milestoneAmount, { color: theme.colors.primary }]}>
-                        {formatPrice(m.amount)}
-                      </Text>
-                      <Text style={[styles.milestoneRevisions, { color: theme.colors.muted }]}>
-                        {m.revision_count > 0 ? `Revisions: ${m.revision_count}/2` : ''}
-                      </Text>
-                    </View>
-
-                    {/* Action buttons */}
-                    {canSubmit && (
-                      <View style={styles.milestoneActionRow}>
-                        <Button
-                          title={m.status === 'revision_requested' ? 'Resubmit Deliverable' : 'Submit Work'}
-                          variant="primary"
-                          onPress={() => {
-                            router.push({
-                              pathname: '/agreements/[id]/milestones/[milestoneId]/submit',
-                              params: {
-                                id: agreement.id,
-                                milestoneId: m.id,
-                                title: m.title,
-                                revisionCount: m.revision_count.toString(),
-                                revisionFeedback: m.revision_feedback || '',
-                              },
-                            });
-                          }}
-                        />
-                      </View>
-                    )}
-
-                    {canReview && (
-                      <View style={styles.milestoneActionRow}>
-                        <Button
-                          title="Review Submitted Work"
-                          variant="primary"
-                          onPress={() => {
-                            router.push({
-                              pathname: '/agreements/[id]/milestones/[milestoneId]/review',
-                              params: {
-                                id: agreement.id,
-                                milestoneId: m.id,
-                                title: m.title,
-                                revisionCount: m.revision_count.toString(),
-                              },
-                            });
-                          }}
-                        />
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Complete Agreement Button */}
-          {agreement.status === 'active' && (
-            <View style={styles.completeAgreementContainer}>
-              <Button
-                title={completing ? 'Completing Agreement...' : 'Complete Agreement'}
-                variant="primary"
-                onPress={handleCompleteAgreement}
-                disabled={!canCompleteAgreement || completing}
-                loading={completing}
-              />
-              {!canCompleteAgreement && (
-                <Text style={[styles.completeRequirementsHint, { color: theme.colors.muted }]}>
-                  {!allMilestonesApproved
-                    ? '• All milestones must be approved.'
-                    : !isFullyPaid
-                    ? '• Total confirmed payments must equal agreed price.'
-                    : hasPaymentDisputes
-                    ? '• All payment disputes must be resolved.'
-                    : hasPendingPaymentReports
-                    ? '• All payment reports must be confirmed by the freelancer.'
-                    : ''}
-                </Text>
-              )}
+            <View style={{ gap: 16 }}>
+              {termsNode}
+              {timelineNode}
+              {milestonesCard}
+              {paymentsNode}
+              {reviewsNode}
             </View>
           )}
         </View>
-
-        {/* Payments Section */}
-        <PaymentsEvidenceCard
-          payments={payments}
-          confirmedPaymentsCentavos={confirmedPaymentsCentavos}
-          agreedPrice={agreement.agreed_price}
-          isClient={isClient}
-          isFreelancer={isFreelancer}
-          agreementStatus={agreement.status}
-          confirmingPaymentId={confirmingPaymentId}
-          onReportPayment={() => {
-            router.push({
-              pathname: '/agreements/[id]/payments/report',
-              params: {
-                id: agreement.id,
-                agreedPrice: agreement.agreed_price.toString(),
-                unpaidAmount: Math.max(0, agreement.agreed_price - confirmedPaymentsCentavos).toString(),
-              },
-            });
-          }}
-          onOpenReceipt={handleOpenReceipt}
-          onConfirmPayment={handleConfirmPayment}
-          onDisputePayment={(p) => {
-            router.push({
-              pathname: '/agreements/[id]/payments/[paymentId]/dispute',
-              params: {
-                id: agreement.id,
-                paymentId: p.id,
-                amount: p.amount.toString(),
-                method: p.payment_method,
-              },
-            });
-          }}
-        />
-
-        {/* Participants, Reviews & Notice */}
-        <AgreementReviewsCard
-          agreement={agreement}
-          reviews={reviews}
-          currentUserId={user?.id}
-          isClient={isClient}
-          isFreelancer={isFreelancer}
-          onViewClientProfile={() => {
-            if (agreement.client_id) {
-              router.push({ pathname: '/profile/[id]', params: { id: agreement.client_id } });
-            }
-          }}
-          onViewFreelancerProfile={() => {
-            if (agreement.freelancer_id) {
-              router.push({ pathname: '/profile/[id]', params: { id: agreement.freelancer_id } });
-            }
-          }}
-          onLeaveReview={() => {
-            const targetName = isClient
-              ? agreement.freelancer?.display_name || 'Freelancer'
-              : agreement.client?.display_name || 'Client';
-            const targetRole = isClient ? 'freelancer' : 'client';
-            router.push({
-              pathname: '/agreements/[id]/review',
-              params: { id: agreement.id, targetName, targetRole },
-            });
-          }}
-        />
       </ScrollView>
     </View>
   );
@@ -657,26 +701,6 @@ export default function AgreementDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 48,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 6,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
   },
   center: {
     flex: 1,
@@ -691,30 +715,25 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+  },
+  workspaceContainer: {
+    width: '100%',
+    maxWidth: 1160,
+    alignSelf: 'center',
     gap: 16,
   },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  sectionHeaderRow: {
+  desktopColumns: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 20,
   },
-  emptyMilestonesBox: {
-    paddingVertical: 12,
+  desktopMainCol: {
+    flex: 1.5,
+    gap: 16,
+  },
+  desktopSideCol: {
+    flex: 1,
+    gap: 16,
   },
   emptyMilestonesText: {
     fontSize: 14,
@@ -722,13 +741,6 @@ const styles = StyleSheet.create({
   },
   milestonesList: {
     gap: 10,
-    marginTop: 4,
-  },
-  milestoneRowCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
   },
   milestoneTop: {
     flexDirection: 'row',
@@ -756,10 +768,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   milestoneActionRow: {
-    marginTop: 6,
+    marginTop: 4,
   },
   completeAgreementContainer: {
-    marginTop: 12,
+    marginTop: 8,
     gap: 8,
   },
   completeRequirementsHint: {

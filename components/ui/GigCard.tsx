@@ -25,9 +25,10 @@ export interface GigSummary {
 
 interface GigCardProps {
   gig: GigSummary;
-  onPress: () => void;
+  onPress?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
+  style?: any;
 }
 
 export const formatPrice = (centavos: number): string => {
@@ -59,6 +60,7 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
   onPress,
   onDelete,
   deleting = false,
+  style,
 }) {
   const theme = useAppTheme();
   const c = theme.colors;
@@ -88,56 +90,65 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
           borderWidth: 1,
           borderRadius: theme.radii.card,
         },
+        style,
       ]}
     >
       <Pressable
-      style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${gig.title}, ${priceDisplay}`}
-    >
-      <View style={styles.topRow}>
-        <View style={[styles.categoryBadge, { backgroundColor: c.primarySoft, borderRadius: theme.radii.chip }]}>
-          <Text style={[styles.categoryText, { color: c.primary }]}>{gig.category_name || 'General'}</Text>
-        </View>
-        {showStatus ? <Badge status={gig.status} /> : null}
-      </View>
-
-      <Text style={[styles.title, { color: c.text }]} numberOfLines={2}>
-        {gig.title}
-      </Text>
-
-      <Text style={[styles.price, { color: c.primary }]}>{priceDisplay}</Text>
-
-      <View style={styles.metaRow}>
-        <View style={styles.metaItem}>
-          <Ionicons name={meta.icon} size={15} color={c.muted} />
-          <Text style={[styles.metaText, { color: c.muted }]}>{meta.label}</Text>
-        </View>
-        {gig.area ? (
-          <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={15} color={c.muted} />
-            <Text style={[styles.metaText, { color: c.muted }]} numberOfLines={1}>
-              {gig.area}
-            </Text>
+        style={(state: any) => [
+          styles.pressableInner,
+          {
+            opacity: state.pressed ? 0.92 : 1,
+            ...({ cursor: 'pointer' } as any),
+          },
+        ]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${gig.title}, ${priceDisplay}`}
+      >
+        <View>
+          <View style={styles.topRow}>
+            <View style={[styles.categoryBadge, { backgroundColor: c.primarySoft, borderRadius: theme.radii.chip }]}>
+              <Text style={[styles.categoryText, { color: c.primary }]}>{gig.category_name || 'General'}</Text>
+            </View>
+            {showStatus ? <Badge status={gig.status} /> : null}
           </View>
-        ) : null}
-      </View>
 
-      <View style={[styles.footerRow, { borderTopColor: c.border }]}>
-        <View style={styles.metaItem}>
-          <Ionicons name="time-outline" size={15} color={c.muted} />
-          <Text style={[styles.metaText, { color: c.muted }]}>Apply by {deadlineFormatted}</Text>
-        </View>
-        {gig.client && !theme.isClient ? (
-          <View style={styles.metaItem}>
-            <Ionicons name="star" size={14} color={c.accent} />
-            <Text style={[styles.clientRating, { color: c.text }]}>
-              {Number(gig.client.client_rating_avg || 0).toFixed(1)} ({gig.client.client_rating_count || 0})
-            </Text>
+          <Text style={[styles.title, { color: c.text }]} numberOfLines={2}>
+            {gig.title}
+          </Text>
+
+          <Text style={[styles.price, { color: c.primary }]}>{priceDisplay}</Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaItem}>
+              <Ionicons name={meta.icon} size={15} color={c.muted} />
+              <Text style={[styles.metaText, { color: c.muted }]}>{meta.label}</Text>
+            </View>
+            {gig.area ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="location-outline" size={15} color={c.muted} />
+                <Text style={[styles.metaText, { color: c.muted }]} numberOfLines={1}>
+                  {gig.area}
+                </Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
+        </View>
+
+        <View style={[styles.footerRow, { borderTopColor: c.border }]}>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={15} color={c.muted} />
+            <Text style={[styles.metaText, { color: c.muted }]}>Apply by {deadlineFormatted}</Text>
+          </View>
+          {gig.client && !theme.isClient ? (
+            <View style={styles.metaItem}>
+              <Ionicons name="star" size={14} color={c.spark} />
+              <Text style={[styles.clientRating, { color: c.text }]}>
+                {Number(gig.client.client_rating_avg || 0).toFixed(1)} ({gig.client.client_rating_count || 0})
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </Pressable>
       {onDelete ? (
         <Pressable
@@ -157,9 +168,10 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
 
 const styles = StyleSheet.create({
   card: { padding: 16, marginBottom: 12 },
+  pressableInner: { flex: 1, justifyContent: 'space-between' },
   deleteButton: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
   deleteText: { fontSize: 13, fontWeight: '700' },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
   categoryBadge: { paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { fontSize: 12, fontWeight: '700' },
   title: { fontSize: 17, fontWeight: '800', lineHeight: 22, letterSpacing: -0.2, marginBottom: 6 },

@@ -1,5 +1,4 @@
-export const PASSWORD_MAX_LENGTH: number;
-export type PasswordCheck =
+type PasswordCheck =
   | 'length'
   | 'lowercase'
   | 'uppercase'

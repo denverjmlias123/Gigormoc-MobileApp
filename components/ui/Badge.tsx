@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../../app/theme';
 
-export type StatusType =
+type StatusType =
   | 'open'
   | 'active'
   | 'in_progress'
@@ -38,15 +38,17 @@ export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
       case 'pending':
       case 'countered':
       case 'revision_requested':
+      case 'suspended':
         return { bg: c.warningSoft, text: c.warning };
       case 'approved':
       case 'confirmed':
       case 'completed':
-        return { bg: c.successSoft, text: c.success };
+        return { bg: c.successSoft, text: c.successText };
       case 'declined':
       case 'cancelled':
       case 'expired':
       case 'disputed':
+      case 'deleted':
         return { bg: c.dangerSoft, text: c.dangerText };
       default:
         return { bg: c.surfaceAlt, text: c.muted };

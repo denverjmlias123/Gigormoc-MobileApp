@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet, AppState, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useAppTheme } from './theme';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
@@ -11,7 +12,7 @@ import { ConfirmDialogProvider } from '../components/ui/ConfirmDialog';
 import { sessionService } from '../services/sessions';
 
 function RootNavigation() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, isOffline, signOut } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const theme = useAppTheme();
@@ -22,7 +23,7 @@ function RootNavigation() {
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
     const inAdminGroup = segments[0] === 'admin';
-    const inPasswordReset = inAuthGroup && (segments.includes('reset-password') || segments.includes('forgot-password'));
+    const inPasswordReset = inAuthGroup && segments.includes('forgot-password');
 
     // Recovery links establish a temporary authenticated session so the user can set a new password.
     if (inPasswordReset) return;
@@ -33,8 +34,8 @@ function RootNavigation() {
         router.replace('/(auth)/welcome');
       }
     } else if (!profile) {
-      // User session exists locally but profile was deleted or is missing
-      if (!inAuthGroup) {
+      // User session exists locally but profile was deleted or is missing, only force logout if strictly online
+      if (!inAuthGroup && !isOffline) {
         signOut().catch(() => {});
         router.replace('/(auth)/welcome');
       }
@@ -52,17 +53,17 @@ function RootNavigation() {
         }
       }
     }
-  }, [user, profile, loading, segments]);
+  }, [user, profile, loading, isOffline, segments]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || isOffline) return;
     let checking = false;
     const checkSession = async () => {
       if (checking) return;
       checking = true;
       try {
         const active = await sessionService.heartbeat();
-        if (!active) await signOut({ reason: 'session_expired' });
+        if (!active && !isOffline) await signOut({ reason: 'session_expired' });
       } catch {
         // A temporary network issue should not log the user out. The next heartbeat retries.
       } finally {
@@ -77,7 +78,7 @@ function RootNavigation() {
       clearInterval(timer);
       appStateSubscription.remove();
     };
-  }, [user?.id]);
+  }, [user?.id, isOffline]);
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && user?.id) {
@@ -140,17 +141,19 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <ThemeProvider>
-          <ToastProvider>
-            <ConfirmDialogProvider>
-              <RootNavigation />
-            </ConfirmDialogProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <ConfirmDialogProvider>
+                <RootNavigation />
+              </ConfirmDialogProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 
