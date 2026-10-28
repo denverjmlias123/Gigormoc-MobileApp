@@ -154,23 +154,32 @@ export const PaymentsEvidenceCard: React.FC<PaymentsEvidenceCardProps> = ({
 
                 {/* Freelancer Action Buttons */}
                 {canAct && (
-                  <View style={styles.paymentActionButtons}>
-                    <Button
-                      title="Confirm Receipt"
-                      variant="success"
-                      size="sm"
-                      icon="checkmark-circle-outline"
-                      onPress={() => onConfirmPayment(p.id)}
-                      disabled={confirmingPaymentId === p.id}
-                      loading={confirmingPaymentId === p.id}
+                  <View style={{ marginTop: 10 }}>
+                    <AlertBox
+                      tone="info"
+                      title="Payment Verification Needed"
+                      message={`Client reported sending ${formatPrice(p.amount)} via ${p.payment_method.toUpperCase()}${p.reference_number ? ` (Ref #${p.reference_number})` : ''}. Please check your ${p.payment_method.toUpperCase()} account to verify the funds before confirming.`}
+                      style={{ marginBottom: 10 }}
                     />
-                    <Button
-                      title="Dispute"
-                      variant="danger-soft"
-                      size="sm"
-                      icon="alert-circle-outline"
-                      onPress={() => onDisputePayment(p)}
-                    />
+                    <View style={styles.paymentActionButtons}>
+                      <Button
+                        title="Confirm Received"
+                        variant="success"
+                        size="sm"
+                        icon="checkmark-circle-outline"
+                        onPress={() => onConfirmPayment(p.id)}
+                        disabled={confirmingPaymentId === p.id}
+                        loading={confirmingPaymentId === p.id}
+                      />
+                      <Button
+                        title="Dispute Payment"
+                        variant="danger-soft"
+                        size="sm"
+                        icon="alert-circle-outline"
+                        onPress={() => onDisputePayment(p)}
+                        disabled={confirmingPaymentId === p.id}
+                      />
+                    </View>
                   </View>
                 )}
               </Card>

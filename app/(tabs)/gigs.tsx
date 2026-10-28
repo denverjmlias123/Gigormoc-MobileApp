@@ -124,6 +124,43 @@ export default function GigsScreen() {
     }, [isClient, clientSegment, selectedCategory, workTypeFilter, user?.id])
   );
 
+  const hasActiveFilters = Boolean(
+    selectedCategory ||
+    workTypeFilter !== 'all' ||
+    searchQuery.trim().length > 0
+  );
+
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedCategory(null);
+    setWorkTypeFilter('all');
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (isClient && clientSegment === 'find_freelancers') {
+          const [categoriesData, freelancersData] = await Promise.all([
+            gigsService.getBrowseCategories(),
+            profileService.getTopFreelancers({ limit: 30 }),
+          ]);
+          setCategories(categoriesData);
+          setFreelancers(freelancersData);
+        } else {
+          const [categoriesData, gigsData] = await Promise.all([
+            gigsService.getBrowseCategories(),
+            gigsService.getGigs({}),
+          ]);
+          setCategories(categoriesData);
+          setGigs(gigsData);
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load data.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [isClient, clientSegment]);
+
   const handleGigPress = useCallback((gigId: string) => {
     router.push({ pathname: '/gigs/[id]', params: { id: gigId } });
   }, [router]);
@@ -395,9 +432,17 @@ export default function GigsScreen() {
               <EmptyState
                 icon="briefcase-outline"
                 title="No posted gigs found"
-                description="You have not created any gigs matching this filter."
-                actionTitle="Post a Gig"
-                onAction={() => router.push('/gigs/post')}
+                description={
+                  clientStatusFilter !== 'all'
+                    ? `You have no gigs with status "${clientStatusFilter}".`
+                    : "You have not created any gigs yet."
+                }
+                actionTitle={clientStatusFilter !== 'all' ? "View All Gigs" : "Post a Gig"}
+                onAction={
+                  clientStatusFilter !== 'all'
+                    ? () => setClientStatusFilter('all')
+                    : () => router.push('/gigs/post')
+                }
               />
             ) : (
               <View style={isWide ? styles.gridContainer : undefined}>
@@ -418,13 +463,13 @@ export default function GigsScreen() {
               <EmptyState
                 icon="search-outline"
                 title="No freelancers found"
-                description="No freelancers match your search or category filter."
-                actionTitle="Clear filters"
-                onAction={() => {
-                  setSearchQuery('');
-                  setSelectedCategory(null);
-                  void loadData('');
-                }}
+                description={
+                  hasActiveFilters
+                    ? "No freelancers match your search or category filter in Ormoc City."
+                    : "No freelancers match your search or category filter."
+                }
+                actionTitle={hasActiveFilters ? "Clear Filters" : "Refresh"}
+                onAction={hasActiveFilters ? handleClearFilters : () => void loadData()}
               />
             ) : (
               <View style={isWide ? styles.gridContainer : undefined}>
@@ -446,10 +491,14 @@ export default function GigsScreen() {
           ) : gigs.length === 0 ? (
             <EmptyState
               icon="search-outline"
-              title={strings.gigs.noGigsTitle}
-              description={strings.gigs.noGigsDesc}
-              actionTitle="Refresh"
-              onAction={() => loadData()}
+              title={hasActiveFilters ? "No matching gigs found" : strings.gigs.noGigsTitle}
+              description={
+                hasActiveFilters
+                  ? "No open gigs match your search keyword or active filters in Ormoc City. Try clearing them to see all available work."
+                  : strings.gigs.noGigsDesc
+              }
+              actionTitle={hasActiveFilters ? "Clear Filters" : "Refresh"}
+              onAction={hasActiveFilters ? handleClearFilters : () => void loadData()}
             />
           ) : (
             <View style={isWide ? styles.gridContainer : undefined}>

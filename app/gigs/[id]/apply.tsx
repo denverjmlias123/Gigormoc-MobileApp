@@ -6,6 +6,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../../theme';
@@ -34,6 +35,14 @@ export default function ApplyGigScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = React.useRef(false);
+
+  const minPesos = gig?.price_min ? Math.round(gig.price_min / 100) : null;
+  const maxPesos = gig?.price_max ? Math.round(gig.price_max / 100) : null;
+  const hasRange = minPesos !== null && maxPesos !== null && maxPesos > minPesos;
+  const midPesos =
+    hasRange && minPesos !== null && maxPesos !== null
+      ? Math.round((minPesos + maxPesos) / 2)
+      : null;
 
   useEffect(() => {
     if (!id) return;
@@ -206,6 +215,121 @@ export default function ApplyGigScreen() {
                   keyboardType="numeric"
                   helperText="Total amount you expect to receive"
                 />
+
+                {minPesos !== null && minPesos > 0 && (
+                  <View style={styles.quickFillContainer}>
+                    <Text style={[styles.quickFillLabel, { color: theme.colors.muted }]}>
+                      Quick-fill from budget:
+                    </Text>
+                    <View style={styles.quickFillRow}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.quickChip,
+                          {
+                            backgroundColor:
+                              priceStr === String(minPesos)
+                                ? theme.colors.primarySoft
+                                : theme.colors.surfaceAlt,
+                            borderColor:
+                              priceStr === String(minPesos)
+                                ? theme.colors.primary
+                                : theme.colors.border,
+                            opacity: pressed ? 0.7 : 1,
+                          },
+                        ]}
+                        onPress={() => setPriceStr(String(minPesos))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Set fee to minimum budget ₱${minPesos}`}
+                      >
+                        <Text
+                          style={[
+                            styles.quickChipText,
+                            {
+                              color:
+                                priceStr === String(minPesos)
+                                  ? theme.colors.primary
+                                  : theme.colors.text,
+                            },
+                          ]}
+                        >
+                          {hasRange ? `Min ₱${minPesos.toLocaleString()}` : `₱${minPesos.toLocaleString()}`}
+                        </Text>
+                      </Pressable>
+
+                      {midPesos !== null && (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.quickChip,
+                            {
+                              backgroundColor:
+                                priceStr === String(midPesos)
+                                  ? theme.colors.primarySoft
+                                  : theme.colors.surfaceAlt,
+                              borderColor:
+                                priceStr === String(midPesos)
+                                  ? theme.colors.primary
+                                  : theme.colors.border,
+                              opacity: pressed ? 0.7 : 1,
+                            },
+                          ]}
+                          onPress={() => setPriceStr(String(midPesos))}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Set fee to midpoint budget ₱${midPesos}`}
+                        >
+                          <Text
+                            style={[
+                              styles.quickChipText,
+                              {
+                                color:
+                                  priceStr === String(midPesos)
+                                    ? theme.colors.primary
+                                    : theme.colors.text,
+                              },
+                            ]}
+                          >
+                            Mid ₱{midPesos.toLocaleString()}
+                          </Text>
+                        </Pressable>
+                      )}
+
+                      {hasRange && maxPesos !== null && (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.quickChip,
+                            {
+                              backgroundColor:
+                                priceStr === String(maxPesos)
+                                  ? theme.colors.primarySoft
+                                  : theme.colors.surfaceAlt,
+                              borderColor:
+                                priceStr === String(maxPesos)
+                                  ? theme.colors.primary
+                                  : theme.colors.border,
+                              opacity: pressed ? 0.7 : 1,
+                            },
+                          ]}
+                          onPress={() => setPriceStr(String(maxPesos))}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Set fee to maximum budget ₱${maxPesos}`}
+                        >
+                          <Text
+                            style={[
+                              styles.quickChipText,
+                              {
+                                color:
+                                  priceStr === String(maxPesos)
+                                    ? theme.colors.primary
+                                    : theme.colors.text,
+                              },
+                            ]}
+                          >
+                            Max ₱{maxPesos.toLocaleString()}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                )}
               </View>
               <View style={isWide ? styles.colHalf : undefined}>
                 <TextInput
@@ -296,5 +420,32 @@ const styles = StyleSheet.create({
   },
   colHalf: {
     flex: 1,
+  },
+  quickFillContainer: {
+    marginTop: -4,
+    marginBottom: 14,
+  },
+  quickFillLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  quickFillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

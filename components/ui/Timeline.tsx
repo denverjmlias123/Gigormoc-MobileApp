@@ -228,8 +228,8 @@ export function computeAgreementLoopState(
         ? `Next step: ${cleanFreelancerName} — Confirm payment received`
         : `Next step: You — Confirm receipt of payment from ${cleanClientName}`,
       nextStepDescription: isClient
-        ? `Payment reported. Waiting for ${cleanFreelancerName} to confirm receipt.`
-        : `${cleanClientName} reported sending a payment. Confirm receipt once you verify the funds.`,
+        ? `Payment reported. Waiting for ${cleanFreelancerName} to verify and confirm receipt.`
+        : `${cleanClientName} reported sending ${formatPrice(reportedPayments[0]?.amount || 0)}. Check your account and tap Confirm Received.`,
     };
   }
 
