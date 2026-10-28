@@ -35,7 +35,7 @@ type ClientStatusFilter = 'all' | 'open' | 'draft' | 'in_progress' | 'closed';
 export default function GigsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { isWide, topSpace } = useResponsiveLayout();
+  const { isWide, isDesktop, topSpace } = useResponsiveLayout();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tab?: string; categoryId?: string }>();
 
