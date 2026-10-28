@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -53,6 +54,29 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notificationLoadError, setNotificationLoadError] = useState<string | null>(null);
+  const [showOrientationGuide, setShowOrientationGuide] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!userId || !profile?.active_mode) return;
+    const key = `@gigormoc_orientation_dismissed_${userId}_${profile.active_mode}`;
+    AsyncStorage.getItem(key)
+      .then((val) => {
+        if (!val) {
+          setShowOrientationGuide(true);
+        }
+      })
+      .catch(() => {});
+  }, [userId, profile?.active_mode]);
+
+  const handleDismissOrientation = useCallback(async () => {
+    setShowOrientationGuide(false);
+    if (userId && profile?.active_mode) {
+      const key = `@gigormoc_orientation_dismissed_${userId}_${profile.active_mode}`;
+      try {
+        await AsyncStorage.setItem(key, 'true');
+      } catch {}
+    }
+  }, [userId, profile?.active_mode]);
 
   const loadHomeData = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -442,6 +466,106 @@ export default function HomeScreen() {
         <View style={[styles.body, isWide && { paddingHorizontal: 0 }]}>
           {notificationLoadError && (
             <ErrorState message={notificationLoadError} onRetry={retryNotificationCount} />
+          )}
+
+          {showOrientationGuide && (
+            <Card
+              tone="neo-glass"
+              padding="md"
+              accentPosition="left"
+              accentColor={isHire ? theme.colors.roleAccent : theme.colors.primary}
+              style={styles.orientationCard}
+            >
+              <View style={styles.orientationHeader}>
+                <View style={styles.orientationTitleRow}>
+                  <View
+                    style={[
+                      styles.orientationIconCircle,
+                      { backgroundColor: isHire ? theme.colors.surfaceSubtle : theme.colors.primarySoft },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isHire ? 'briefcase' : 'sparkles'}
+                      size={18}
+                      color={isHire ? theme.colors.roleAccent : theme.colors.primary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.orientationTitle, { color: theme.colors.text }]}>
+                      {isHire ? 'Welcome to Hire Mode' : 'Welcome to Find Work Mode'}
+                    </Text>
+                    <Text style={[styles.orientationSubtitle, { color: theme.colors.muted }]}>
+                      {isHire
+                        ? 'Your quick guide to hiring local talent in Ormoc City'
+                        : 'Your quick guide to earning safely in Ormoc City'}
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={handleDismissOrientation}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss guide"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.dismissBtn}
+                >
+                  <Ionicons name="close" size={18} color={theme.colors.muted} />
+                </Pressable>
+              </View>
+
+              <View style={styles.orientationPillList}>
+                {isHire ? (
+                  <>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="create-outline" size={16} color={theme.colors.roleAccent} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>Post in 2 Minutes: </Text>Detail your task, set exact PHP centavos budget, and select your Ormoc barangay.
+                      </Text>
+                    </View>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="shield-checkmark-outline" size={16} color={theme.colors.roleAccent} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>Local Ormoc Talent: </Text>Review applicant proposals, compare past completions, and track milestone stages.
+                      </Text>
+                    </View>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="receipt-outline" size={16} color={theme.colors.roleAccent} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>Direct Milestone Settlement: </Text>Settle via GCash, Maya, or cash and confirm delivery receipt with ease.
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="location-outline" size={16} color={theme.colors.primary} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>Ormoc Hyperlocal Gigs: </Text>Browse open jobs across Brgy. Cogon, Punta, Linao, Valencia & more.
+                      </Text>
+                    </View>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="flash-outline" size={16} color={theme.colors.primary} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>1-Tap Proposals: </Text>Apply fast with quick-fill budget chips matched directly to client estimates.
+                      </Text>
+                    </View>
+                    <View style={styles.orientationPillRow}>
+                      <Ionicons name="wallet-outline" size={16} color={theme.colors.primary} />
+                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
+                        <Text style={{ fontWeight: '700' }}>Direct P2P Payouts: </Text>Receive 100% of your earnings via GCash, Maya, or cash upon milestone approval.
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              <Button
+                title={isHire ? 'Got it, start hiring' : 'Got it, explore gigs'}
+                variant="soft"
+                size="sm"
+                onPress={handleDismissOrientation}
+                style={{ marginTop: 6 }}
+              />
+            </Card>
           )}
 
           {!profile?.avatar_path && (
@@ -1236,5 +1360,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontStyle: 'italic',
+  },
+  orientationCard: {
+    marginBottom: 16,
+    gap: 12,
+  },
+  orientationHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  orientationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  orientationIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orientationTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  orientationSubtitle: {
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  dismissBtn: {
+    padding: 4,
+  },
+  orientationPillList: {
+    gap: 8,
+    marginTop: 2,
+  },
+  orientationPillRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  orientationPillText: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
   },
 });
