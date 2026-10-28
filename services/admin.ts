@@ -193,46 +193,17 @@ export const adminService = {
     } catch {
       const cached = await offlineSyncService.getCachedVerificationQueue();
       if (cached && cached.length > 0) return cached;
-
-      // Fallback item for offline demo
-      const activeProfile = await offlineSyncService.getCachedProfile();
-      if (activeProfile) {
-        return [{
-          id: activeProfile.id,
-          display_name: activeProfile.display_name || 'Demo User',
-          area: activeProfile.area || 'Ormoc City',
-          active_mode: activeProfile.active_mode || 'find_work',
-          is_legit_verified: Boolean(activeProfile.is_legit_verified),
-          verification_status: activeProfile.verification_status || 'ai_flagged',
-          ai_legitimacy_score: activeProfile.ai_legitimacy_score || 85,
-          ai_legitimacy_report: activeProfile.ai_legitimacy_report || {
-            score: 85,
-            meetsCriteria: true,
-            recommendation: 'recommend_approval',
-            aiSummary: 'AI screening confirmed profile completeness, contact details, and platform standing. Candidate is recommended for Super Admin badge approval.',
-            checklist: [
-              { id: '1', label: 'Identity & Completeness', passed: true, notes: 'Name, bio, and area checked.' },
-              { id: '2', label: 'Role Qualifications', passed: true, notes: 'Skills and work readiness recorded.' },
-              { id: '3', label: 'Clean Account Standing', passed: true, notes: 'Zero reports, clean standing.' }
-            ]
-          },
-          created_at: activeProfile.created_at || new Date().toISOString(),
-        }];
-      }
       return [];
     }
   },
 
   async approveLegitimacyBadge(userId: string, notes?: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          is_legit_verified: true,
-          verification_status: 'approved',
-          verified_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+      const { error } = await supabase.rpc('admin_decide_verification', {
+        p_user_id: userId,
+        p_action: 'approve',
+        p_notes: notes || null,
+      });
 
       if (error) throw error;
     } catch (err: any) {
@@ -259,13 +230,11 @@ export const adminService = {
 
   async rejectLegitimacyBadge(userId: string, notes?: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          is_legit_verified: false,
-          verification_status: 'rejected',
-        })
-        .eq('id', userId);
+      const { error } = await supabase.rpc('admin_decide_verification', {
+        p_user_id: userId,
+        p_action: 'reject',
+        p_notes: notes || null,
+      });
 
       if (error) throw error;
     } catch (err: any) {

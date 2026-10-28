@@ -147,20 +147,14 @@ export const aiLegitimacyService = {
     const evaluation = this.evaluateAccount(profile);
 
     try {
-      // 1. Try to persist to Supabase if online
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'ai_flagged',
-          ai_legitimacy_score: evaluation.score,
-          ai_legitimacy_report: evaluation,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', profile.id);
+      // 1. Submit through secure SECURITY DEFINER RPC
+      const { error } = await supabase.rpc('submit_profile_verification', {
+        p_score: evaluation.score,
+        p_report: evaluation,
+      });
 
       if (error) {
-        // If columns don't exist yet in remote DB, record gracefully
-        console.warn('Remote update failed, caching locally:', error.message);
+        console.warn('submit_profile_verification RPC failed, caching locally:', error.message);
       }
     } catch {
       // Offline fallback
