@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { authService, RESEND_CONFIRMATION_COOLDOWN_SECONDS } from '../../services/auth';
+import { supabase } from '../../lib/supabase';
 import { toAppError } from '../../lib/errors';
 import { Button } from '../../components/ui/Button';
 import { Card, AlertBox } from '../../components/ui/Card';
@@ -17,6 +18,20 @@ export default function ConfirmEmailScreen() {
   const [cooldown, setCooldown] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If the confirmation link was clicked in a browser or deep-linked in the same app instance,
+    // Supabase will automatically receive the session and update the user state.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && (session.user.email_confirmed_at || event === 'SIGNED_IN')) {
+        router.replace('/(onboarding)/step1-mode');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -104,9 +119,14 @@ export default function ConfirmEmailScreen() {
             />
           ) : null}
           <Button
-            title="Go to Log In"
+            title="I've confirmed my email → Log In"
             icon="log-in-outline"
-            onPress={() => router.replace('/(auth)/login')}
+            onPress={() =>
+              router.replace({
+                pathname: '/(auth)/login',
+                params: params.email ? { email: params.email } : undefined,
+              })
+            }
             fullWidth
           />
         </View>

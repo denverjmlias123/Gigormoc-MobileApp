@@ -17,11 +17,19 @@ export default function OnboardingStep1ModeScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
-  const { user, refreshProfile, signOut } = useAuth();
+  const { user, profile, refreshProfile, signOut } = useAuth();
 
-  const [selectedMode, setSelectedMode] = useState<ModeChoice | null>(null);
+  const [selectedMode, setSelectedMode] = useState<ModeChoice | null>(
+    (profile?.active_mode as ModeChoice) || null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (profile?.active_mode && !selectedMode) {
+      setSelectedMode(profile.active_mode as ModeChoice);
+    }
+  }, [profile?.active_mode, selectedMode]);
 
   const handleSignOut = async () => {
     if (loading) return;
@@ -47,6 +55,12 @@ export default function OnboardingStep1ModeScreen() {
   };
 
   const handleContinue = async () => {
+    if (profile?.active_mode) {
+      // Mode already chosen and committed to database
+      router.push('/(onboarding)/step2-skills');
+      return;
+    }
+
     if (!selectedMode) {
       setError('Please select either Find Work or Hire Someone to continue.');
       return;
@@ -152,13 +166,24 @@ export default function OnboardingStep1ModeScreen() {
             />
           )}
 
+          {profile?.active_mode && (
+            <AlertBox
+              tone="info"
+              title="Mode already confirmed"
+              message={`Your account was initialized in ${profile.active_mode === 'hire' ? 'Hire Someone (Client)' : 'Find Work (Freelancer)'} mode. To switch roles later, you can use Settings after onboarding (subject to cooldown and active job checks).`}
+              style={{ marginTop: 12, marginBottom: 4 }}
+            />
+          )}
+
           <View style={[styles.optionsList, isWide && styles.optionsListWide]}>
             {options.map((opt) => {
               const isSelected = selectedMode === opt.id;
+              const isLocked = Boolean(profile?.active_mode);
               return (
                 <Pressable
                   key={opt.id}
                   onPress={() => {
+                    if (isLocked) return;
                     setSelectedMode(opt.id);
                     setError(null);
                   }}
@@ -212,7 +237,7 @@ export default function OnboardingStep1ModeScreen() {
 
           <View style={styles.footer}>
             <Button
-              title="Continue"
+              title={profile?.active_mode ? 'Continue to Step 2' : 'Continue'}
               onPress={handleContinue}
               loading={loading}
               disabled={!selectedMode}
