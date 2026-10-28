@@ -220,7 +220,7 @@ export default function HomeScreen() {
                   <Text style={[styles.contractStatusText, { color: theme.colors.primary }]}>ACTIVE CONTRACT</Text>
                 </View>
                 <Text style={[styles.agreedPriceText, { color: theme.colors.primary }]}>
-                  ₱{formatPrice(agr.agreed_price)}
+                  {formatPrice(agr.agreed_price)}
                 </Text>
               </View>
 
@@ -854,7 +854,7 @@ export default function HomeScreen() {
 
                         <View style={styles.proposalMetaRow}>
                           <Text style={[styles.proposalPrice, { color: theme.colors.primary }]}>
-                            Proposed: ₱{formatPrice(app.proposed_price)}
+                            Proposed: {formatPrice(app.proposed_price)}
                           </Text>
                           <Text style={[styles.proposalDate, { color: theme.colors.muted }]}>
                             Submitted: {new Date(app.created_at).toLocaleDateString()}
