@@ -34,13 +34,13 @@ export const LegitBadge: React.FC<LegitBadgeProps> = ({ size = 'small', role, la
       <Ionicons
         name="shield-checkmark"
         size={isSmall ? 12 : 15}
-        color={c.primary}
+        color={c.primaryDark}
       />
       <Text
         style={[
           styles.text,
           isSmall ? styles.textSmall : styles.textMedium,
-          { color: c.primary },
+          { color: c.primaryDark },
         ]}
       >
         {displayLabel}

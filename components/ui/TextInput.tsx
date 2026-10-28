@@ -82,7 +82,7 @@ export const TextInput = React.forwardRef<RNTextInput, Props>(function TextInput
           styles.inputBox,
           {
             borderColor,
-            borderWidth: focused || error ? 2 : 1,
+            borderWidth: 1.5,
             backgroundColor: focused ? theme.colors.surface : theme.colors.surfaceAlt,
             borderRadius: theme.radii.input,
             ...(Platform.OS === 'web' && focused

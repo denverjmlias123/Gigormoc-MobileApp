@@ -4,10 +4,10 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Pressable,
 } from 'react-native';
 import { useAppTheme } from '../../app/theme';
+import { Button } from './Button';
 
 export interface ConfirmDialogOptions {
   title: string;
@@ -79,7 +79,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.border,
+              borderRadius: theme.radii.card,
             },
+            theme.shadow.raised,
           ]}
           onPress={(e) => e.stopPropagation()}
         >
@@ -89,38 +91,24 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           ) : null}
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.cancelButton,
-                {
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.surface,
-                },
-              ]}
+            <Button
+              title={cancelText}
+              variant="secondary"
+              size="md"
               onPress={onCancel}
               disabled={loading}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>
-                {cancelText}
-              </Text>
-            </TouchableOpacity>
+              style={styles.dialogBtn}
+            />
 
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.confirmButton,
-                {
-                  backgroundColor: destructive ? theme.colors.danger : theme.colors.primary,
-                },
-              ]}
+            <Button
+              title={confirmText}
+              variant={destructive ? 'danger' : 'primary'}
+              size="md"
               onPress={onConfirm}
+              loading={loading}
               disabled={loading}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.confirmButtonText}>{confirmText}</Text>
-            </TouchableOpacity>
+              style={styles.dialogBtn}
+            />
           </View>
         </Pressable>
       </Pressable>
@@ -235,27 +223,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 12,
   },
-  button: {
+  dialogBtn: {
     flex: 1,
-    minHeight: 46,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    minWidth: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    borderWidth: 1,
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  confirmButton: {},
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
 });

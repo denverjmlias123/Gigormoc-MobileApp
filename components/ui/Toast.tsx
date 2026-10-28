@@ -213,11 +213,18 @@ const styles = StyleSheet.create({
   toastCard: {
     maxWidth: 480,
     width: '100%',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    elevation: 6,
+    elevation: 8,
+    shadowColor: '#070B26',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    ...(Platform.OS === 'web'
+      ? ({ boxShadow: '0 8px 24px rgba(7, 11, 38, 0.22)' } as any)
+      : null),
   },
   toastRow: {
     flexDirection: 'row',

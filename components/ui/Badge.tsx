@@ -39,7 +39,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, label }) => {
       case 'countered':
       case 'revision_requested':
       case 'suspended':
-        return { bg: c.warningSoft, text: c.warning };
+        return { bg: c.warningSoft, text: c.warningText };
       case 'approved':
       case 'confirmed':
       case 'completed':

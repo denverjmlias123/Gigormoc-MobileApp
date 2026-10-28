@@ -64,6 +64,7 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
 }) {
   const theme = useAppTheme();
   const c = theme.colors;
+  const [hovered, setHovered] = React.useState(false);
 
   const priceDisplay =
     gig.price_min === gig.price_max
@@ -86,9 +87,10 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
         theme.shadow.neoGlass,
         {
           backgroundColor: theme.glass.surface,
-          borderColor: theme.glass.border,
+          borderColor: hovered ? c.primary : theme.glass.border,
           borderWidth: 1,
           borderRadius: theme.radii.card,
+          transform: [{ scale: hovered ? 1.005 : 1 }],
         },
         style,
       ]}
@@ -102,6 +104,8 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
           },
         ]}
         onPress={onPress}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
         accessibilityRole="button"
         accessibilityLabel={`${gig.title}, ${priceDisplay}`}
       >

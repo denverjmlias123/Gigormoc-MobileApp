@@ -48,6 +48,7 @@ export default function GigsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [workTypeFilter, setWorkTypeFilter] = useState<WorkTypeFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [showMobileCategories, setShowMobileCategories] = useState(false);
 
   // Client Specific State
@@ -238,13 +239,21 @@ export default function GigsScreen() {
                   style={[
                     styles.searchBox,
                     {
-                      backgroundColor: theme.colors.surfaceAlt,
+                      backgroundColor: searchFocused ? theme.colors.surface : theme.colors.surfaceAlt,
                       borderRadius: theme.radii.input,
-                      borderColor: theme.colors.border,
+                      borderColor: searchFocused ? theme.colors.primary : theme.colors.border,
+                      borderWidth: 1.5,
+                      ...(Platform.OS === 'web' && searchFocused
+                        ? ({ boxShadow: `0 0 0 3px ${theme.colors.focusRing}` } as any)
+                        : null),
                     },
                   ]}
                 >
-                  <Ionicons name="search" size={18} color={theme.colors.muted} />
+                  <Ionicons
+                    name="search"
+                    size={18}
+                    color={searchFocused ? theme.colors.primary : theme.colors.muted}
+                  />
                   <RNTextInput
                     style={[
                       styles.searchInput,
@@ -259,6 +268,8 @@ export default function GigsScreen() {
                     placeholderTextColor={theme.colors.muted}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setSearchFocused(false)}
                     onSubmitEditing={handleSearchSubmit}
                     returnKeyType="search"
                   />

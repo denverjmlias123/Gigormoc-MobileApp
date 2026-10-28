@@ -143,7 +143,7 @@ export const Button: React.FC<ButtonProps> = ({
     primary: { bg: c.primary, fg: c.primaryText, border: 'transparent', pressed: c.primaryDark },
     accent: { bg: c.roleAccent, fg: c.primaryText, border: 'transparent', pressed: c.primaryDark },
     success: { bg: c.success, fg: c.primaryText, border: 'transparent', pressed: c.successText },
-    warning: { bg: c.warningSoft, fg: c.warning, border: c.warning, pressed: c.surfaceAlt },
+    warning: { bg: c.warningSoft, fg: c.warningText, border: c.warning, pressed: c.surfaceAlt },
     danger: { bg: c.danger, fg: c.primaryText, border: 'transparent', pressed: c.dangerText },
     'danger-soft': { bg: c.dangerSoft, fg: c.dangerText, border: c.danger, pressed: c.surfaceAlt },
     soft: { bg: c.primarySoft, fg: c.primary, border: 'transparent', pressed: c.surfaceAlt },
@@ -170,7 +170,13 @@ export const Button: React.FC<ButtonProps> = ({
     <Pressable
       onPress={handlePress}
       disabled={inactive}
-      hitSlop={size === 'xs' ? 6 : size === 'sm' ? 4 : 0}
+      hitSlop={
+        size === 'xs'
+          ? { top: 6, bottom: 6, left: 8, right: 8 }
+          : size === 'sm'
+          ? { top: 4, bottom: 4, left: 6, right: 6 }
+          : 0
+      }
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: isBusy }}
       style={(state: any) => {

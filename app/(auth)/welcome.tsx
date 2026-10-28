@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, lightFreelancerTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -150,13 +151,18 @@ function PrimaryCta({ title, onPress }: { title: string; onPress: () => void }) 
       accessibilityRole="button"
       style={({ pressed, hovered }: any) => [
         styles.cta,
-        gradient(BRAND, '#3A5DFF'),
         lightFreelancerTheme.shadow.glow,
         Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
         hovered && { opacity: 0.94, transform: [{ translateY: -1 }] },
         pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] },
       ]}
     >
+      <LinearGradient
+        colors={['#3A5DFF', '#7C5CFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+      />
       <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
       <Text style={styles.ctaText}>{title}</Text>
       <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -267,10 +273,19 @@ export default function WelcomeScreen() {
   );
 
   return (
-    <View style={[styles.root, gradient(INK, '#070B26')]}>
-      {/* Ambient light */}
-      <View pointerEvents="none" style={[styles.orb, { top: -120, right: -100, width: 380, height: 380, backgroundColor: '#5B3DFF', opacity: 0.35 }]} />
-      <View pointerEvents="none" style={[styles.orb, { bottom: -140, left: -120, width: 420, height: 420, backgroundColor: '#1F7BFF', opacity: 0.28 }]} />
+    <LinearGradient
+      colors={['#0E1A5C', '#070B26']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.3, y: 1 }}
+      style={styles.root}
+    >
+      {/* Ambient light for web */}
+      {Platform.OS === 'web' && (
+        <>
+          <View pointerEvents="none" style={[styles.orb, { top: -120, right: -100, width: 380, height: 380, backgroundColor: '#5B3DFF', opacity: 0.35 }]} />
+          <View pointerEvents="none" style={[styles.orb, { bottom: -140, left: -120, width: 420, height: 420, backgroundColor: '#1F7BFF', opacity: 0.28 }]} />
+        </>
+      )}
 
       <ScrollView
         contentContainerStyle={[
@@ -301,7 +316,7 @@ export default function WelcomeScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </LinearGradient>
   );
 }
 
