@@ -116,7 +116,7 @@ function MilestonePreview() {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.smallTitle, { color: '#FFFFFF' }]}>Milestone approved</Text>
-        <Text style={[styles.metaText, { color: '#D9FFF0' }]}>₱900 released</Text>
+        <Text style={[styles.metaText, { color: '#D9FFF0' }]}>₱900 confirmed received</Text>
       </View>
     </View>
   );
