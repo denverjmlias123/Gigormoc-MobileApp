@@ -174,6 +174,7 @@ const styles = StyleSheet.create({
   ringText: {
     fontSize: 14,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   summaryCol: {
     flex: 1,
@@ -185,16 +186,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   missingList: {
-    marginTop: 14,
+    marginTop: 16,
     gap: 8,
   },
   missingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
   },
   missingIconWrap: {
@@ -206,7 +207,8 @@ const styles = StyleSheet.create({
   },
   missingChipText: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
 });

@@ -64,7 +64,7 @@ export default function CreateAdminUser() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {error ? <AlertBox tone="danger" message={error} /> : null}
 
-        <Card tone="neo-glass" padding="lg" style={{ gap: 12 }}>
+        <Card tone="raised" padding="lg" style={{ gap: 12 }}>
           <TextInput
             label={strings.admin.name}
             value={displayName}

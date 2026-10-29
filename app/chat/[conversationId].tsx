@@ -320,11 +320,10 @@ export default function ChatScreen() {
                       : [
                           styles.theirBubble,
                           {
-                            backgroundColor: theme.glass.surface,
-                            borderColor: theme.glass.border,
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
                             borderWidth: 1,
                           },
-                          theme.shadow.card,
                         ],
                   ]}
                 >
@@ -535,7 +534,7 @@ const styles = StyleSheet.create({
   },
   topBarInner: {
     width: '100%',
-    maxWidth: 960,
+    maxWidth: 1120,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -563,7 +562,7 @@ const styles = StyleSheet.create({
   },
   centeredChatColumn: {
     width: '100%',
-    maxWidth: 960,
+    maxWidth: 1120,
     alignSelf: 'center',
   },
   messageBubbleWrapper: {
@@ -616,6 +615,7 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 10,
     alignSelf: 'flex-end',
+    fontVariant: ['tabular-nums'],
   },
   emptyContainer: {
     padding: 32,
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
   },
   inputBarInner: {
     width: '100%',
-    maxWidth: 960,
+    maxWidth: 1120,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -641,8 +641,8 @@ const styles = StyleSheet.create({
   },
   inputField: {
     flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 20,
+    borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 460,
     borderRadius: 20,
     borderWidth: 1,
     padding: 18,

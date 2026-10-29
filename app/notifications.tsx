@@ -284,7 +284,7 @@ export default function NotificationsScreen() {
             router.replace('/(tabs)');
           }
         }}
-        maxWidth={760}
+        maxWidth={680}
         rightAction={
           unreadCount > 0 ? (
             <Button
@@ -372,7 +372,7 @@ const NotificationCard = React.memo(function NotificationCard({
   const isUnread = !item.read_at;
   return (
     <Card
-      tone={isUnread ? 'tinted-primary' : 'neo-glass'}
+      tone={isUnread ? 'tinted-primary' : 'raised'}
       padding="md"
       onPress={() => onPress(item)}
       style={styles.notificationCard}
@@ -420,13 +420,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   filterBarInner: {
-    maxWidth: 760,
+    maxWidth: 680,
     width: '100%',
     alignSelf: 'center',
   },
   bodyWrap: {
     flex: 1,
-    maxWidth: 760,
+    maxWidth: 680,
     width: '100%',
     alignSelf: 'center',
   },
@@ -477,5 +477,6 @@ const styles = StyleSheet.create({
   },
   itemDate: {
     fontSize: 11,
+    fontVariant: ['tabular-nums'],
   },
 });

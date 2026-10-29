@@ -131,7 +131,7 @@ export default function ApplyGigScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+          { paddingBottom: !isWide ? Math.max(insets.bottom + 80, 96) : Math.max(insets.bottom + 32, 40) },
         ]}
         keyboardShouldPersistTaps="handled"
       >
@@ -142,15 +142,11 @@ export default function ApplyGigScreen() {
 
           {gig && (
             <Card
-              tone="role"
+              tone="outline"
               padding="md"
-              accentPosition="left"
               accentColor={theme.colors.primary}
               style={{ marginBottom: 16 }}
             >
-              <Text style={[styles.gigSummaryEyebrow, { color: theme.colors.primary }]}>
-                APPLYING FOR GIG
-              </Text>
               <Text style={[styles.gigSummaryTitle, { color: theme.colors.text }]}>
                 {gig.title}
               </Text>
@@ -198,7 +194,7 @@ export default function ApplyGigScreen() {
           />
 
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="lg"
             headerTitle="Your Proposal"
             headerSubtitle="Set your rate, timeline, and cover note"
@@ -356,17 +352,41 @@ export default function ApplyGigScreen() {
               showCharCount
             />
 
-            <Button
-              title="Submit Application"
-              rightIcon="send"
-              onPress={handleSubmit}
-              variant="primary"
-              loading={loading}
-              style={{ marginTop: 12 }}
-            />
+            {isWide && (
+              <Button
+                title="Submit Application"
+                rightIcon="send"
+                onPress={handleSubmit}
+                variant="primary"
+                loading={loading}
+                style={{ marginTop: 12 }}
+              />
+            )}
           </Card>
         </View>
       </ScrollView>
+
+      {!isWide && (
+        <View
+          style={[
+            styles.stickyDock,
+            {
+              backgroundColor: theme.colors.surface,
+              borderTopColor: theme.colors.border,
+              paddingBottom: Math.max(insets.bottom, 12),
+            },
+          ]}
+        >
+          <Button
+            title="Submit Application"
+            rightIcon="send"
+            onPress={handleSubmit}
+            variant="primary"
+            loading={loading}
+            fullWidth
+          />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -377,17 +397,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 32,
+  },
+  stickyDock: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    width: '100%',
   },
   formContainer: {
     width: '100%',
     maxWidth: 680,
     alignSelf: 'center',
-  },
-  gigSummaryEyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    marginBottom: 4,
   },
   gigSummaryTitle: {
     fontSize: 17,
@@ -413,6 +434,7 @@ const styles = StyleSheet.create({
   gigSummaryChipValue: {
     fontSize: 12,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   twoColRow: {
     flexDirection: 'row',
@@ -447,5 +469,6 @@ const styles = StyleSheet.create({
   quickChipText: {
     fontSize: 12,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });

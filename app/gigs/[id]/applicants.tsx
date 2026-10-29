@@ -274,7 +274,7 @@ export default function GigApplicantsScreen() {
                 return (
                   <Card
                     key={app.id}
-                    tone="neo-glass"
+                    tone="raised"
                     padding="md"
                     style={[
                       styles.card,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 960,
+    maxWidth: 1120,
     alignSelf: 'center',
   },
   filterRow: {
@@ -499,6 +499,7 @@ const styles = StyleSheet.create({
   priceTag: {
     fontSize: 16,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   daysTag: {
     fontSize: 13,
@@ -514,12 +515,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   actionButtonsRow: {
     flexDirection: 'row',
     gap: 8,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
 });

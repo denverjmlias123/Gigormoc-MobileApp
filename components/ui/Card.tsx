@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, useResponsiveLayout } from '../../app/theme';
 import { Button, IconButton } from './Button';
@@ -50,7 +49,7 @@ const PADDING_MAP: Record<CardPadding, number> = {
 export const Card: React.FC<CardProps> = ({
   children,
   style,
-  tone = 'neo-glass',
+  tone = 'raised',
   padding = 'md',
   accentPosition = 'none',
   accentColor,
@@ -102,33 +101,30 @@ export const Card: React.FC<CardProps> = ({
 
   const accentStyle: ViewStyle =
     accentPosition === 'top'
-      ? { borderTopWidth: 4, borderTopColor: resolvedAccent }
+      ? { borderTopWidth: 2, borderTopColor: resolvedAccent }
       : accentPosition === 'left'
-      ? { borderLeftWidth: 4, borderLeftColor: resolvedAccent }
+      ? { borderWidth: 1, borderColor: resolvedAccent }
       : {};
 
   if (tone === 'gradient' && !onPress) {
     return (
-      <LinearGradient
-        colors={theme.gradients.surface}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
           styles.card,
           {
             padding: resolvedPadding,
             borderRadius: theme.radii.card,
+            backgroundColor: c.surface,
             borderWidth: 1,
-            borderColor: theme.glass.border,
+            borderColor: c.border,
           },
           accentStyle,
-          theme.shadow.neoGlass,
           style,
         ]}
       >
         {renderHeader()}
         {children}
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -136,10 +132,10 @@ export const Card: React.FC<CardProps> = ({
     if (tone === 'inset' || tone === 'muted') {
       return [
         {
-          backgroundColor: c.insetBg || c.surfaceAlt,
+          backgroundColor: c.surfaceAlt,
           borderWidth: 1,
-          borderColor: hovered && onPress ? c.primary : c.insetBorder || c.border,
-          borderRadius: 14,
+          borderColor: hovered && onPress ? c.primary : c.border,
+          borderRadius: 10,
         },
       ];
     }
@@ -177,7 +173,6 @@ export const Card: React.FC<CardProps> = ({
           borderWidth: 1.5,
           borderColor: c.roleAccent,
         },
-        theme.shadow.neoGlass,
       ];
     }
     if (tone === 'raised') {
@@ -185,9 +180,8 @@ export const Card: React.FC<CardProps> = ({
         {
           backgroundColor: c.surface,
           borderWidth: 1,
-          borderColor: hovered && onPress ? c.primary : theme.glass.border,
+          borderColor: hovered && onPress ? c.primary : c.borderStrong,
         },
-        theme.shadow.raised,
       ];
     }
     if (tone === 'outline') {
@@ -201,11 +195,10 @@ export const Card: React.FC<CardProps> = ({
     }
     return [
       {
-        backgroundColor: pressed && onPress ? c.surfaceAlt : theme.glass.surface,
+        backgroundColor: pressed && onPress ? c.surfaceAlt : c.surface,
         borderWidth: 1,
-        borderColor: hovered && onPress ? c.primary : theme.glass.border,
+        borderColor: hovered && onPress ? c.primary : c.border,
       },
-      theme.shadow.neoGlass,
     ];
   };
 
@@ -338,7 +331,6 @@ export const AlertBox: React.FC<AlertBoxProps> = ({
         {
           backgroundColor: pal.bg,
           borderColor: pal.border,
-          borderLeftColor: pal.border,
         },
         style,
       ]}
@@ -565,8 +557,7 @@ const styles = StyleSheet.create({
   },
   alertBox: {
     borderWidth: 1,
-    borderLeftWidth: 4,
-    borderRadius: 14,
+    borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 12,
@@ -614,9 +605,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   statSubtitle: {
     fontSize: 12,

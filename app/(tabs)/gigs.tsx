@@ -255,7 +255,7 @@ export default function GigsScreen() {
 
           {/* Client Segmented Control: My Gigs vs Find Freelancers vs Market Feed */}
           {isClient && (
-            <View style={[ { marginBottom: 12 }, isWide && { maxWidth: 520 }]}>
+            <View style={[{ marginBottom: 12 }, isWide && { maxWidth: theme.layout.authMaxWidth }]}>
               <SegmentedControl<ClientSegment>
                 options={[
                   { value: 'my_gigs', label: 'My Gigs', count: myGigs.length },
@@ -279,10 +279,7 @@ export default function GigsScreen() {
                       backgroundColor: searchFocused ? theme.colors.surface : theme.colors.surfaceAlt,
                       borderRadius: theme.radii.input,
                       borderColor: searchFocused ? theme.colors.primary : theme.colors.border,
-                      borderWidth: 1.5,
-                      ...(Platform.OS === 'web' && searchFocused
-                        ? ({ boxShadow: `0 0 0 3px ${theme.colors.focusRing}` } as any)
-                        : null),
+                      borderWidth: 1,
                     },
                   ]}
                 >
@@ -523,10 +520,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   headerInner: {
-    maxWidth: 1200,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -540,7 +537,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   searchBox: {
     flex: 1,
@@ -556,14 +553,14 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   listContent: { padding: 16, paddingBottom: 40 },
   listInner: {
-    maxWidth: 1200,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
+    gap: 16,
   },
   gridCard: {
     flexBasis: '48.8%',

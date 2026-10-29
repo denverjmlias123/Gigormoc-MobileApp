@@ -61,5 +61,5 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: { fontSize: 17, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
-  message: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 16, maxWidth: 440 },
+  message: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 16, maxWidth: 460 },
 });

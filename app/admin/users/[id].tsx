@@ -89,6 +89,8 @@ export default function AdminUserDetail() {
     );
   const unlock = () =>
     act('unlock', () => adminService.unlockLogin(detail.email), strings.toasts.adminUnlocked);
+  const lock = () =>
+    act('lock', () => adminService.lockLogin(detail.email), 'User login locked for 24 hours');
   const endSessions = () => act('sessions', () => adminService.endSessions(String(id)));
   const removeUser = async () => {
     if (emailConfirm.trim().toLowerCase() !== String(detail.email).toLowerCase()) {
@@ -130,7 +132,7 @@ export default function AdminUserDetail() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Card tone="neo-glass" padding="md">
+        <Card tone="raised" padding="md">
           <Text style={[theme.type.body, { color: theme.colors.text }]}>{detail.email}</Text>
           <Text style={[theme.type.small, { color: theme.colors.muted }]}>{id}</Text>
           <Text style={[theme.type.small, { color: theme.colors.muted }]}>
@@ -148,7 +150,7 @@ export default function AdminUserDetail() {
         <View style={[styles.sectionsGrid, isDesktop && styles.sectionsGridDesktop]}>
           {/* Left Column: Account Details & Role */}
           <View style={styles.col}>
-            <Card tone="neo-glass" padding="md" style={{ gap: 12 }}>
+            <Card tone="raised" padding="md" style={{ gap: 12 }}>
               <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
                 Account & Profile Details
               </Text>
@@ -190,7 +192,7 @@ export default function AdminUserDetail() {
             </Card>
 
             {superAdmin ? (
-              <Card tone="neo-glass" padding="md" style={{ gap: 10 }}>
+              <Card tone="raised" padding="md" style={{ gap: 10 }}>
                 <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
                   {strings.admin.role}: {detail.admin_role || 'user'}
                 </Text>
@@ -224,7 +226,7 @@ export default function AdminUserDetail() {
 
           {/* Right Column: Security & Sessions + Danger Zone */}
           <View style={styles.col}>
-            <Card tone="neo-glass" padding="md" style={{ gap: 10 }}>
+            <Card tone="raised" padding="md" style={{ gap: 10 }}>
               <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>
                 Security & Sessions
               </Text>
@@ -241,6 +243,13 @@ export default function AdminUserDetail() {
                 onPress={unlock}
                 loading={activeAction === 'unlock'}
                 disabled={saving || profile.status === 'deleted'}
+              />
+              <Button
+                title="Lock Login"
+                variant="secondary"
+                onPress={lock}
+                loading={activeAction === 'lock'}
+                disabled={saving || profile.status === 'deleted' || String(id) === currentUser?.id}
               />
               <Button
                 title={strings.admin.endSessions}
@@ -306,7 +315,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     gap: 12,
-    maxWidth: 1080,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },

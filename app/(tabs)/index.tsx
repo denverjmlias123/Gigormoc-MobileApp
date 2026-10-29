@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -232,7 +231,7 @@ export default function HomeScreen() {
           activeAgreements.map((agr) => (
             <Card
               key={agr.id}
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               accentPosition="left"
               accentColor={theme.colors.primary}
@@ -300,14 +299,14 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Hero: Smooth gradient with active mode personality */}
-        <LinearGradient
-          colors={theme.gradients.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        {/* Hero: Crisp, flat header banner with role mode personality */}
+        <View
           style={[
             styles.hero,
-            { paddingTop: isWide ? 28 : topSpace + 8 },
+            {
+              backgroundColor: theme.colors.heroBg,
+              paddingTop: isWide ? 28 : topSpace + 8,
+            },
             isWide && styles.heroWide,
           ]}
         >
@@ -322,6 +321,7 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <Pressable
                 style={[styles.bellBtn, { backgroundColor: theme.colors.heroChip }]}
+                hitSlop={4}
                 onPress={() => router.push('/notifications')}
                 accessibilityRole="button"
                 accessibilityLabel="Notifications"
@@ -341,7 +341,7 @@ export default function HomeScreen() {
                   styles.modePill,
                   {
                     backgroundColor: theme.colors.heroChip,
-                    borderColor: 'rgba(255,255,255,0.2)',
+                    borderColor: 'rgba(255,255,255,0.18)',
                     borderWidth: 1,
                   },
                 ]}
@@ -365,16 +365,18 @@ export default function HomeScreen() {
                 <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
                   Your hiring at a glance
                 </Text>
-                <View style={styles.statRow}>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                <View style={styles.kpiStrip}>
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : openCount}</Text>
                     <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Open</Text>
                   </View>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : draftCount}</Text>
                     <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Drafts</Text>
                   </View>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : myGigs.length}</Text>
                     <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>All gigs</Text>
                   </View>
@@ -400,16 +402,18 @@ export default function HomeScreen() {
                 <Text style={[theme.type.title, { color: theme.colors.heroText, marginTop: 20 }]}>
                   Your freelancing at a glance
                 </Text>
-                <View style={styles.statRow}>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                <View style={styles.kpiStrip}>
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : activeAgreements.length}</Text>
                     <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Active work</Text>
                   </View>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>{loading ? '–' : pendingApplications.length}</Text>
                     <Text style={[theme.type.small, { color: theme.colors.heroMuted }]}>Proposals</Text>
                   </View>
-                  <View style={[styles.stat, { backgroundColor: theme.colors.heroChip }]}>
+                  <View style={styles.kpiDivider} />
+                  <View style={styles.kpiItem}>
                     <Text style={[styles.statValue, { color: theme.colors.heroText }]}>
                       {loading ? '–' : completedAgreements.length || profile?.freelancer_completed_gigs || 0}
                     </Text>
@@ -461,7 +465,7 @@ export default function HomeScreen() {
               </View>
             </View>
           )}
-        </LinearGradient>
+        </View>
 
         <View style={[styles.body, isWide && { paddingHorizontal: 0 }]}>
           {notificationLoadError && (
@@ -469,103 +473,35 @@ export default function HomeScreen() {
           )}
 
           {showOrientationGuide && (
-            <Card
-              tone="neo-glass"
-              padding="md"
-              accentPosition="left"
-              accentColor={isHire ? theme.colors.roleAccent : theme.colors.primary}
-              style={styles.orientationCard}
+            <View
+              style={[
+                styles.orientationBanner,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: isHire ? theme.colors.roleAccent : theme.colors.primary,
+                },
+              ]}
             >
-              <View style={styles.orientationHeader}>
-                <View style={styles.orientationTitleRow}>
-                  <View
-                    style={[
-                      styles.orientationIconCircle,
-                      { backgroundColor: isHire ? theme.colors.surfaceSubtle : theme.colors.primarySoft },
-                    ]}
-                  >
-                    <Ionicons
-                      name={isHire ? 'briefcase' : 'sparkles'}
-                      size={18}
-                      color={isHire ? theme.colors.roleAccent : theme.colors.primary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.orientationTitle, { color: theme.colors.text }]}>
-                      {isHire ? 'Welcome to Hire Mode' : 'Welcome to Find Work Mode'}
-                    </Text>
-                    <Text style={[styles.orientationSubtitle, { color: theme.colors.muted }]}>
-                      {isHire
-                        ? 'Your quick guide to hiring local talent in Ormoc City'
-                        : 'Your quick guide to earning safely in Ormoc City'}
-                    </Text>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={handleDismissOrientation}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss guide"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.dismissBtn}
-                >
-                  <Ionicons name="close" size={18} color={theme.colors.muted} />
-                </Pressable>
-              </View>
-
-              <View style={styles.orientationPillList}>
-                {isHire ? (
-                  <>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="create-outline" size={16} color={theme.colors.roleAccent} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>Post in 2 Minutes: </Text>Detail your task, set exact PHP centavos budget, and select your Ormoc barangay.
-                      </Text>
-                    </View>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="shield-checkmark-outline" size={16} color={theme.colors.roleAccent} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>Local Ormoc Talent: </Text>Review applicant proposals, compare past completions, and track milestone stages.
-                      </Text>
-                    </View>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="receipt-outline" size={16} color={theme.colors.roleAccent} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>Direct Milestone Settlement: </Text>Settle via GCash, Maya, or cash and confirm delivery receipt with ease.
-                      </Text>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="location-outline" size={16} color={theme.colors.primary} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>Ormoc Hyperlocal Gigs: </Text>Browse open jobs across Brgy. Cogon, Punta, Linao, Valencia & more.
-                      </Text>
-                    </View>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="flash-outline" size={16} color={theme.colors.primary} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>1-Tap Proposals: </Text>Apply fast with quick-fill budget chips matched directly to client estimates.
-                      </Text>
-                    </View>
-                    <View style={styles.orientationPillRow}>
-                      <Ionicons name="wallet-outline" size={16} color={theme.colors.primary} />
-                      <Text style={[styles.orientationPillText, { color: theme.colors.text }]}>
-                        <Text style={{ fontWeight: '700' }}>Direct P2P Payouts: </Text>Receive 100% of your earnings via GCash, Maya, or cash upon milestone approval.
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
-
-              <Button
-                title={isHire ? 'Got it, start hiring' : 'Got it, explore gigs'}
-                variant="soft"
-                size="sm"
-                onPress={handleDismissOrientation}
-                style={{ marginTop: 6 }}
+              <Ionicons
+                name={isHire ? 'briefcase-outline' : 'sparkles-outline'}
+                size={18}
+                color={isHire ? theme.colors.roleAccent : theme.colors.primary}
               />
-            </Card>
+              <Text style={[styles.orientationBannerText, { color: theme.colors.text }]}>
+                {isHire
+                  ? 'Hire tip: Post tasks with exact centavos budget and select your Ormoc barangay to receive direct local proposals.'
+                  : 'Earning tip: Apply to open Ormoc gigs with 1-tap budget chips and receive direct payments upon milestone delivery.'}
+              </Text>
+              <Pressable
+                onPress={handleDismissOrientation}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss tip"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.dismissBtn}
+              >
+                <Ionicons name="close" size={16} color={theme.colors.muted} />
+              </Pressable>
+            </View>
           )}
 
           {!profile?.avatar_path && (
@@ -670,7 +606,7 @@ export default function HomeScreen() {
                       </Text>
                     </Card>
                   ) : isDesktop ? (
-                    <View style={{ gap: 10 }}>
+                    <View style={{ gap: 12 }}>
                       {topFreelancers.slice(0, 4).map((freelancer) => (
                         <FreelancerCard
                           key={freelancer.id}
@@ -964,9 +900,9 @@ export default function HomeScreen() {
                     {pendingApplications.slice(0, 3).map((app) => (
                       <Card
                         key={app.id}
-                        tone="neo-glass"
+                        tone="raised"
                         padding="md"
-                        style={{ marginBottom: 10, gap: 6 }}
+                        style={{ marginBottom: 12, gap: 8 }}
                         onPress={() => router.push({ pathname: '/gigs/[id]', params: { id: app.gig_id } })}
                       >
                         <View style={styles.proposalHeaderRow}>
@@ -1052,8 +988,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: {
-    paddingBottom: 60,
-    maxWidth: 1160,
+    paddingBottom: 64,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -1097,7 +1033,7 @@ const styles = StyleSheet.create({
   modePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1109,9 +1045,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 24,
   },
-  statRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  kpiStrip: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    overflow: 'hidden',
+    marginTop: 16,
+  },
+  kpiItem: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  kpiDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  statRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   stat: { flex: 1, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14 },
-  statValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
   heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1130,7 +1089,7 @@ const styles = StyleSheet.create({
   freelancerHeroActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     marginTop: 16,
   },
   freelancerHeroActionsDesktop: {
@@ -1149,7 +1108,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 16,
     height: 48,
     borderRadius: 14,
@@ -1160,7 +1119,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   availabilityText: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
   body: { paddingHorizontal: 20, paddingTop: 20 },
@@ -1178,7 +1138,7 @@ const styles = StyleSheet.create({
   cardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
+    gap: 16,
   },
   gridCardItem: {
     flexBasis: '48.2%',
@@ -1197,7 +1157,7 @@ const styles = StyleSheet.create({
   categoryWrapGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 12,
   },
   categoryCard: {
     minWidth: 120,
@@ -1224,13 +1184,13 @@ const styles = StyleSheet.create({
   emptyInlineCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     marginVertical: 4,
   },
   emptyInlineText: {
-    fontSize: 13.5,
+    fontSize: 14,
     flex: 1,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   activeContractHeader: {
     flexDirection: 'row',
@@ -1240,8 +1200,8 @@ const styles = StyleSheet.create({
   contractStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    gap: 8,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
@@ -1257,6 +1217,7 @@ const styles = StyleSheet.create({
   agreedPriceText: {
     fontSize: 16,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   contractGigTitle: {
     fontSize: 16,
@@ -1271,14 +1232,15 @@ const styles = StyleSheet.create({
   contractClientInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   contractClientName: {
     fontSize: 13,
     fontWeight: '500',
   },
   contractDeadline: {
-    fontSize: 12.5,
+    fontSize: 12,
+    lineHeight: 16,
   },
   sectionSubtitle: {
     fontSize: 13,
@@ -1292,7 +1254,7 @@ const styles = StyleSheet.create({
   matchBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1300,7 +1262,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   matchBadgeText: {
-    fontSize: 11.5,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '700',
   },
   skillPromptCard: {
@@ -1311,12 +1274,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   skillPromptTitle: {
-    fontSize: 14.5,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '700',
   },
   skillPromptSubtitle: {
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 18,
   },
   proposalHeaderRow: {
     flexDirection: 'row',
@@ -1335,8 +1299,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   proposalPrice: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   proposalDate: {
     fontSize: 12,
@@ -1344,14 +1310,16 @@ const styles = StyleSheet.create({
   testimonialHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   testimonialClientName: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
   testimonialDate: {
-    fontSize: 11.5,
+    fontSize: 12,
+    lineHeight: 16,
   },
   testimonialStars: {
     fontSize: 14,
@@ -1361,52 +1329,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontStyle: 'italic',
   },
-  orientationCard: {
-    marginBottom: 16,
+  orientationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 16,
   },
-  orientationHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  orientationTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  orientationIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orientationTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  orientationSubtitle: {
-    fontSize: 12.5,
-    marginTop: 2,
-  },
-  dismissBtn: {
-    padding: 4,
-  },
-  orientationPillList: {
-    gap: 8,
-    marginTop: 2,
-  },
-  orientationPillRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  orientationPillText: {
+  orientationBannerText: {
     fontSize: 13,
     lineHeight: 18,
     flex: 1,
+    fontWeight: '500',
+  },
+  dismissBtn: {
+    padding: 4,
   },
 });

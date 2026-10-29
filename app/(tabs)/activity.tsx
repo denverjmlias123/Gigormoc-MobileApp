@@ -245,7 +245,7 @@ export default function ActivityScreen() {
           return (
             <Card
               key={app.id}
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               style={[styles.card, isDesktop && styles.gridCardItem]}
             >
@@ -383,7 +383,7 @@ export default function ActivityScreen() {
           return (
             <Card
               key={gig.id}
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               style={[styles.card, isDesktop && styles.gridCardItem]}
               onPress={() => {
@@ -477,7 +477,7 @@ export default function ActivityScreen() {
           return (
             <Card
               key={agr.id}
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               style={[styles.card, isDesktop && styles.gridCardItem]}
               onPress={() => {
@@ -567,7 +567,7 @@ export default function ActivityScreen() {
           </View>
 
           {/* Segmented Control Tabs */}
-          <View style={[styles.tabBar, isWide && { maxWidth: 520 }]}>
+          <View style={[styles.tabBar, isWide && { maxWidth: theme.layout.authMaxWidth }]}>
             <SegmentedControl<ActivityTab>
               options={[
                 { value: 'primary', label: isFindWork ? 'Proposals' : 'Applicants' },
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   gridList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
+    gap: 16,
   },
   card: {
     gap: 8,
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   cardMetaLabel: {
     fontSize: 13,
@@ -739,6 +739,7 @@ const styles = StyleSheet.create({
   cardPrice: {
     fontSize: 15,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   counterActionRow: {
     flexDirection: 'row',
@@ -752,7 +753,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
     paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   cardFooterText: {
     fontSize: 12,

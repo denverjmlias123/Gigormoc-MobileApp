@@ -376,7 +376,7 @@ export default function EditProfileScreen() {
   };
 
   const renderCoreIdentityFields = () => (
-    <Card tone="neo-glass" padding="lg" style={styles.sectionCard}>
+    <Card tone="raised" padding="lg" style={styles.sectionCard}>
       <Text style={[styles.sectionCardTitle, { color: theme.colors.text }]}>
         Core Profile Details
       </Text>
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   innerWrap: {
-    maxWidth: 960,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderRadius: 12,
     padding: 12,
     fontSize: 14,

@@ -84,13 +84,11 @@ export const GigCard: React.FC<GigCardProps> = React.memo(function GigCard({
     <View
       style={[
         styles.card,
-        theme.shadow.neoGlass,
         {
-          backgroundColor: theme.glass.surface,
-          borderColor: hovered ? c.primary : theme.glass.border,
+          backgroundColor: c.surface,
+          borderColor: hovered ? c.primary : c.border,
           borderWidth: 1,
-          borderRadius: theme.radii.card,
-          transform: [{ scale: hovered ? 1.005 : 1 }],
+          borderRadius: 12,
         },
         style,
       ]}
@@ -178,8 +176,8 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
   categoryBadge: { paddingHorizontal: 10, paddingVertical: 4 },
   categoryText: { fontSize: 12, fontWeight: '700' },
-  title: { fontSize: 17, fontWeight: '800', lineHeight: 22, letterSpacing: -0.2, marginBottom: 6 },
-  price: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, marginBottom: 10 },
+  title: { fontSize: 16, fontWeight: '700', lineHeight: 22, letterSpacing: -0.2, marginBottom: 6 },
+  price: { fontSize: 19, fontWeight: '700', letterSpacing: -0.3, marginBottom: 10, fontVariant: ['tabular-nums'] },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 12 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
   metaText: { fontSize: 13, fontWeight: '500' },

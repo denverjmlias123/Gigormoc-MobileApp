@@ -379,6 +379,68 @@ export const authService = {
     }
   },
 
+  async verifySignupOtp(email: string, token: string) {
+    const normalizedEmail = normalizeEmail(email);
+    const cleanToken = token.replace(/\D/g, '').slice(0, 10);
+    if (!cleanToken || cleanToken.length < 6) {
+      const err: any = new Error(strings.auth.otpCodeLength);
+      err.code = 'INVALID_OTP';
+      throw err;
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: cleanToken,
+      type: 'signup',
+    });
+    if (error) {
+      throw error;
+    }
+    return data;
+  },
+
+  async updateEmail(newEmail: string) {
+    const normalized = normalizeEmail(newEmail);
+    const check = validateEmailInput(normalized);
+    if (!check.valid) {
+      const err: any = new Error(check.message || strings.auth.invalidEmailFormat);
+      err.code = 'INVALID_EMAIL';
+      throw err;
+    }
+    const { data, error } = await supabase.auth.updateUser({ email: normalized });
+    if (error) throw error;
+    return data;
+  },
+
+  async verifyEmailChangeOtp(newEmail: string, token: string) {
+    const normalized = normalizeEmail(newEmail);
+    const cleanToken = token.replace(/\D/g, '').slice(0, 10);
+    if (!cleanToken || cleanToken.length < 6) {
+      const err: any = new Error(strings.auth.otpCodeLength);
+      err.code = 'INVALID_OTP';
+      throw err;
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalized,
+      token: cleanToken,
+      type: 'email_change',
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async resolveIdentifier(identifier: string): Promise<string> {
+    const trimmed = (identifier || '').trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('@')) return normalizeEmail(trimmed);
+    try {
+      const { data, error } = await supabase.rpc('resolve_login_identifier', { p_identifier: trimmed });
+      if (error || !data) return trimmed;
+      return String(data);
+    } catch {
+      return trimmed;
+    }
+  },
+
   async verifyPasswordResetOtp(email: string, token: string) {
     const normalizedEmail = normalizeEmail(email);
     const cleanToken = token.replace(/\D/g, '').slice(0, 10);

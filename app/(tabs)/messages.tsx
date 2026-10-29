@@ -461,7 +461,7 @@ const PartnerCard = React.memo(function PartnerCard({
 
   return (
     <Card
-      tone={item.is_unread ? 'role' : 'neo-glass'}
+      tone={item.is_unread ? 'raised' : 'outline'}
       padding="md"
       style={styles.convCard}
       onPress={() => onPress(item)}
@@ -545,10 +545,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   headerInner: {
-    maxWidth: 960,
+    maxWidth: 680,
     width: '100%',
     alignSelf: 'center',
   },
@@ -583,15 +583,15 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 32,
-    gap: 10,
-    maxWidth: 960,
+    gap: 12,
+    maxWidth: 680,
     width: '100%',
     alignSelf: 'center',
   },
   convCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   convDetails: {
     flex: 1,
@@ -649,6 +649,7 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     fontSize: 11,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   modalOverlay: {
     flex: 1,
@@ -714,7 +715,7 @@ const styles = StyleSheet.create({
   modalThreadTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
   },
   modalThreadTitle: {

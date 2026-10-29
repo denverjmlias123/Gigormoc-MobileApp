@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../../app/theme';
 
 type ButtonVariant =
@@ -157,14 +156,14 @@ export const Button: React.FC<ButtonProps> = ({
 
   const isBusy = loading || internalBusy;
   const inactive = disabled || isBusy;
-  const hasGradient = (variant === 'primary' || variant === 'accent') && !disabled;
-  const bg = disabled && (variant === 'primary' || variant === 'accent') ? c.borderStrong : scheme.bg;
+  const bg = disabled
+    ? c.borderStrong
+    : scheme.bg;
   const hasBorder =
     variant === 'secondary' ||
     variant === 'warning' ||
     variant === 'danger-soft' ||
-    variant === 'ai' ||
-    hasGradient;
+    variant === 'ai';
 
   return (
     <Pressable
@@ -172,15 +171,25 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={inactive}
       hitSlop={
         size === 'xs'
-          ? { top: 6, bottom: 6, left: 8, right: 8 }
+          ? { top: 8, bottom: 8, left: 8, right: 8 }
           : size === 'sm'
-          ? { top: 4, bottom: 4, left: 6, right: 6 }
+          ? { top: 5, bottom: 5, left: 6, right: 6 }
+          : size === 'md'
+          ? { top: 1, bottom: 1, left: 2, right: 2 }
           : 0
       }
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: isBusy }}
       style={(state: any) => {
         const { pressed, hovered, focused } = state;
+        const currentBg = inactive
+          ? bg
+          : pressed
+          ? scheme.pressed
+          : hovered
+          ? scheme.pressed
+          : bg;
+
         return [
           styles.base,
           {
@@ -189,25 +198,16 @@ export const Button: React.FC<ButtonProps> = ({
             paddingHorizontal: metrics.px,
             borderRadius: resolvedRadius,
             width: fullWidth ? '100%' : undefined,
-            backgroundColor: hasGradient
-              ? undefined
-              : pressed && !inactive
-              ? scheme.pressed
-              : hovered && !inactive
-              ? scheme.pressed
-              : variant === 'secondary'
-              ? theme.glass.surface
-              : bg,
-            borderColor: hasGradient
-              ? 'rgba(255, 255, 255, 0.25)'
-              : variant === 'secondary' && hovered && !inactive
-              ? c.primary
-              : scheme.border,
+            backgroundColor: currentBg,
+            borderColor:
+              variant === 'secondary' && hovered && !inactive
+                ? c.primary
+                : scheme.border,
             borderWidth: hasBorder ? 1 : 0,
-            opacity: disabled ? 0.58 : hovered && !inactive && hasGradient ? 0.96 : 1,
+            opacity: disabled ? 0.55 : 1,
             transform: [
               {
-                scale: pressed && !inactive ? 0.978 : hovered && !inactive ? 1.008 : 1,
+                scale: pressed && !inactive ? 0.985 : 1,
               },
             ],
             overflow: 'hidden',
@@ -218,22 +218,12 @@ export const Button: React.FC<ButtonProps> = ({
               outlineColor: c.focusRing,
             } as any),
           },
-          hasGradient && !inactive ? theme.shadow.glow : null,
-          variant === 'secondary' && !inactive ? theme.shadow.card : null,
           style,
         ];
       }}
     >
-      {hasGradient ? (
-        <LinearGradient
-          colors={variant === 'accent' ? theme.gradients.accent : theme.gradients.primary}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[StyleSheet.absoluteFill, { borderRadius: resolvedRadius }]}
-        />
-      ) : null}
       {isBusy ? (
-        <ActivityIndicator size={size === 'xs' || size === 'sm' ? 'small' : 'small'} color={scheme.fg} />
+        <ActivityIndicator size="small" color={scheme.fg} />
       ) : (
         <View style={styles.content}>
           {icon ? <Ionicons name={icon} size={metrics.iconSize} color={scheme.fg} /> : null}

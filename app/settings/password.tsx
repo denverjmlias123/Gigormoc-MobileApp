@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
+import { sessionService } from '../../services/sessions';
 import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 import { showToast } from '../../components/ui/Toast';
@@ -53,6 +54,17 @@ export default function ChangePasswordScreen() {
         email: user?.email ?? '',
         displayName: profile?.display_name ?? '',
       });
+
+      // IAS 1 Requirement C: After password change, log out other active sessions
+      try {
+        const curSessionId = await sessionService.getCurrentSessionId();
+        if (curSessionId) {
+          await sessionService.endOtherSessions(curSessionId);
+        }
+      } catch {
+        // Non-blocking best-effort remote revocation
+      }
+
       if (profile?.must_change_password) {
         const refreshed = await refreshProfile();
         showToast(strings.toasts.passwordUpdated, 'success');
@@ -104,7 +116,7 @@ export default function ChangePasswordScreen() {
             ? () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))
             : undefined
         }
-        maxWidth={560}
+        maxWidth={680}
       />
 
       <ScrollView
@@ -121,7 +133,7 @@ export default function ChangePasswordScreen() {
           {error ? <AlertBox tone="danger" message={error} style={{ marginBottom: 16 }} /> : null}
           {notice ? <AlertBox tone="success" message={notice} style={{ marginBottom: 16 }} /> : null}
 
-          <Card tone="neo-glass" padding="lg" style={styles.card}>
+          <Card tone="raised" padding="lg" style={styles.card}>
             <TextInput
               label={strings.auth.currentPassword}
               value={currentPassword}
@@ -200,7 +212,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 24 },
   innerWrap: {
-    maxWidth: 560,
+    maxWidth: 680,
     width: '100%',
     alignSelf: 'center',
   },

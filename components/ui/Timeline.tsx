@@ -480,10 +480,8 @@ export const NextStepBanner: React.FC<NextStepBannerProps> = ({
         styles.bannerContainer,
         compact && styles.bannerCompact,
         {
-          backgroundColor: isTurn ? theme.colors.primarySoft : theme.colors.surfaceAlt,
+          backgroundColor: isTurn ? theme.colors.surfaceAlt : theme.colors.surface,
           borderColor: isTurn ? theme.colors.primary : theme.colors.border,
-          borderLeftWidth: 4,
-          borderLeftColor: isTurn ? theme.colors.primary : theme.colors.borderStrong,
         },
       ]}
       accessibilityRole="summary"
@@ -837,13 +835,13 @@ export const Timeline: React.FC<TimelineProps> = ({
 const styles = StyleSheet.create({
   bannerContainer: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     gap: 6,
   },
   bannerCompact: {
-    padding: 12,
-    borderRadius: 12,
+    padding: 10,
+    borderRadius: 10,
     gap: 4,
   },
   bannerTopRow: {
@@ -859,7 +857,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 6,
   },
   turnPillText: {
     fontSize: 11,
@@ -871,7 +869,7 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
     lineHeight: 20,
     marginTop: 2,
   },
@@ -892,7 +890,7 @@ const styles = StyleSheet.create({
   },
   timelineCard: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
   },
   timelineHeaderRow: {

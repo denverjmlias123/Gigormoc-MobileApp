@@ -101,7 +101,7 @@ export default function DisputePaymentScreen() {
       >
         <View style={[styles.centeredBlock, { gap: 16 }]}>
           {/* Payment Summary */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <Text style={[styles.label, { color: theme.colors.muted }]}>Reported Payment</Text>
             <Text style={[styles.amountText, { color: theme.colors.text }]}>
               {formatPrice(amountCentavos)}
@@ -114,7 +114,7 @@ export default function DisputePaymentScreen() {
           {error && <AlertBox tone="danger" message={error} />}
 
           {/* Dispute Reason */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <TextInput
               label="Reason for Dispute *"
               placeholder="Explain why this payment could not be confirmed (e.g. transfer did not reflect in bank account, amount differs from invoice)..."
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   scrollContent: {
@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: 22,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   metaText: {
     fontSize: 14,

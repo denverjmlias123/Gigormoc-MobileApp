@@ -226,6 +226,7 @@ const styles = StyleSheet.create({
   paymentAmount: {
     fontSize: 17,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   badgeWrapper: {
     flexDirection: 'row',
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   paymentNotes: {
-    fontSize: 12.5,
+    fontSize: 13, lineHeight: 18,
     marginTop: 6,
   },
   paymentActionButtons: {

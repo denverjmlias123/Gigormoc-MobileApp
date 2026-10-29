@@ -102,7 +102,7 @@ export default function SessionsScreen() {
           ) : null}
           {!loading && error ? <ErrorState message={error} onRetry={loadSessions} /> : null}
           {!loading && !error && sessions.length === 0 ? (
-            <Card tone="neo-glass" padding="md">
+            <Card tone="raised" padding="md">
               <Text style={[theme.type.body, { color: theme.colors.muted }]}>
                 {strings.auth.sessionsEmpty}
               </Text>
@@ -112,7 +112,7 @@ export default function SessionsScreen() {
             ? sessions.map((item) => (
                 <Card
                   key={item.id}
-                  tone={item.id === currentId ? 'tinted-primary' : 'neo-glass'}
+                  tone={item.id === currentId ? 'tinted-primary' : 'raised'}
                   padding="md"
                   style={styles.sessionCard}
                 >

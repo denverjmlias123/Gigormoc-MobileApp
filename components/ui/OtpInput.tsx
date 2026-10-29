@@ -73,6 +73,7 @@ export const OtpInput: React.FC<OtpInputProps> = ({
         <Pressable
           onPress={handlePasteFromClipboard}
           disabled={disabled}
+          hitSlop={6}
           style={({ pressed }) => [
             styles.pasteBtn,
             { backgroundColor: theme.colors.primarySoft },
@@ -158,7 +159,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
     letterSpacing: 0.1,
   },
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
-    maxWidth: 400,
+    maxWidth: 460,
     width: '100%',
     alignSelf: 'center',
   },
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 4,
-    marginTop: 6,
+    marginTop: 4,
   },
   errorText: {
     fontSize: 12,

@@ -149,10 +149,10 @@ export function DateOfBirthField({ label, value, onChange, error }: Props) {
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { fontSize: 13.5, fontWeight: '700', marginBottom: 7, letterSpacing: 0.1 },
+  label: { fontSize: 14, lineHeight: 18, fontWeight: '700', marginBottom: 8, letterSpacing: 0.1 },
   valueButton: { minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, borderWidth: 1 },
-  error: { fontSize: 12, marginTop: 5, fontWeight: '600' },
+  error: { fontSize: 12, marginTop: 4, fontWeight: '600', lineHeight: 16 },
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { padding: 20, paddingBottom: 32, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  modalCard: { padding: 20, paddingBottom: 32, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 12 },
 });

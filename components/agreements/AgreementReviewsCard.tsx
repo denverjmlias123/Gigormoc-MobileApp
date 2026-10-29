@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   emptyMilestonesText: {
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 20,
   },
   milestonesList: {

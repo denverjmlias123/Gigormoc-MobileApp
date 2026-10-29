@@ -254,13 +254,13 @@ export default function OnboardingStep1ModeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, justifyContent: 'center' },
-  inner: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 18 },
+  inner: { width: '100%', maxWidth: 680, alignSelf: 'center', gap: 16 },
   header: { marginBottom: 4 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   progressTrack: { height: 4, borderRadius: 2, marginBottom: 22, overflow: 'hidden' },
   progressFill: { width: '33%', height: 4, borderRadius: 2 },
   optionsList: { gap: 16 },
-  optionsListWide: { flexDirection: 'row', alignItems: 'stretch', gap: 20 },
+  optionsListWide: { flexDirection: 'row', alignItems: 'stretch', gap: 16 },
   card: { padding: 20, borderWidth: 2 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 8 },
   cardIcon: {
@@ -288,5 +288,5 @@ const styles = StyleSheet.create({
   bulletList: { gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.16)', paddingTop: 14 },
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bulletText: { fontSize: 13, fontWeight: '500' },
-  footer: { marginTop: 12, maxWidth: 420, width: '100%', alignSelf: 'center' },
+  footer: { marginTop: 12, maxWidth: 460, width: '100%', alignSelf: 'center' },
 });

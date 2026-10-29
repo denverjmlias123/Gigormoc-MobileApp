@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme, lightFreelancerTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -42,22 +41,6 @@ function useEntrance(delay = 0) {
     opacity: v,
     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
   };
-}
-
-/** Slow looping float used by the preview cards. */
-function useFloat(amplitude: number, duration: number, delay = 0) {
-  const v = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration, delay, easing: Easing.inOut(Easing.sin), useNativeDriver: USE_NATIVE }),
-        Animated.timing(v, { toValue: 0, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: USE_NATIVE }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [v, duration, delay]);
-  return { transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -amplitude] }) }] };
 }
 
 // Animated preview cards
@@ -123,23 +106,13 @@ function MilestonePreview() {
 }
 
 function Showcase({ wide }: { wide: boolean }) {
-  const f1 = useFloat(8, 3200);
-  const f2 = useFloat(10, 3800, 400);
-  const f3 = useFloat(7, 3000, 900);
   const enter = useEntrance(250);
-  const h = wide ? 440 : 300;
 
   return (
-    <Animated.View style={[{ height: h, width: '100%', maxWidth: 440, alignSelf: 'center' }, enter]}>
-      <Animated.View style={[styles.abs, wide ? { top: 20, left: 10, right: 40 } : { top: 0, left: 0, right: 20 }, f1]}>
-        <GigPreview compact={!wide} />
-      </Animated.View>
-      <Animated.View style={[styles.abs, wide ? { top: 210, right: 0, left: 70 } : { top: 146, right: 0, left: 32 }, f2]}>
-        <ProposalPreview />
-      </Animated.View>
-      <Animated.View style={[styles.abs, wide ? { top: 300, left: 0, right: 110 } : { top: 222, left: 0, right: 64 }, f3]}>
-        <MilestonePreview />
-      </Animated.View>
+    <Animated.View style={[{ width: '100%', maxWidth: 460, alignSelf: 'center', gap: 12 }, enter]}>
+      <GigPreview compact={!wide} />
+      <ProposalPreview />
+      <MilestonePreview />
     </Animated.View>
   );
 }
@@ -151,18 +124,15 @@ function PrimaryCta({ title, onPress }: { title: string; onPress: () => void }) 
       accessibilityRole="button"
       style={({ pressed, hovered }: any) => [
         styles.cta,
-        lightFreelancerTheme.shadow.glow,
+        {
+          backgroundColor: '#2563EB',
+          borderRadius: 12,
+        },
         Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
-        hovered && { opacity: 0.94, transform: [{ translateY: -1 }] },
+        hovered && { opacity: 0.94 },
         pressed && { opacity: 0.88, transform: [{ scale: 0.985 }] },
       ]}
     >
-      <LinearGradient
-        colors={['#3A5DFF', '#7C5CFF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
-      />
       <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
       <Text style={styles.ctaText}>{title}</Text>
       <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -178,6 +148,7 @@ function GhostCta({ title, onPress }: { title: string; onPress: () => void }) {
       style={({ pressed, hovered }: any) => [
         styles.cta,
         styles.ghost,
+        { borderRadius: 12 },
         Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
         hovered && { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.36)' },
         pressed && { backgroundColor: 'rgba(255,255,255,0.18)' },
@@ -273,20 +244,7 @@ export default function WelcomeScreen() {
   );
 
   return (
-    <LinearGradient
-      colors={['#0E1A5C', '#070B26']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0.3, y: 1 }}
-      style={styles.root}
-    >
-      {/* Ambient light for web */}
-      {Platform.OS === 'web' && (
-        <>
-          <View pointerEvents="none" style={[styles.orb, { top: -120, right: -100, width: 380, height: 380, backgroundColor: '#5B3DFF', opacity: 0.35 }]} />
-          <View pointerEvents="none" style={[styles.orb, { bottom: -140, left: -120, width: 420, height: 420, backgroundColor: '#1F7BFF', opacity: 0.28 }]} />
-        </>
-      )}
-
+    <View style={[styles.root, { backgroundColor: '#070B26' }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -316,7 +274,7 @@ export default function WelcomeScreen() {
           </View>
         )}
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -325,8 +283,8 @@ const styles = StyleSheet.create({
   orb: { position: 'absolute', borderRadius: 9999, ...(Platform.OS === 'web' ? ({ filter: 'blur(70px)' } as any) : null) },
   scroll: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center' },
   scrollWide: { paddingHorizontal: 56 },
-  mobileCol: { width: '100%', maxWidth: 520, alignSelf: 'center', flexGrow: 1, justifyContent: 'space-between' },
-  wideGrid: { flexDirection: 'row', alignItems: 'center', gap: 56, width: '100%', maxWidth: 1160, alignSelf: 'center' },
+  mobileCol: { width: '100%', maxWidth: 460, alignSelf: 'center', flexGrow: 1, justifyContent: 'space-between' },
+  wideGrid: { flexDirection: 'row', alignItems: 'center', gap: 56, width: '100%', maxWidth: 1120, alignSelf: 'center' },
   wideLeft: { flex: 1.05 },
   wideRight: { flex: 0.95 },
   copyWide: { marginBottom: 8 },
@@ -338,7 +296,7 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -355,7 +313,7 @@ const styles = StyleSheet.create({
   sub: { color: '#AEB9E3', fontSize: 16, lineHeight: 24, fontWeight: '400', marginTop: 14, maxWidth: 460 },
 
   actions: { marginTop: 32, gap: 16 },
-  actionsWide: { marginTop: 36, maxWidth: 520 },
+  actionsWide: { marginTop: 36, maxWidth: 460 },
   ctaCol: { gap: 12 },
   ctaRowWide: { flexDirection: 'row', gap: 12 },
   cta: {
@@ -388,15 +346,12 @@ const styles = StyleSheet.create({
   abs: { position: 'absolute' },
   glassCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.8)',
-    ...(Platform.OS === 'web'
-      ? ({ boxShadow: '0 20px 40px rgba(3, 6, 28, 0.35)' } as any)
-      : { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8 }),
+    borderColor: '#E2E8F0',
   },
-  smallCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16 },
+  smallCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9999 },
   tagText: { fontSize: 11, fontWeight: '700' },
@@ -404,7 +359,14 @@ const styles = StyleSheet.create({
   openDotInner: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#12C48B' },
   openText: { color: '#0D7A58', fontSize: 12, fontWeight: '700' },
   cardTitle: { color: '#0C1233', fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
-  cardPrice: { color: '#2F55F4', fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginVertical: 4 },
+  cardPrice: {
+    color: '#2563EB',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    marginVertical: 4,
+    fontVariant: ['tabular-nums'],
+  },
   metaRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { color: '#5C6788', fontSize: 12, fontWeight: '500' },

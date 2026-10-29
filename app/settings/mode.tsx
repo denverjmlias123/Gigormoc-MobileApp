@@ -115,13 +115,13 @@ export default function ModeSettingsScreen() {
         >
           <View style={styles.innerWrap}>
             {/* Current Mode Card */}
-            <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+            <Card tone="raised" padding="md" style={styles.cardGap}>
               <Text style={[styles.label, { color: theme.colors.muted }]}>Current Active Mode</Text>
               <Text style={[styles.modeTitle, { color: theme.colors.primary }]}>
                 {currentMode === 'find_work'
-                  ? '💼 Find Work (Freelancer)'
+                  ? 'Find Work (Freelancer)'
                   : currentMode === 'hire'
-                  ? '🤝 Hire (Client)'
+                  ? 'Hire (Client)'
                   : 'Not Set'}
               </Text>
               <Text style={[styles.modeDescription, { color: theme.colors.muted }]}>
@@ -134,13 +134,13 @@ export default function ModeSettingsScreen() {
             {/* Role Comparison Cards */}
             <View style={[styles.comparisonRow, isWide && styles.comparisonRowWide]}>
               <Card
-                tone={currentMode === 'find_work' ? 'tinted-success' : 'neo-glass'}
+                tone={currentMode === 'find_work' ? 'tinted-success' : 'raised'}
                 padding="md"
                 style={styles.roleCompCard}
               >
                 <View style={styles.roleCompHeader}>
                   <Text style={[styles.roleCompTitle, { color: theme.colors.text }]}>
-                    💼 Freelancer Mode
+                    Freelancer Mode
                   </Text>
                   <Text
                     style={[
@@ -160,13 +160,13 @@ export default function ModeSettingsScreen() {
               </Card>
 
               <Card
-                tone={currentMode === 'hire' ? 'tinted-primary' : 'neo-glass'}
+                tone={currentMode === 'hire' ? 'tinted-primary' : 'raised'}
                 padding="md"
                 style={styles.roleCompCard}
               >
                 <View style={styles.roleCompHeader}>
                   <Text style={[styles.roleCompTitle, { color: theme.colors.text }]}>
-                    🤝 Client Mode
+                    Client Mode
                   </Text>
                   <Text
                     style={[

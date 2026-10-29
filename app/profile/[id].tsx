@@ -167,7 +167,7 @@ export default function PublicProfileScreen() {
     return (
       <ScreenBackground>
         <View style={styles.centerContainer}>
-          <Card tone="neo-glass" padding="lg" style={styles.errorCard}>
+          <Card tone="raised" padding="lg" style={styles.errorCard}>
             <Ionicons name="alert-circle-outline" size={48} color={theme.colors.danger} />
             <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Unable to load profile</Text>
             <Text style={[styles.errorDesc, { color: theme.colors.muted }]}>{error || 'Profile not found.'}</Text>
@@ -207,7 +207,7 @@ export default function PublicProfileScreen() {
 
   // Left Identity Column Content (Desktop Sidebar or Mobile Hero)
   const renderIdentityCard = () => (
-    <Card tone="neo-glass" padding="lg" style={styles.identityCard}>
+    <Card tone="raised" padding="lg" style={styles.identityCard}>
       {/* Top Banner / Role Status Header */}
       <View style={styles.identityHeader}>
         <View
@@ -449,7 +449,7 @@ export default function PublicProfileScreen() {
   const renderMainPanels = () => (
     <View style={styles.mainPanelsContainer}>
       {/* 1. About / Overview Card */}
-      <Card tone="neo-glass" padding="lg">
+      <Card tone="raised" padding="lg">
         <View style={styles.cardHeaderRow}>
           <Ionicons
             name={isHire ? 'business-outline' : 'person-outline'}
@@ -494,7 +494,7 @@ export default function PublicProfileScreen() {
 
       {/* 2. Skills or Hiring Interests Card */}
       {isHire ? (
-        <Card tone="neo-glass" padding="lg">
+        <Card tone="raised" padding="lg">
           <View style={styles.cardHeaderRow}>
             <Ionicons name="compass-outline" size={20} color={theme.colors.primary} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
@@ -529,7 +529,7 @@ export default function PublicProfileScreen() {
           )}
         </Card>
       ) : (
-        <Card tone="neo-glass" padding="lg">
+        <Card tone="raised" padding="lg">
           <View style={styles.cardHeaderRow}>
             <Ionicons name="construct-outline" size={20} color={theme.colors.success} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
@@ -567,7 +567,7 @@ export default function PublicProfileScreen() {
 
       {/* 3. Portfolio Showcase (Freelancers) */}
       {!isHire ? (
-        <Card tone="neo-glass" padding="lg">
+        <Card tone="raised" padding="lg">
           <View style={styles.cardHeaderRow}>
             <Ionicons name="images-outline" size={20} color={theme.colors.success} />
             <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
@@ -660,7 +660,7 @@ export default function PublicProfileScreen() {
       ) : null}
 
       {/* 4. Reviews & Testimonials Card */}
-      <Card tone="neo-glass" padding="lg">
+      <Card tone="raised" padding="lg">
         <View style={styles.cardHeaderBetween}>
           <View style={styles.cardHeaderRow}>
             <Ionicons name="star" size={20} color={theme.colors.warning} />
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   navInnerDesktop: {
-    maxWidth: 1040,
+    maxWidth: 1120,
     alignSelf: 'center',
   },
   desktopBreadcrumbs: {
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     alignItems: 'center',
-    maxWidth: 420,
+    maxWidth: 460,
     width: '100%',
   },
   errorTitle: {
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
   scrollContainerDesktop: {
     paddingHorizontal: 24,
     paddingVertical: 28,
-    maxWidth: 1040,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   roleBadgeText: {
-    fontSize: 12.5,
+    fontSize: 13, lineHeight: 18,
     fontWeight: '700',
   },
   statusDotRow: {
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   businessName: {
-    fontSize: 14.5,
+    fontSize: 14, lineHeight: 20,
     fontWeight: '700',
   },
   headlineText: {
@@ -1040,12 +1040,13 @@ const styles = StyleSheet.create({
     height: 28,
   },
   statValue: {
-    fontSize: 16.5,
+    fontSize: 17, lineHeight: 24,
     fontWeight: '800',
     letterSpacing: -0.2,
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
-    fontSize: 11.5,
+    fontSize: 12, lineHeight: 16,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -1058,7 +1059,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   quickDetailsHeading: {
-    fontSize: 11.5,
+    fontSize: 12, lineHeight: 16,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1107,10 +1108,11 @@ const styles = StyleSheet.create({
   overallScoreText: {
     fontSize: 16,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   bioText: {
-    fontSize: 14.5,
-    lineHeight: 23,
+    fontSize: 14,
+    lineHeight: 22,
   },
   emptyNote: {
     fontSize: 14,
@@ -1121,7 +1123,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 16,
     borderRadius: 14,
-    borderLeftWidth: 4,
+    borderWidth: 1,
     gap: 6,
   },
   calloutHeader: {
@@ -1130,11 +1132,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   calloutTitle: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
   calloutBody: {
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 20,
   },
   chipsWrap: {
@@ -1200,7 +1203,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   portfolioDesc: {
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 20,
   },
   portfolioThumbRow: {
@@ -1264,7 +1267,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   reviewComment: {
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 20,
     fontStyle: 'italic',
   },

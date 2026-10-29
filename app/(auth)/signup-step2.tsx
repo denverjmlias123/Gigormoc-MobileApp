@@ -105,7 +105,7 @@ export default function SignUpStep2Screen() {
         keyboardShouldPersistTaps="handled"
       >
         <Card
-          tone={isWide ? 'neo-glass' : 'raised'}
+          tone="raised"
           padding="lg"
           style={[styles.formCard, isWide && styles.formCardWide]}
         >

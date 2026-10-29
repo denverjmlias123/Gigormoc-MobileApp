@@ -3,6 +3,9 @@ import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { createRequestId } from '../lib/errors';
 
+export const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes per IAS 1 requirement E
+export const INACTIVITY_WARNING_MS = 14 * 60 * 1000; // 14 minutes (60 seconds pre-expiry warning)
+
 const SESSION_STORAGE_KEY = 'gigormoc:session:id';
 const LAST_ACTIVITY_KEY = 'gigormoc:session:last_activity_at';
 let startSessionInFlight: Promise<string> | null = null;
@@ -61,18 +64,31 @@ export const sessionService = {
     return this.heartbeat();
   },
 
-  async noteActivity(): Promise<void> {
+  async noteActivity(force = false): Promise<void> {
     const now = Date.now();
-    if (now - lastActivityWriteAt < 30000) return;
+    if (!force && now - lastActivityWriteAt < 15000) return;
     lastActivityWriteAt = now;
     await AsyncStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+  },
+
+  async extendSession(): Promise<void> {
+    await this.noteActivity(true);
+  },
+
+  async getInactivityRemainingMs(): Promise<number> {
+    const id = await this.getCurrentSessionId();
+    if (!id) return INACTIVITY_TIMEOUT_MS;
+    const lastActivity = Number(await AsyncStorage.getItem(LAST_ACTIVITY_KEY));
+    if (!Number.isFinite(lastActivity) || lastActivity <= 0) return INACTIVITY_TIMEOUT_MS;
+    const elapsed = Date.now() - lastActivity;
+    return Math.max(0, INACTIVITY_TIMEOUT_MS - elapsed);
   },
 
   async heartbeat(): Promise<boolean> {
     const id = await this.getCurrentSessionId();
     if (!id) return false;
     const lastActivity = Number(await AsyncStorage.getItem(LAST_ACTIVITY_KEY));
-    if (Number.isFinite(lastActivity) && lastActivity > 0 && Date.now() - lastActivity >= 30 * 60 * 1000) {
+    if (Number.isFinite(lastActivity) && lastActivity > 0 && Date.now() - lastActivity >= INACTIVITY_TIMEOUT_MS) {
       const { error: endError } = await supabase.rpc('end_session', { p_session_id: id, p_reason: 'expired' });
       if (endError) throw endError;
       await AsyncStorage.multiRemove([SESSION_STORAGE_KEY, LAST_ACTIVITY_KEY]);

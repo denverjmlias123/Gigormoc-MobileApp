@@ -140,7 +140,7 @@ export default function SubmitMilestoneScreen() {
         <View style={[styles.centeredBlock, { gap: 16 }]}>
           {/* Milestone Context */}
           <Card
-            tone="role"
+            tone="outline"
             padding="md"
             accentPosition="left"
             accentColor={theme.colors.primary}
@@ -166,7 +166,7 @@ export default function SubmitMilestoneScreen() {
 
           {/* Message Input */}
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="md"
             headerTitle="Submission Notes & Summary *"
             headerSubtitle="Describe the deliverables completed and summarize outcomes (min 10 chars)"
@@ -187,7 +187,7 @@ export default function SubmitMilestoneScreen() {
 
           {/* File / Deliverable Links & Private Bucket Upload */}
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="md"
             headerTitle="Deliverable Links & Files"
             headerSubtitle="Upload a screenshot/file to secure private storage or add a shareable link"
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 640,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   scrollContent: {

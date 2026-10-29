@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -484,7 +485,7 @@ export default function PostGigScreen() {
   if (!isHireMode) {
     return (
       <View style={[styles.container, styles.blockedContainer, { backgroundColor: theme.colors.background }]}>
-        <Text style={styles.blockedIcon}>🚫</Text>
+        <Ionicons name="lock-closed-outline" size={36} color={theme.colors.muted} style={{ marginBottom: 12 }} />
         <Text style={[styles.blockedTitle, { color: theme.colors.text }]}>
           {strings.gigs.hireModeRequiredTitle}
         </Text>
@@ -560,7 +561,7 @@ export default function PostGigScreen() {
             )}
 
             <Card
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               headerTitle="Gig Overview"
               headerSubtitle="Clear titles and structured descriptions attract better proposals"
@@ -672,7 +673,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   contentInner: {
-    maxWidth: 1040,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },

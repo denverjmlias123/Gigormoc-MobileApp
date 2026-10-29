@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   toastCard: {
-    maxWidth: 480,
+    maxWidth: 460,
     width: '100%',
     borderRadius: 16,
     borderWidth: 1,

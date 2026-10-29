@@ -91,7 +91,7 @@ export default function SkillsScreen() {
           maxWidth={920}
         />
         <View style={[styles.innerWrap, { paddingTop: 20 }]}>
-          <Card tone="neo-glass" padding="lg">
+          <Card tone="raised" padding="lg">
             <Button
               title="Edit Client Hiring Details"
               variant="primary"
@@ -281,7 +281,7 @@ export default function SkillsScreen() {
             )}
 
             {/* Top "Your skills (n/15)" Tray */}
-            <Card tone="neo-glass" padding="md" style={styles.card}>
+            <Card tone="raised" padding="md" style={styles.card}>
               <View style={styles.trayHeaderRow}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
                   {strings.onboarding.yourSkillsTrayLabel} ({userSkills.length}/{MAX_PROFILE_SKILLS})
@@ -357,9 +357,9 @@ export default function SkillsScreen() {
             </Card>
 
             {/* Add Custom Skill Input */}
-            <Card tone="neo-glass" padding="md" style={styles.card}>
+            <Card tone="raised" padding="md" style={styles.card}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                ✍️ Add Custom Skill
+                Add Custom Skill
               </Text>
               <View style={styles.customRow}>
                 <TextInput
@@ -389,9 +389,9 @@ export default function SkillsScreen() {
             </Card>
 
             {/* AI Skill Suggestions */}
-            <Card tone="neo-glass" padding="md" style={styles.card}>
+            <Card tone="raised" padding="md" style={styles.card}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 4 }]}>
-                🤖 Suggest Skills with AI
+                Suggest Skills with AI
               </Text>
               <Text style={[styles.subtitle, { color: theme.colors.muted, marginBottom: 10 }]}>
                 Describe what you do in plain words to get skill suggestions.
@@ -444,9 +444,9 @@ export default function SkillsScreen() {
 
             {/* Skills Catalog */}
             {availableSkills.length > 0 ? (
-              <Card tone="neo-glass" padding="md" style={styles.card}>
+              <Card tone="raised" padding="md" style={styles.card}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                  📋 Skills Catalog
+                  Skills Catalog
                 </Text>
                 <TextInput
                   style={[
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   },
   innerWrap: {
     flex: 1,
-    maxWidth: 920,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
     paddingHorizontal: 20,
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
   },
   customInput: {
     flex: 1,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -568,8 +568,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   chipText: {
     fontSize: 14,

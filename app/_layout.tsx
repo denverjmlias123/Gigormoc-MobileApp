@@ -9,6 +9,7 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { OfflineBanner } from '../components/ui/OfflineBanner';
 import { ToastProvider } from '../components/ui/Toast';
 import { ConfirmDialogProvider } from '../components/ui/ConfirmDialog';
+import { SessionTimeoutModal } from '../components/ui/SessionTimeoutModal';
 import { sessionService } from '../services/sessions';
 
 function RootNavigation() {
@@ -16,6 +17,8 @@ function RootNavigation() {
   const segments = useSegments();
   const router = useRouter();
   const theme = useAppTheme();
+  const [sessionWarningVisible, setSessionWarningVisible] = React.useState(false);
+  const [warningSecondsRemaining, setWarningSecondsRemaining] = React.useState(60);
 
   useEffect(() => {
     if (loading) return;
@@ -56,23 +59,47 @@ function RootNavigation() {
   }, [user, profile, loading, isOffline, segments]);
 
   useEffect(() => {
-    if (!user?.id || isOffline) return;
+    if (!user?.id || isOffline) {
+      setSessionWarningVisible(false);
+      return;
+    }
     let checking = false;
-    const checkSession = async () => {
+    let lastHeartbeat = Date.now();
+
+    const checkInactivityAndHeartbeat = async () => {
       if (checking) return;
       checking = true;
       try {
-        const active = await sessionService.heartbeat();
-        if (!active && !isOffline) await signOut({ reason: 'session_expired' });
+        const remainingMs = await sessionService.getInactivityRemainingMs();
+        if (remainingMs <= 0) {
+          setSessionWarningVisible(false);
+          const active = await sessionService.heartbeat();
+          if (!active && !isOffline) {
+            await signOut({ reason: 'session_expired' });
+          }
+        } else if (remainingMs <= 60 * 1000) {
+          // IAS 1 Requirement E: Show warning before the session expires
+          setWarningSecondsRemaining(Math.max(1, Math.ceil(remainingMs / 1000)));
+          setSessionWarningVisible(true);
+        } else {
+          setSessionWarningVisible(false);
+          // Run heartbeat every 2 minutes
+          if (Date.now() - lastHeartbeat > 2 * 60 * 1000) {
+            lastHeartbeat = Date.now();
+            const active = await sessionService.heartbeat();
+            if (!active && !isOffline) await signOut({ reason: 'session_expired' });
+          }
+        }
       } catch {
-        // A temporary network issue should not log the user out. The next heartbeat retries.
+        // Network failure during session check should not kill offline session
       } finally {
         checking = false;
       }
     };
-    const timer = setInterval(() => { void checkSession(); }, 5 * 60 * 1000);
+
+    const timer = setInterval(() => { void checkInactivityAndHeartbeat(); }, 1500);
     const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void checkSession();
+      if (state === 'active') void checkInactivityAndHeartbeat();
     });
     return () => {
       clearInterval(timer);
@@ -118,6 +145,16 @@ function RootNavigation() {
     if (user?.id) void sessionService.noteActivity().catch(() => undefined);
   };
 
+  const handleExtendSession = async () => {
+    await sessionService.extendSession();
+    setSessionWarningVisible(false);
+  };
+
+  const handleSignOutNow = async () => {
+    setSessionWarningVisible(false);
+    await signOut({ reason: 'user' });
+  };
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
@@ -135,6 +172,12 @@ function RootNavigation() {
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+      <SessionTimeoutModal
+        visible={sessionWarningVisible}
+        secondsRemaining={warningSecondsRemaining}
+        onExtend={handleExtendSession}
+        onSignOut={handleSignOutNow}
+      />
     </View>
   );
 }

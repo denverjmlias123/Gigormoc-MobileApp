@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   fieldLabel: {
-    fontSize: 13.5,
+    fontSize: 14, lineHeight: 18,
     fontWeight: '700',
     marginBottom: 8,
   },
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   workTypeText: {
-    fontSize: 12.5,
+    fontSize: 13, lineHeight: 18,
   },
   actionRow: {
     marginTop: 8,

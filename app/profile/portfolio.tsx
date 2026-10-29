@@ -177,7 +177,7 @@ export default function PortfolioScreen() {
           {error && <AlertBox tone="danger" message={error} style={{ marginBottom: 16 }} />}
 
           {showAddForm && (
-            <Card tone="neo-glass" padding="lg" style={styles.formCard}>
+            <Card tone="raised" padding="lg" style={styles.formCard}>
               <Text style={[styles.formTitle, { color: theme.colors.text }]}>New Portfolio Item</Text>
 
               <TextInput
@@ -207,6 +207,9 @@ export default function PortfolioScreen() {
                         <Image source={{ uri: url }} style={styles.previewImg} />
                         <TouchableOpacity
                           style={[styles.removePhotoBadge, { backgroundColor: theme.colors.danger }]}
+                          hitSlop={{ top: 13, bottom: 13, left: 13, right: 13 }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove photo"
                           onPress={() => handleRemoveUploadedPhoto(url)}
                         >
                           <Ionicons name="close" size={14} color={theme.colors.primaryContrast} />
@@ -256,7 +259,7 @@ export default function PortfolioScreen() {
               {items.map((item) => (
                 <Card
                   key={item.id}
-                  tone="neo-glass"
+                  tone="raised"
                   padding="md"
                   style={isWide ? styles.itemCardGrid : undefined}
                 >
@@ -300,7 +303,7 @@ const styles = StyleSheet.create({
   },
   innerWrap: {
     flex: 1,
-    maxWidth: 920,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
     paddingHorizontal: 20,

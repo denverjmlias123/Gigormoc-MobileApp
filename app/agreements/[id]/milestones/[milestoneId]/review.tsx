@@ -199,7 +199,7 @@ export default function ReviewMilestoneScreen() {
           <View style={[styles.centeredBlock, { gap: 16 }]}>
             {/* Header */}
             <Card
-              tone="role"
+              tone="outline"
               padding="md"
               accentPosition="left"
               accentColor={theme.colors.primary}
@@ -230,7 +230,7 @@ export default function ReviewMilestoneScreen() {
               submissions.map((sub) => (
                 <Card
                   key={sub.id}
-                  tone="neo-glass"
+                  tone="raised"
                   padding="md"
                   style={{ gap: 8 }}
                 >

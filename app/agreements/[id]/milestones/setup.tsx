@@ -256,7 +256,7 @@ export default function SetupMilestonesScreen() {
           {milestones.map((m, idx) => (
             <Card
               key={idx}
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               headerTitle={`Milestone #${idx + 1}`}
               headerIcon="flag-outline"
@@ -343,13 +343,13 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 720,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   stickyTrackerWrapper: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   scrollContent: {
     padding: 16,
@@ -372,6 +372,7 @@ const styles = StyleSheet.create({
   trackerValue: {
     fontSize: 16,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   divider: {
     height: 1,
@@ -381,6 +382,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   twoColRow: {
     flexDirection: 'row',

@@ -102,7 +102,7 @@ export default function NewReportScreen() {
         title="Submit a Report"
         subtitle="Flag an issue for moderation review"
         onBack={safeNavigateBack}
-        maxWidth={600}
+        maxWidth={680}
       />
 
       <ScrollView
@@ -114,7 +114,7 @@ export default function NewReportScreen() {
       >
         <View style={[styles.centeredBlock, { gap: 16 }]}>
           {/* Target Header */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <Text style={[styles.label, { color: theme.colors.muted }]}>Reporting Target</Text>
             <Text style={[styles.title, { color: theme.colors.text }]}>
               {targetTitle || `${targetType?.toUpperCase()} (${targetId?.slice(0, 8)})`}
@@ -124,7 +124,7 @@ export default function NewReportScreen() {
           {error && <AlertBox tone="danger" message={error} />}
 
           {/* Reason Category */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <Text style={[styles.label, { color: theme.colors.text }]}>Reason Category *</Text>
             <View style={styles.categoryGrid}>
               {REASON_CATEGORIES.map((c) => {
@@ -143,7 +143,7 @@ export default function NewReportScreen() {
           </Card>
 
           {/* Details Textarea */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <TextInput
               label="Explanation & Evidence *"
               placeholder="Explain what happened, what went wrong, and any relevant dates or communication context..."
@@ -158,7 +158,7 @@ export default function NewReportScreen() {
           </Card>
 
           {/* Evidence Link */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <TextInput
               label="Evidence Link / Storage Path (Optional)"
               placeholder="e.g. Screenshot link, cloud folder URL, or chat reference"
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   scrollContent: {

@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 12,
     width: '100%',
-    maxWidth: 1000,
+    maxWidth: 1120,
     alignSelf: 'center',
   },
   topRow: {
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
   topLeftRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   progressTrack: {
     height: 4,
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
   },
   inner: {
     width: '100%',
-    maxWidth: 1000,
+    maxWidth: 1120,
     alignSelf: 'center',
   },
   wideTwoCol: {

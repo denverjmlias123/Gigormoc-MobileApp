@@ -8,6 +8,8 @@ import { supabase } from '../../lib/supabase';
 import { toAppError } from '../../lib/errors';
 import { Button } from '../../components/ui/Button';
 import { Card, AlertBox } from '../../components/ui/Card';
+import { OtpInput } from '../../components/ui/OtpInput';
+import { showToast } from '../../components/ui/Toast';
 
 export default function ConfirmEmailScreen() {
   const router = useRouter();
@@ -15,6 +17,8 @@ export default function ConfirmEmailScreen() {
   const { isWide, topSpace, bottomSpace } = useResponsiveLayout();
   const params = useLocalSearchParams<{ email?: string }>();
   const [resending, setResending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [otp, setOtp] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,6 +44,28 @@ export default function ConfirmEmailScreen() {
     }, 1000);
     return () => clearInterval(timer);
   }, [cooldown]);
+
+  const handleVerifyOtp = async (codeToVerify?: string) => {
+    const code = (codeToVerify ?? otp).trim();
+    if (verifying || !params.email) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
+    if (!code || code.length < 6) {
+      setErrorMessage('Please enter the complete 6-digit code sent to your email.');
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      await authService.verifySignupOtp(params.email, code);
+      showToast('Email confirmed successfully!', 'success');
+      router.replace('/(onboarding)/step1-mode');
+    } catch (err: any) {
+      setErrorMessage(toAppError(err, 'Invalid or expired confirmation code.').message);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleResend = async () => {
     if (!params.email || resending || cooldown > 0) return;
@@ -69,7 +95,7 @@ export default function ConfirmEmailScreen() {
       ]}
     >
       <Card
-        tone={isWide ? 'neo-glass' : 'raised'}
+        tone="raised"
         padding="lg"
         style={[styles.card, isWide && styles.cardWide]}
       >
@@ -85,8 +111,30 @@ export default function ConfirmEmailScreen() {
             {params.email || 'your email address'}
           </Text>
           <Text style={[styles.instructions, { color: theme.colors.text }]}>
-            Please check your inbox and click the confirmation link to activate your account.
+            Please check your inbox and click the confirmation link, or enter the 6-digit confirmation code below:
           </Text>
+
+          <View style={{ width: '100%', marginVertical: 14 }}>
+            <OtpInput
+              value={otp}
+              onChangeText={(val) => {
+                setOtp(val);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              onComplete={handleVerifyOtp}
+              disabled={verifying}
+              label="Enter 6-Digit Code"
+            />
+            <Button
+              title={verifying ? 'Checking...' : 'Confirm Account with Code'}
+              icon="checkmark-circle-outline"
+              onPress={() => handleVerifyOtp()}
+              loading={verifying}
+              disabled={verifying || otp.length < 6}
+              fullWidth
+              style={{ marginTop: 12 }}
+            />
+          </View>
 
           {statusMessage && (
             <AlertBox

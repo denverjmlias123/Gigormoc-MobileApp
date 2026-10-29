@@ -142,7 +142,7 @@ export default function AdminLogTrailScreen() {
       </View>
 
       {filtersVisible ? (
-        <Card tone="neo-glass" padding="md">
+        <Card tone="raised" padding="md">
           <View style={isWide ? styles.filterGridWide : undefined}>
             <View style={isWide ? styles.filterCellWide : undefined}>
               <TextInput
@@ -229,13 +229,13 @@ export default function AdminLogTrailScreen() {
       {loading ? <Text style={[theme.type.body, { color: theme.colors.muted }]}>{strings.common.loading}</Text> : null}
       {!loading && error ? <ErrorState message={error} onRetry={() => loadPage(filters, page)} /> : null}
       {!loading && !error && rows.length === 0 ? (
-        <Card tone="neo-glass" padding="md">
+        <Card tone="raised" padding="md">
           <Text style={[theme.type.body, { color: theme.colors.muted }]}>{strings.admin.logEmpty}</Text>
         </Card>
       ) : null}
 
       {!loading && !error && rows.map((item) => (
-        <Card key={item.id} tone="neo-glass" padding="md">
+        <Card key={item.id} tone="raised" padding="md">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${strings.admin.logEvent}: ${item.action}`}
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   statusLabel: { marginBottom: 8 },
   statusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   eventHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 6 },
-  details: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  details: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
   pagination: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -364,5 +364,5 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 4,
   },
-  pageText: { textAlign: 'center', paddingVertical: 8 },
+  pageText: { textAlign: 'center', paddingVertical: 8, fontVariant: ['tabular-nums'] },
 });

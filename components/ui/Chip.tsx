@@ -56,6 +56,7 @@ export const Chip: React.FC<ChipProps> = ({
     <Pressable
       onPress={onPress}
       disabled={disabled || (!onPress && !onRemove)}
+      hitSlop={onPress ? (size === 'sm' ? { top: 8, bottom: 8, left: 6, right: 6 } : { top: 4, bottom: 4, left: 4, right: 4 }) : undefined}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       style={(state: any) => [
@@ -70,7 +71,6 @@ export const Chip: React.FC<ChipProps> = ({
             : c.surface,
           borderColor: selected || state.hovered ? activeColor : c.border,
           opacity: disabled ? 0.5 : state.pressed ? 0.92 : 1,
-          transform: [{ scale: state.pressed ? 0.97 : 1 }],
           ...({ cursor: disabled ? 'not-allowed' : onPress || onRemove ? 'pointer' : 'default' } as any),
         },
         style,
@@ -179,13 +179,12 @@ export function SegmentedControl<T extends string = string>({
                 backgroundColor: active
                   ? c.surface
                   : state.hovered
-                  ? 'rgba(255,255,255,0.5)'
+                  ? c.borderSubtle
                   : 'transparent',
                 borderColor: active ? c.border : 'transparent',
                 borderWidth: active ? 1 : 0,
                 ...({ cursor: 'pointer' } as any),
               },
-              active ? theme.shadow.card : null,
             ]}
           >
             {opt.icon ? (
@@ -242,12 +241,12 @@ const styles = StyleSheet.create({
   },
   chipSm: {
     minHeight: 32,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   chipMd: {
-    minHeight: 38,
-    paddingHorizontal: 14,
+    minHeight: 40,
+    paddingHorizontal: 16,
     paddingVertical: 8,
   },
   label: { fontWeight: '700' },
@@ -261,12 +260,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   removeBtn: {
-    marginLeft: 2,
+    marginLeft: 4,
   },
   segTrack: {
     flexDirection: 'row',
     padding: 4,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     gap: 4,
   },
@@ -275,11 +274,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    minHeight: 38,
+    gap: 8,
+    minHeight: 40,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
   segLabel: {
     fontSize: 13,

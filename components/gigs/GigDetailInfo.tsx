@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryBadge: {
-    fontSize: 11.5,
+    fontSize: 12, lineHeight: 16,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -144,6 +144,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 14,
+    fontVariant: ['tabular-nums'],
   },
   gridMeta: {
     gap: 10,

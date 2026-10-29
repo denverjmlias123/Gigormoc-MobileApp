@@ -20,8 +20,6 @@ export default function AuthLayout() {
       <View style={styles.splitRoot}>
         {/* Left Brand Showcase Panel for Desktop/Tablet Web */}
         <View style={styles.brandPanel}>
-          <View style={styles.brandOrbTop} />
-          <View style={styles.brandOrbBottom} />
           <View style={styles.brandTop}>
             <View style={styles.brandLogoRow}>
               <Image source={require('../../assets/logo.png')} style={styles.brandLogo} />
@@ -112,33 +110,15 @@ const styles = StyleSheet.create({
   },
   brandPanel: {
     width: '44%',
-    maxWidth: 540,
+    maxWidth: 460,
     minWidth: 380,
     backgroundColor: '#070B26',
     padding: 40,
     justifyContent: 'space-between',
     overflow: 'hidden',
     position: 'relative',
-  },
-  brandOrbTop: {
-    position: 'absolute',
-    width: 360,
-    height: 360,
-    borderRadius: 999,
-    backgroundColor: '#2563EB',
-    opacity: 0.25,
-    top: -100,
-    left: -80,
-  },
-  brandOrbBottom: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 999,
-    backgroundColor: '#7C5CFF',
-    opacity: 0.2,
-    bottom: -90,
-    right: -60,
+    borderRightWidth: 1,
+    borderRightColor: '#1E293B',
   },
   brandTop: {
     gap: 16,
@@ -220,7 +200,7 @@ const styles = StyleSheet.create({
   },
   roleFeatureDesc: {
     color: '#B8C4E6',
-    fontSize: 12.5,
+    fontSize: 13,
     lineHeight: 18,
   },
   brandFooter: {
@@ -231,12 +211,13 @@ const styles = StyleSheet.create({
   trustItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   trustText: {
     color: '#CBD5E1',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
+    lineHeight: 18,
   },
   formPanel: {
     flex: 1,

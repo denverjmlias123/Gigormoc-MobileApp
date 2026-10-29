@@ -92,15 +92,15 @@ export const FreelancerCard: React.FC<FreelancerCardProps> = React.memo(function
         styles.card,
         compact ? styles.compactCard : styles.fullCard,
         {
-          backgroundColor: theme.glass.surface,
-          borderColor: state.hovered ? theme.colors.primary : theme.glass.border,
+          backgroundColor: theme.colors.surface,
+          borderColor: state.hovered ? theme.colors.primary : theme.colors.border,
           borderWidth: 1,
           borderRadius: theme.radii.card,
           opacity: state.pressed ? 0.92 : 1,
           transform: [{ scale: state.pressed ? 0.985 : 1 }],
           ...({ cursor: 'pointer' } as any),
         },
-        theme.shadow.neoGlass,
+        theme.shadow.raised,
         style,
       ]}
       onPress={onPress}
@@ -340,6 +340,7 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 11,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   skillsRow: {
     flexDirection: 'row',

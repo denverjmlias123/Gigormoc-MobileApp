@@ -31,7 +31,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <Card
-      tone="neo-glass"
+      tone="outline"
       padding="lg"
       style={[
         styles.container,
@@ -87,6 +87,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 18,
-    maxWidth: 420,
+    maxWidth: 460,
   },
 });

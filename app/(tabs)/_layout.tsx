@@ -138,7 +138,7 @@ export default function TabLayout() {
               style={[
                 styles.roleBadgeCard,
                 {
-                  backgroundColor: theme.colors.primarySoft,
+                  backgroundColor: theme.colors.surfaceAlt,
                   borderColor: theme.colors.border,
                 },
               ]}
@@ -147,11 +147,11 @@ export default function TabLayout() {
             >
               <View style={[styles.roleDot, { backgroundColor: theme.colors.roleAccent }]} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.roleBadgeLabel, { color: theme.colors.primaryDark }]}>
-                  {theme.isClient ? '🤝 Client Mode (Hiring)' : '💼 Freelancer Mode'}
+                <Text style={[styles.roleBadgeLabel, { color: theme.colors.text }]}>
+                  {theme.isClient ? 'Client Mode (Hiring)' : 'Freelancer Mode'}
                 </Text>
                 <Text style={[styles.roleBadgeSub, { color: theme.colors.muted }]}>
-                  Tap to view role settings ›
+                  Switch mode ›
                 </Text>
               </View>
             </Pressable>
@@ -212,7 +212,7 @@ export default function TabLayout() {
                         styles.navItemLabel,
                         {
                           color: active ? theme.colors.primary : theme.colors.text,
-                          fontWeight: active ? '800' : '600',
+                          fontWeight: active ? '700' : '500',
                         },
                       ]}
                     >
@@ -232,17 +232,37 @@ export default function TabLayout() {
               {/* Persistent Notifications Link on Desktop Web */}
               <Pressable
                 onPress={() => router.push('/notifications')}
-                style={(state: any) => [
-                  styles.navItem,
-                  {
-                    backgroundColor: state.hovered ? theme.colors.surfaceAlt : 'transparent',
-                    ...({ cursor: 'pointer' } as any),
-                  },
-                ]}
+                style={(state: any) => {
+                  const active = pathname.includes('/notifications');
+                  return [
+                    styles.navItem,
+                    {
+                      backgroundColor: active
+                        ? theme.colors.primarySoft
+                        : state.hovered
+                        ? theme.colors.surfaceAlt
+                        : 'transparent',
+                      ...({ cursor: 'pointer' } as any),
+                    },
+                  ];
+                }}
                 accessibilityRole="button"
+                accessibilityState={{ selected: pathname.includes('/notifications') }}
               >
-                <Ionicons name="notifications-outline" size={20} color={theme.colors.muted} />
-                <Text style={[styles.navItemLabel, { color: theme.colors.text, fontWeight: '600' }]}>
+                <Ionicons
+                  name={pathname.includes('/notifications') ? 'notifications' : 'notifications-outline'}
+                  size={20}
+                  color={pathname.includes('/notifications') ? theme.colors.primary : theme.colors.muted}
+                />
+                <Text
+                  style={[
+                    styles.navItemLabel,
+                    {
+                      color: pathname.includes('/notifications') ? theme.colors.primary : theme.colors.text,
+                      fontWeight: pathname.includes('/notifications') ? '700' : '500',
+                    },
+                  ]}
+                >
                   Notifications
                 </Text>
                 {unreadNotifications > 0 ? (
@@ -304,18 +324,10 @@ export default function TabLayout() {
               : {
                   backgroundColor: theme.colors.surface,
                   borderTopColor: theme.colors.border,
-                  borderTopWidth: StyleSheet.hairlineWidth,
-                  height: Platform.OS === 'ios' ? 88 : 66,
+                  borderTopWidth: 1,
+                  height: Platform.OS === 'ios' ? 84 : 64,
                   paddingTop: 6,
-                  paddingBottom: Platform.OS === 'ios' ? 26 : 8,
-                  elevation: 8,
-                  shadowColor: '#0C1233',
-                  shadowOffset: { width: 0, height: -3 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 10,
-                  ...(Platform.OS === 'web'
-                    ? ({ boxShadow: '0 -8px 24px rgba(12, 18, 51, 0.05)' } as any)
-                    : null),
+                  paddingBottom: Platform.OS === 'ios' ? 24 : 8,
                 },
           }}
         >
@@ -388,8 +400,8 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 6,
+    gap: 12,
+    paddingHorizontal: 8,
   },
   brandLogo: {
     width: 38,
@@ -402,15 +414,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   brandCity: {
-    fontSize: 11.5,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '600',
   },
   roleBadgeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     padding: 12,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
   },
   roleDot: {
@@ -419,7 +432,8 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   roleBadgeLabel: {
-    fontSize: 12.5,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '800',
   },
   roleBadgeSub: {
@@ -432,12 +446,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
   },
   primarySidebarCtaText: {
     color: '#FFFFFF',
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '800',
   },
   navList: {
@@ -471,17 +486,19 @@ const styles = StyleSheet.create({
   sidebarUserFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingTop: 14,
-    paddingHorizontal: 6,
+    gap: 12,
+    paddingTop: 16,
+    paddingHorizontal: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerUserName: {
-    fontSize: 13.5,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
   footerUserSub: {
-    fontSize: 11.5,
+    fontSize: 12,
+    lineHeight: 16,
   },
   mainContent: {
     flex: 1,

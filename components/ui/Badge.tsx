@@ -84,10 +84,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     alignSelf: 'flex-start',
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  label: { fontSize: 12, fontWeight: '700' },
+  label: { fontSize: 12, fontWeight: '600' },
 });

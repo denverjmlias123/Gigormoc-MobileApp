@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, registerSessionExpiredHandler } from '../lib/supabase';
 import { performSharedCleanup } from '../lib/sessionCleanup';
@@ -82,6 +83,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAuthNotice(strings.errors.loggedOutNotice);
         }
         hadActiveSessionRef.current = false;
+
+        // Broadcast cross-tab logout to close all other open tabs immediately (IAS Requirement E)
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('gigormoc:cross_tab_logout', String(Date.now()));
+            if (typeof BroadcastChannel !== 'undefined') {
+              const bc = new BroadcastChannel('gigormoc_auth_channel');
+              bc.postMessage('LOGOUT');
+              bc.close();
+            }
+          } catch {}
+        }
       } finally {
         signOutInFlightRef.current = null;
       }
@@ -246,10 +259,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    // Cross-tab logout listener on Web (IAS Requirement E: Logging out in one tab logs out all open tabs)
+    let bc: any = null;
+    let onStorage: ((e: StorageEvent) => void) | null = null;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      onStorage = (e: StorageEvent) => {
+        if (!mounted) return;
+        if (e.key === 'gigormoc:cross_tab_logout' || (e.key && e.key.includes('auth-token') && !e.newValue)) {
+          void clearAuth({ reason: 'user' });
+        }
+      };
+      window.addEventListener('storage', onStorage);
+
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          bc = new BroadcastChannel('gigormoc_auth_channel');
+          bc.onmessage = (msg: MessageEvent) => {
+            if (!mounted) return;
+            if (msg.data === 'LOGOUT') {
+              void clearAuth({ reason: 'user' });
+            }
+          };
+        } catch {}
+      }
+    }
+
     return () => {
       mounted = false;
       registerSessionExpiredHandler(null);
       subscription.unsubscribe();
+      if (onStorage && typeof window !== 'undefined') {
+        window.removeEventListener('storage', onStorage);
+      }
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
     };
   }, []);
 

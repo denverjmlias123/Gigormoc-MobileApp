@@ -14,6 +14,7 @@ import { useNetworkStatus } from '../../components/ui/OfflineBanner';
 import { showToast } from '../../components/ui/Toast';
 import { SHOW_ACCOUNT_NOT_FOUND } from '../../constants/featureFlags';
 import { formatLockoutCountdown, resolveLoginFailure } from '../../utils/loginFailure';
+import { CaptchaChallenge } from '../../components/ui/CaptchaChallenge';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -35,6 +36,8 @@ export default function LoginScreen() {
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [lockoutSeconds, setLockoutSeconds] = useState<number | null>(null);
   const [lockoutAttemptsLeft, setLockoutAttemptsLeft] = useState<number | null>(null);
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaSolved, setCaptchaSolved] = useState(false);
   const inFlightRef = useRef(false);
 
   useEffect(() => {
@@ -61,18 +64,25 @@ export default function LoginScreen() {
     if (loading || inFlightRef.current) return;
     resetFormFeedback();
 
-    const normalizedEmail = authService.normalizeEmail(email);
-    const emailCheck = authService.validateEmailInput(normalizedEmail);
+    let normalizedEmail = authService.normalizeEmail(email);
     if (!normalizedEmail) {
       setEmailFieldError(strings.auth.loginEmailRequired);
       return;
     }
+    if (!normalizedEmail.includes('@')) {
+      normalizedEmail = await authService.resolveIdentifier(normalizedEmail);
+    }
+    const emailCheck = authService.validateEmailInput(normalizedEmail);
     if (!emailCheck.valid) {
       setEmailFieldError(emailCheck.message || strings.auth.invalidEmailFormat);
       return;
     }
     if (!password) {
       setPasswordFieldError(strings.auth.loginPasswordRequired);
+      return;
+    }
+    if (captchaRequired && !captchaSolved) {
+      setError('Please complete the security check (CAPTCHA) before logging in.');
       return;
     }
 
@@ -115,6 +125,8 @@ export default function LoginScreen() {
         if (loginFailure.kind === 'locked') {
           setLockoutSeconds(loginFailure.secondsLeft ?? 0);
           setLockoutAttemptsLeft(loginFailure.attemptsLeft ?? null);
+          setCaptchaRequired(true);
+          setCaptchaSolved(false);
         }
         setError(loginFailure.message);
         return;
@@ -172,7 +184,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Card
-          tone={isWide ? 'neo-glass' : 'raised'}
+          tone="raised"
           padding="lg"
           style={[styles.formCard, isWide && styles.formCardWide]}
         >
@@ -281,9 +293,9 @@ export default function LoginScreen() {
             placeholder={strings.auth.loginEmailPlaceholder}
             keyboardType="email-address"
             autoCapitalize="none"
-            autoComplete="email"
+            autoComplete="username"
             returnKeyType="next"
-            leftIcon="mail-outline"
+            leftIcon="person-outline"
             onEndEditing={() => {
               const normalizedEmail = authService.normalizeEmail(email);
               void authService.getLoginGuardState(normalizedEmail).then((guard) => {
@@ -321,13 +333,19 @@ export default function LoginScreen() {
             <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '700' }}>{strings.auth.forgotPassword}</Text>
           </Pressable>
 
+          <CaptchaChallenge
+            required={captchaRequired}
+            isSolved={captchaSolved}
+            onSolved={setCaptchaSolved}
+          />
+
           <Button
             title={lockoutSeconds !== null && lockoutSeconds > 0
               ? `${strings.auth.loginButton} (${formatLockoutCountdown(lockoutSeconds)})`
               : isOffline ? strings.auth.loginOffline : strings.auth.loginButton}
             onPress={handleLogin}
             loading={loading}
-            disabled={loading || isOffline || (lockoutSeconds !== null && lockoutSeconds > 0)}
+            disabled={loading || isOffline || (lockoutSeconds !== null && lockoutSeconds > 0) || (captchaRequired && !captchaSolved)}
             icon="log-in-outline"
             fullWidth
           />
@@ -347,24 +365,24 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, justifyContent: 'center' },
   scrollContentWide: { justifyContent: 'center', alignItems: 'center' },
-  formCard: { width: '100%', maxWidth: 440, alignSelf: 'center', borderRadius: 20 },
+  formCard: { width: '100%', maxWidth: 460, alignSelf: 'center', borderRadius: 16 },
   formCardWide: { padding: 36 },
   backRow: { marginBottom: 20, alignSelf: 'flex-start' },
   subtitle: { marginTop: 6, marginBottom: 24, fontSize: 15, lineHeight: 22 },
   errorBox: {
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
     marginBottom: 20,
     borderWidth: 1,
-    gap: 6,
+    gap: 8,
   },
   errorHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  errorText: { fontSize: 13.5, flex: 1, fontWeight: '600', lineHeight: 19 },
-  errorSubText: { fontSize: 12.5, fontWeight: '500', marginLeft: 26 },
+  errorText: { fontSize: 14, flex: 1, fontWeight: '600', lineHeight: 20, fontVariant: ['tabular-nums'] },
+  errorSubText: { fontSize: 13, fontWeight: '500', marginLeft: 26, lineHeight: 18 },
   forgotPassword: { alignSelf: 'flex-end', marginTop: 4, marginBottom: 20, paddingVertical: 4 },
   linkButton: { alignItems: 'center', marginTop: 20, paddingVertical: 10 },
 });

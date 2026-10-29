@@ -182,7 +182,7 @@ export default function AdminVerificationScreen() {
             const isRejected = item.verification_status === 'rejected';
 
             return (
-              <Card key={item.id} tone="neo-glass" padding="md" style={styles.itemCard}>
+              <Card key={item.id} tone="raised" padding="md" style={styles.itemCard}>
                 {/* User Header */}
                 <View style={styles.itemHeader}>
                   <View style={styles.userInfoCol}>
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   containerWide: {
-    maxWidth: 1000,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -402,6 +402,7 @@ const styles = StyleSheet.create({
   aiScoreText: {
     fontSize: 12,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   aiSummaryText: {
     fontSize: 13,

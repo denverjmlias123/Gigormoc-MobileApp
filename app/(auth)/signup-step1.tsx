@@ -141,7 +141,7 @@ export default function SignUpStep1Screen() {
         keyboardShouldPersistTaps="handled"
       >
         <Card
-          tone={isWide ? 'neo-glass' : 'raised'}
+          tone="raised"
           padding="lg"
           style={[styles.formCard, isWide && styles.formCardWide]}
         >
@@ -286,6 +286,7 @@ export default function SignUpStep1Screen() {
 
           <TouchableOpacity
             style={styles.checkboxContainer}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={() => {
               setTermsAccepted(!termsAccepted);
               if (termsError) setTermsError(null);
@@ -359,7 +360,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 460,
     alignSelf: 'center',
   },
   formCardWide: {

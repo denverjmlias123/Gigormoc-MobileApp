@@ -1,6 +1,18 @@
 import { supabase } from '../lib/supabase';
 import { offlineSyncService } from './offlineSync';
 
+export interface BackupRecord {
+  id: string;
+  created_at: string;
+  creator_email: string;
+  backup_type: 'scheduled' | 'manual';
+  status: 'completed' | 'failed' | 'restored';
+  tables_included: string[];
+  record_count: number;
+  checksum: string;
+  restored_at: string | null;
+}
+
 export interface AdminUser {
   id: string;
   email: string;
@@ -127,6 +139,36 @@ export const adminService = {
 
   async unlockLogin(email: string) {
     const { data, error } = await supabase.rpc('admin_unlock_login', { p_email: email });
+    if (error) throw error;
+    return data;
+  },
+
+  async lockLogin(email: string) {
+    const { data, error } = await supabase.rpc('admin_lock_login', { p_email: email });
+    if (error) throw error;
+    return data;
+  },
+
+  async listBackups(): Promise<BackupRecord[]> {
+    const { data, error } = await supabase.rpc('admin_list_backups');
+    if (error) throw error;
+    return Array.isArray(data) ? (data as BackupRecord[]) : [];
+  },
+
+  async createBackup(type: 'scheduled' | 'manual' = 'manual'): Promise<{ id: string; record_count: number; created_at: string }> {
+    const { data, error } = await supabase.rpc('admin_create_backup', { p_type: type });
+    if (error) throw error;
+    return data;
+  },
+
+  async getBackupSnapshot(backupId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await supabase.rpc('admin_get_backup_snapshot', { p_backup_id: backupId });
+    if (error) throw error;
+    return data;
+  },
+
+  async restoreBackup(backupId: string): Promise<{ restored: boolean; record_count: number }> {
+    const { data, error } = await supabase.rpc('admin_restore_backup', { p_backup_id: backupId });
     if (error) throw error;
     return data;
   },

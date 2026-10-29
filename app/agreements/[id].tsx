@@ -402,7 +402,7 @@ export default function AgreementDetailScreen() {
 
   const milestonesCard = (
     <Card
-      tone="neo-glass"
+      tone="raised"
       padding="md"
       headerTitle="Milestones"
       headerSubtitle={
@@ -652,7 +652,7 @@ export default function AgreementDetailScreen() {
         subtitle={agreement.gig?.title || 'Project Contract'}
         onBack={safeNavigateBack}
         rightAction={<Badge status={agreement.status} />}
-        maxWidth={1160}
+        maxWidth={1120}
       />
 
       <ScrollView
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   },
   workspaceContainer: {
     width: '100%',
-    maxWidth: 1160,
+    maxWidth: 1120,
     alignSelf: 'center',
     gap: 16,
   },
@@ -763,6 +763,7 @@ const styles = StyleSheet.create({
   milestoneAmount: {
     fontSize: 15,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   milestoneRevisions: {
     fontSize: 12,

@@ -163,7 +163,7 @@ export default function ReportPaymentScreen() {
           {/* Milestone Allocation (Optional) */}
           {milestones.length > 0 && (
             <Card
-              tone="neo-glass"
+              tone="raised"
               padding="md"
               headerTitle="Apply to Milestone (Optional)"
               headerSubtitle="Link this payment to a specific project milestone"
@@ -202,7 +202,7 @@ export default function ReportPaymentScreen() {
 
           {/* Method Picker */}
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="md"
             headerTitle="Payment Channel *"
             headerSubtitle="Select how funds were sent"
@@ -222,7 +222,7 @@ export default function ReportPaymentScreen() {
 
           {/* Amount & Reference Number */}
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="md"
             headerTitle="Payment Details"
             headerSubtitle="Enter the amount sent in PHP and transaction reference"
@@ -250,7 +250,7 @@ export default function ReportPaymentScreen() {
 
           {/* Receipt / Proof Upload & Link */}
           <Card
-            tone="neo-glass"
+            tone="raised"
             padding="md"
             headerTitle="Receipt Screenshot / Proof (Optional)"
             headerSubtitle="Attach a transfer screenshot or external receipt link"
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   scrollContent: {

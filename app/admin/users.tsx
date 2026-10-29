@@ -143,7 +143,7 @@ export default function AdminUsers() {
 
             return (
               <Card
-                tone="neo-glass"
+                tone="raised"
                 padding="md"
                 onPress={() =>
                   router.push({ pathname: '/admin/users/[id]', params: { id: item.id } })
@@ -215,7 +215,7 @@ export default function AdminUsers() {
             disabled={page <= 1 || loading}
             onPress={() => load(page - 1)}
           />
-          <Text style={[theme.type.small, { color: theme.colors.muted }]}>
+          <Text style={[theme.type.small, { color: theme.colors.muted, fontVariant: ['tabular-nums'] }]}>
             {page} / {Math.max(1, Math.ceil(total / 25))} · {total}
           </Text>
           <Button
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 18 },
   innerWrap: {
     flex: 1,
-    maxWidth: 1160,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
     gap: 10,

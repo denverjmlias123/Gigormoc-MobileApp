@@ -451,6 +451,7 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: 12,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   chipsWrap: {
     flexDirection: 'row',

@@ -53,6 +53,7 @@ export default function AdminLayout() {
     { label: strings.admin.dashboard, href: '/admin/dashboard', icon: 'speedometer-outline' as const, match: 'dashboard' },
     { label: strings.admin.users, href: '/admin/users', icon: 'people-outline' as const, match: 'users' },
     { label: 'AI Legit Queue', href: '/admin/verification', icon: 'shield-checkmark-outline' as const, match: 'verification' },
+    { label: 'Backups', href: '/admin/backup', icon: 'archive-outline' as const, match: 'backup' },
     { label: strings.admin.logTrail, href: '/admin/log-trail', icon: 'list-outline' as const, match: 'log-trail' },
   ];
 
@@ -137,6 +138,7 @@ export default function AdminLayout() {
             <Pressable
               onPress={() => router.push('/(tabs)/profile')}
               style={styles.mobileExitPill}
+              hitSlop={6}
               accessibilityRole="button"
             >
               <Ionicons name="exit-outline" size={14} color="#FFFFFF" />
@@ -151,6 +153,7 @@ export default function AdminLayout() {
                   key={link.href}
                   onPress={() => router.push(link.href as any)}
                   style={[styles.mobileNavPill, active && styles.mobileNavPillActive]}
+                  hitSlop={6}
                   accessibilityRole="button"
                 >
                   <Ionicons name={link.icon} size={14} color={active ? '#0B1445' : '#CBD5E1'} />
@@ -198,11 +201,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sidebarTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  sidebarSub: { color: '#94A3B8', fontSize: 11.5, fontWeight: '600' },
+  sidebarSub: { color: '#94A3B8', fontSize: 12, lineHeight: 16, fontWeight: '600' },
   sideNavBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingVertical: 11,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -221,11 +224,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  exitBtnText: { color: '#E2E8F0', fontSize: 13.5, fontWeight: '700' },
+  exitBtnText: { color: '#E2E8F0', fontSize: 14, lineHeight: 18, fontWeight: '700' },
   mobileTopBar: {
     paddingHorizontal: 16,
     paddingBottom: 12,
-    gap: 10,
+    gap: 12,
     borderBottomWidth: 1,
   },
   mobileHeaderRow: {

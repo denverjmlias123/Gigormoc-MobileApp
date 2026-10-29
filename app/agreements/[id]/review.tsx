@@ -21,7 +21,7 @@ import { mapSqlErrorToFriendlyMessage, strings } from '../../../constants/string
 export default function SubmitReviewScreen() {
   const router = useRouter();
   const theme = useAppTheme();
-  const { insets } = useResponsiveLayout();
+  const { isWide, insets } = useResponsiveLayout();
   const { id, targetName, targetRole } = useLocalSearchParams<{
     id: string;
     targetName: string;
@@ -92,19 +92,19 @@ export default function SubmitReviewScreen() {
         title="Leave a Review"
         subtitle={`Share your experience working with ${targetName || 'Participant'}`}
         onBack={safeNavigateBack}
-        maxWidth={600}
+        maxWidth={680}
       />
 
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom + 32, 40) },
+          { paddingBottom: !isWide ? Math.max(insets.bottom + 80, 96) : Math.max(insets.bottom + 32, 40) },
         ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.centeredBlock, { gap: 16 }]}>
           {/* Reviewee Header */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Avatar name={targetName || 'Participant'} size={44} />
               <View style={{ flex: 1 }}>
@@ -129,7 +129,7 @@ export default function SubmitReviewScreen() {
           {error && <AlertBox tone="danger" message={error} />}
 
           {/* Star Rating Selector */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <Text style={[styles.label, { color: theme.colors.text }]}>Rating *</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -159,7 +159,7 @@ export default function SubmitReviewScreen() {
           </Card>
 
           {/* Review Comment */}
-          <Card tone="neo-glass" padding="md" style={styles.cardGap}>
+          <Card tone="raised" padding="md" style={styles.cardGap}>
             <TextInput
               label="Feedback Comment *"
               placeholder="Share details of your experience: communication, quality of work, punctuality, and professionalism..."
@@ -173,19 +173,45 @@ export default function SubmitReviewScreen() {
             />
           </Card>
 
-          {/* Submit */}
-          <View style={styles.submitContainer}>
-            <Button
-              title={submitting ? 'Submitting Review...' : 'Publish Review'}
-              variant="primary"
-              icon="star-outline"
-              onPress={handleSubmit}
-              disabled={comment.trim().length < 10 || submitting}
-              loading={submitting}
-            />
-          </View>
+          {/* Submit on Desktop */}
+          {isWide && (
+            <View style={styles.submitContainer}>
+              <Button
+                title={submitting ? 'Submitting Review...' : 'Publish Review'}
+                variant="primary"
+                icon="star-outline"
+                onPress={handleSubmit}
+                disabled={comment.trim().length < 10 || submitting}
+                loading={submitting}
+              />
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      {/* Sticky Bottom Dock on Mobile */}
+      {!isWide && (
+        <View
+          style={[
+            styles.stickyDock,
+            {
+              backgroundColor: theme.colors.surface,
+              borderTopColor: theme.colors.border,
+              paddingBottom: Math.max(insets.bottom, 12),
+            },
+          ]}
+        >
+          <Button
+            title={submitting ? 'Submitting Review...' : 'Publish Review'}
+            variant="primary"
+            icon="star-outline"
+            onPress={handleSubmit}
+            disabled={comment.trim().length < 10 || submitting}
+            loading={submitting}
+            fullWidth
+          />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -196,11 +222,17 @@ const styles = StyleSheet.create({
   },
   centeredBlock: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 680,
     alignSelf: 'center',
   },
   scrollContent: {
     padding: 16,
+  },
+  stickyDock: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    width: '100%',
   },
   cardGap: {
     gap: 8,
@@ -224,7 +256,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   starTouch: {
-    padding: 4,
+    padding: 6,
   },
   starIcon: {
     fontSize: 34,

@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/auth';
+import { sessionService } from '../../services/sessions';
 import { toAppError } from '../../lib/errors';
 import { strings } from '../../constants/strings';
 import { Button } from '../../components/ui/Button';
@@ -131,6 +132,17 @@ export default function ForgotPasswordScreen() {
         email: normalizedEmail,
         displayName: profile?.display_name ?? '',
       });
+
+      // IAS 1 Requirement C: After password reset, log out other active sessions
+      try {
+        const curSessionId = await sessionService.getCurrentSessionId();
+        if (curSessionId) {
+          await sessionService.endOtherSessions(curSessionId);
+        }
+      } catch {
+        // Non-blocking best-effort remote revocation
+      }
+
       showToast(strings.toasts.passwordUpdated, 'success');
       router.replace(profile?.onboarding_complete ? '/(tabs)' : '/(auth)/login');
     } catch (err: any) {
@@ -211,7 +223,7 @@ export default function ForgotPasswordScreen() {
           {error && !emailError && step === 'email' ? (
             <View
               accessibilityRole="alert"
-              style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderLeftColor: theme.colors.danger }]}
+              style={[styles.message, { backgroundColor: theme.colors.dangerSoft, borderColor: theme.colors.danger }]}
             >
               <Text style={[theme.type.body, { color: theme.colors.dangerText }]}>{error}</Text>
             </View>
@@ -221,7 +233,7 @@ export default function ForgotPasswordScreen() {
             <View style={styles.otpSection}>
               <View
                 accessibilityRole="summary"
-                style={[styles.message, { backgroundColor: theme.colors.successSoft, borderLeftColor: theme.colors.success }]}
+                style={[styles.message, { backgroundColor: theme.colors.successSoft, borderColor: theme.colors.success }]}
               >
                 <Text style={[theme.type.body, styles.messageTitle, { color: theme.colors.successText }]}>
                   {strings.auth.passwordResetSentTitle}
@@ -387,7 +399,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 24 },
   contentWide: { justifyContent: 'center', alignItems: 'center' },
-  formCard: { width: '100%', maxWidth: 480, alignSelf: 'center' },
+  formCard: { width: '100%', maxWidth: 460, alignSelf: 'center' },
   formCardWide: { padding: 36, borderWidth: 1 },
   progressTrack: {
     height: 4,
@@ -400,10 +412,10 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   subtitle: { marginTop: 8, marginBottom: 24 },
-  message: { borderLeftWidth: 4, borderRadius: 12, padding: 14, marginBottom: 16, gap: 6 },
+  message: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 16, gap: 8 },
   messageTitle: { fontWeight: '700' },
   devHelperCard: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
@@ -420,6 +432,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 4,
     marginVertical: 4,
+    fontVariant: ['tabular-nums'],
   },
   devHelperBtn: {
     width: '100%',

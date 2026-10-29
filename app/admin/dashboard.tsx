@@ -105,7 +105,7 @@ export default function AdminDashboard() {
       />
       {(data?.latest_activity || []).length ? (
         data?.latest_activity?.map((row: any) => (
-          <Card key={row.id} tone="neo-glass" padding="md">
+          <Card key={row.id} tone="raised" padding="md">
             <Text style={[theme.type.bodyStrong, { color: theme.colors.text }]}>{row.action}</Text>
             <Text style={[theme.type.small, { color: theme.colors.muted }]}>
               {row.actor_email || strings.admin.noActivity} · {new Date(row.created_at).toLocaleString()}

@@ -8,7 +8,6 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAppTheme, useResponsiveLayout } from '../theme';
 import { useAuth } from '../../hooks/useAuth';
@@ -187,13 +186,13 @@ export default function ProfileScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <LinearGradient
-            colors={theme.gradients.hero}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <View
             style={[
               styles.hero,
-              { paddingTop: isWide ? 32 : topSpace + 8 },
+              {
+                backgroundColor: theme.colors.heroBg,
+                paddingTop: isWide ? 32 : topSpace + 8,
+              },
               isWide && styles.heroWide,
             ]}
           >
@@ -244,7 +243,7 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
             </View>
-          </LinearGradient>
+          </View>
 
           <View style={[styles.body, isWide && { paddingHorizontal: 0 }]}>
             {photoError ? (
@@ -252,7 +251,7 @@ export default function ProfileScreen() {
             ) : null}
 
             {showPhotoMenu ? (
-              <Card tone="neo-glass" padding="md" style={styles.photoMenuCard}>
+              <Card tone="raised" padding="md" style={styles.photoMenuCard}>
                 <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 10 }]}>
                   {strings.profile.photoSectionTitle}
                 </Text>
@@ -295,7 +294,7 @@ export default function ProfileScreen() {
               {/* Left Column on Desktop: Role Switcher + Completeness + Stats */}
               <View style={isDesktop ? styles.desktopLeftCol : undefined}>
                 {/* Account Legitimacy Review Card */}
-                <Card tone="neo-glass" padding="md" style={{ marginBottom: 12 }}>
+                <Card tone="raised" padding="md" style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                       <Ionicons
@@ -417,7 +416,7 @@ export default function ProfileScreen() {
                 </Text>
 
                 {profile?.bio ? (
-                  <Card tone="neo-glass" padding="md" style={{ marginBottom: 14 }}>
+                  <Card tone="raised" padding="md" style={{ marginBottom: 14 }}>
                     <Text style={[theme.type.bodyStrong, { color: theme.colors.text, marginBottom: 4 }]}>About</Text>
                     <Text style={[theme.type.body, { color: theme.colors.muted }]}>{profile.bio}</Text>
                   </Card>
@@ -426,7 +425,7 @@ export default function ProfileScreen() {
 
               {/* Right Column on Desktop: Settings Menu & Logout */}
               <View style={isDesktop ? styles.desktopRightCol : undefined}>
-                <Card tone="neo-glass" padding="none" style={styles.menuCard}>
+                <Card tone="raised" padding="none" style={styles.menuCard}>
                   <ListRow
                     icon="create-outline"
                     title="Edit profile"
@@ -461,6 +460,12 @@ export default function ProfileScreen() {
                     title={strings.auth.securitySettings}
                     subtitle={strings.auth.changePassword}
                     onPress={() => router.push('/settings/password')}
+                  />
+                  <ListRow
+                    icon="mail-outline"
+                    title="Account Email"
+                    subtitle="Change email address"
+                    onPress={() => router.push('/settings/email')}
                     last={!isAdmin}
                   />
                   {isAdmin ? <ListRow icon="shield-checkmark-outline" title={strings.admin.dashboard} onPress={() => router.push('/admin/dashboard')} last /> : null}
@@ -493,8 +498,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: {
-    paddingBottom: 60,
-    maxWidth: 1040,
+    paddingBottom: 64,
+    maxWidth: 1120,
     width: '100%',
     alignSelf: 'center',
   },
@@ -517,11 +522,11 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
   },
-  heroMeta: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' },
+  heroMeta: { flexDirection: 'row', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -569,7 +574,7 @@ const styles = StyleSheet.create({
   roleSwitcherActionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,

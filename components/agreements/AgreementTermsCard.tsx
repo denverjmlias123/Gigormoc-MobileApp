@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 17,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   value: {
     fontSize: 14,
